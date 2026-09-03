@@ -22,30 +22,15 @@ Your agent calls HubSpot to create a contact. The request succeeds, but the resp
 
 AgentRaaS is a proxy that guarantees **exactly-once execution** of agent actions — proven under real concurrent load with an automated test suite (`npm test`).
 
-<svg width="100%" viewBox="0 0 680 220" xmlns="http://www.w3.org/2000/svg" role="img">
-<title>How AgentRaaS sits between your agent and the real API</title>
-<desc>Agent sends a request to AgentRaaS, which deduplicates, validates, circuit-breaks, rate-limits, and audit-logs it before forwarding to the real API.</desc>
-<rect width="680" height="220" fill="#0A0D14"/>
-<rect x="40" y="60" width="140" height="100" rx="10" fill="#0F1420" stroke="#232A3A" stroke-width="1"/>
-<text x="110" y="95" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="600" fill="#F5F6F9">Agent</text>
-<text x="110" y="118" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#8B93A6">(n8n, Python,</text>
-<text x="110" y="134" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#8B93A6">MCP)</text>
-<line x1="182" y1="110" x2="246" y2="110" stroke="#00E0A8" stroke-width="1.5"/>
-<polygon points="246,105 254,110 246,115" fill="#00E0A8"/>
-<rect x="250" y="30" width="220" height="160" rx="10" fill="#0F1420" stroke="#00E0A8" stroke-width="1"/>
-<text x="360" y="55" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="600" fill="#F5F6F9">AgentRaaS (Proxy)</text>
-<text x="272" y="80" font-family="sans-serif" font-size="12" fill="#8B93A6">- Deduplicate</text>
-<text x="272" y="102" font-family="sans-serif" font-size="12" fill="#8B93A6">- Validate</text>
-<text x="272" y="124" font-family="sans-serif" font-size="12" fill="#8B93A6">- Circuit breaker</text>
-<text x="272" y="146" font-family="sans-serif" font-size="12" fill="#8B93A6">- Rate limit</text>
-<text x="272" y="168" font-family="sans-serif" font-size="12" fill="#8B93A6">- Audit log</text>
-<line x1="472" y1="110" x2="536" y2="110" stroke="#00E0A8" stroke-width="1.5"/>
-<polygon points="536,105 544,110 536,115" fill="#00E0A8"/>
-<rect x="540" y="60" width="100" height="100" rx="10" fill="#0F1420" stroke="#232A3A" stroke-width="1"/>
-<text x="590" y="95" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="600" fill="#F5F6F9">API</text>
-<text x="590" y="118" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">Stripe, Twilio,</text>
-<text x="590" y="134" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">HubSpot, or any</text>
-</svg>
+```mermaid
+flowchart LR
+    Agent["Agent<br/>(n8n, Python, MCP)"] -->|request| Proxy
+    subgraph Proxy["AgentRaaS (Proxy)"]
+        direction TB
+        D["Deduplicate"] --> V["Validate"] --> C["Circuit breaker"] --> R["Rate limit"] --> A["Audit log"]
+    end
+    Proxy -->|forwarded once| API["API<br/>(Stripe, Twilio, HubSpot, or any)"]
+```
 
 **How it works:**
 1. Your agent sends a request to AgentRaaS instead of the API directly
@@ -71,20 +56,18 @@ Open `http://localhost:13000/dashboard` — requires an account (register/login,
 
 ## Getting started
 
-AgentRaaS isn't distributed via a public repo clone — register for an
-account at **agentraas.io** (or wherever this deployment lives), connect
-your first agent, then download your self-host package from the
-dashboard's Account menu (this unlocks once you've connected an agent —
-a short form asking what you'll use it for is part of that flow). That
-package includes everything, including this README.
-
-Once you have it:
+**Option 1 — clone this repo (fastest):**
 
 ```bash
-unzip agentraas-self-host.zip
+git clone https://github.com/sumedhchatse/agentraas.git
 cd agentraas
 ./install.sh
 ```
+
+**Option 2 — from AgentRaaS Cloud:** register at **agentraas.io**, connect
+your first agent, then download the self-host package from the
+dashboard's Account menu (unlocks once you've connected an agent). Same
+`install.sh`, just packaged with your Cloud account already wired up.
 
 `install.sh` handles everything that used to be a manual multi-step
 process: generating `JWT_SECRET` and `CREDENTIALS_ENCRYPTION_KEY`, starting
@@ -93,9 +76,11 @@ the stack, running every migration in order, installing dependencies
 own OS, not your host's — this bit us hard during development, see below),
 handling SELinux relabeling if applicable, and a clean recreate at the end.
 
-Then open `http://localhost:13000/dashboard` — your account (the same
-email you used to download the package) is already pre-registered; use
-"Forgot password" to set a password for this instance.
+Then open `http://localhost:13000/dashboard` and register a new account
+— self-hosted instances are single-tenant, so whoever registers first is
+just the first user, no special admin bootstrap needed. (Option 2's
+account is pre-registered instead — use "Forgot password" to set a
+password for this instance.)
 
 **A real gotcha worth knowing, if you ever touch the setup manually:** on
 SELinux (Fedora/RHEL-family hosts), bind-mounted files can end up with the
@@ -169,31 +154,19 @@ To add a new *curated* integration permanently, add an entry to
 
 ## Architecture
 
-<svg width="100%" viewBox="0 0 680 260" xmlns="http://www.w3.org/2000/svg" role="img">
-<title>AgentRaaS stack architecture</title>
-<desc>API Gateway on port 13000, Redis for dedup on 16379, PostgreSQL for audit/users/credentials on 15432. Requests arrive via Webhook, SDK-style headers, or MCP, routed through the MCP Gateway.</desc>
-<rect width="680" height="260" fill="#0A0D14"/>
-<text x="40" y="24" font-family="sans-serif" font-size="13" font-weight="600" fill="#8B93A6">AGENTRAAS STACK</text>
-<rect x="40" y="40" width="150" height="90" rx="10" fill="#0F1420" stroke="#00E0A8" stroke-width="1"/>
-<text x="115" y="70" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#F5F6F9">API Gateway</text>
-<text x="115" y="92" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">:13000</text>
-<rect x="220" y="40" width="130" height="90" rx="10" fill="#0F1420" stroke="#232A3A" stroke-width="1"/>
-<text x="285" y="70" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#F5F6F9">Redis</text>
-<text x="285" y="92" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">(Dedup)</text>
-<text x="285" y="108" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">:16379</text>
-<rect x="380" y="40" width="190" height="90" rx="10" fill="#0F1420" stroke="#232A3A" stroke-width="1"/>
-<text x="475" y="70" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#F5F6F9">PostgreSQL</text>
-<text x="475" y="92" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">(Audit, users, creds)</text>
-<text x="475" y="108" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">:15432</text>
-<line x1="115" y1="132" x2="115" y2="158" stroke="#00E0A8" stroke-width="1.5"/>
-<polygon points="110,156 115,164 120,156" fill="#00E0A8"/>
-<rect x="40" y="160" width="220" height="80" rx="10" fill="#0F1420" stroke="#232A3A" stroke-width="1"/>
-<text x="150" y="192" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#F5F6F9">Webhook / SDK / MCP</text>
-<text x="150" y="214" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">Incoming agent requests</text>
-<rect x="300" y="160" width="270" height="80" rx="10" fill="#0F1420" stroke="#00E0A8" stroke-width="1"/>
-<text x="435" y="192" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="#F5F6F9">MCP Gateway</text>
-<text x="435" y="214" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#8B93A6">/v1/sdk/:service/:action, /mcp</text>
-</svg>
+```mermaid
+flowchart TB
+    subgraph Incoming["Incoming agent requests"]
+        WH["Webhook / SDK / MCP"]
+    end
+    subgraph GW["MCP Gateway"]
+        MCPR["/v1/sdk/:service/:action, /mcp"]
+    end
+    WH --> MCPR
+    MCPR --> APIGW["API Gateway<br/>:13000"]
+    APIGW --> Redis["Redis (Dedup)<br/>:16379"]
+    APIGW --> PG["PostgreSQL<br/>(Audit, users, creds)<br/>:15432"]
+```
 
 ---
 
@@ -277,12 +250,11 @@ AgentRaaS uses a custom **fair-code / source-available license** — see
 This is not an OSI-approved open-source license — it's modeled on n8n's
 Sustainable Use License.
 
-Everything in this repo (`src/core`, `src/api-gateway`, `src/sdk`) is
-MIT/Apache-2.0 — genuinely open. Enterprise features (SSO, RBAC, HMAC
-verification, DLP, distributed rate limiting, HA) live in a separate
-`ee/` module under a source-available commercial license, required for
-production use beyond a trial — see the [Pricing](#pricing) section
-above or contact **support@agentraas.io**.
+`src/core/*` (the code above the line) is MIT/Apache-2.0 — genuinely open.
+`src/ee/*` (Enterprise: SSO, RBAC, HMAC, DLP, distributed rate limiting) is
+source-available under a separate commercial license, required for
+production use beyond a trial. See [RESTRUCTURE_PLAN.md](./RESTRUCTURE_PLAN.md)
+for the full core/ee split and how pricing tiers map onto it.
 
 ---
 
