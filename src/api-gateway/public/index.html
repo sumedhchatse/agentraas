@@ -1,0 +1,1975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentRaaS — Signal</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z' fill='%2312271F' stroke='%234FBFA0' stroke-width='0.8'/%3E%3Ccircle cx='12' cy='11.5' r='2.4' fill='%234FBFA0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="/vendor/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0D111C;
+    --panel: #131928;
+    --panel-2: #182036;
+    --border: #212A3D;
+    --text: #EDEFF5;
+    --muted: #7C8AA3;
+    --faint: #4A566E;
+    --signal: #4FBFA0;
+    --signal-dim: #2B6B58;
+    --alert: #E2584A;
+    --dedup: #D9A441;
+    --info: #6C8EEF;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    font-size: 14.5px;
+  }
+  .display { font-family: 'Space Grotesk', sans-serif; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 28px 90px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* ─── Header ─── */
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 0 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand svg { flex-shrink: 0; }
+  .brand-text h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .brand-text p { font-size: 11.5px; color: var(--muted); margin: 1px 0 0; }
+  #user-info { display: none; align-items: center; gap: 14px; font-size: 12.5px; color: var(--muted); }
+  #user-info button {
+    background: none; border: 1px solid var(--border); color: var(--text);
+    padding: 6px 13px; font-size: 12.5px; font-family: inherit; border-radius: 20px; cursor: pointer;
+  }
+  #user-info button:hover { border-color: var(--faint); }
+
+  /* ─── Auth screen ─── */
+  #auth-screen { max-width: 380px; margin: 80px auto; }
+  #auth-screen h2 { font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 600; margin-bottom: 6px; }
+  #auth-screen p.sub { color: var(--muted); font-size: 13px; margin: 0 0 28px; }
+  .field { margin-bottom: 15px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .field input {
+    width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 11px 13px; font-size: 14px; font-family: inherit; border-radius: 8px;
+  }
+  .field input:focus { outline: none; border-color: var(--signal); }
+  button.primary {
+    width: 100%; background: var(--signal); color: #06231C; border: none; border-radius: 8px;
+    padding: 12px; font-size: 14px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; cursor: pointer; margin-top: 4px;
+  }
+  button.primary:hover { background: #5ED0AF; }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+  .switch-mode { margin-top: 18px; font-size: 13px; color: var(--muted); text-align: center; }
+  .switch-mode a { color: var(--signal); cursor: pointer; text-decoration: none; }
+  .switch-mode a:hover { text-decoration: underline; }
+  #auth-error, #reset-error {
+    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #F0A69C;
+    padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px; display: none;
+  }
+  #forgot-message {
+    background: rgba(79,191,160,0.12); border: 1px solid var(--signal); color: #9BE0CC;
+    padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px;
+  }
+  #forgot-screen, #reset-screen, #verify-notice-screen { max-width: 380px; margin: 80px auto; }
+  #verify-notice-dev {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; font-size: 12px; color: var(--muted); word-break: break-all; margin-bottom: 16px;
+  }
+  #verify-notice-dev a { color: var(--signal); }
+  #forgot-link-row { margin-top: 10px; }
+
+  /* ─── Dashboard ─── */
+  #dashboard { display: none; }
+
+  /* Signal strip — the signature element: an ambient live waveform */
+  .signal-strip {
+    position: relative; height: 46px; margin-bottom: 22px;
+    border-radius: 10px; overflow: hidden; background: var(--panel);
+    border: 1px solid var(--border);
+  }
+  .signal-strip svg { width: 200%; height: 100%; animation: drift 14s linear infinite; }
+  @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .signal-strip .caption {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: var(--muted); letter-spacing: 0.02em;
+    background: linear-gradient(90deg, var(--panel) 60%, transparent);
+    padding-right: 30px; display: flex; align-items: center; gap: 7px;
+  }
+  .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--signal); animation: blink 2s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* Controls row */
+  #usage-over-limit-banner {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; font-size: 13px;
+  }
+  #usage-over-limit-banner.exempt {
+    background: rgba(217,164,65,0.12); border: 1px solid var(--dedup); color: #F0CB8A;
+  }
+  #usage-over-limit-banner.cloud {
+    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #F0A69C;
+  }
+  #usage-over-limit-banner a { color: inherit; font-weight: 600; text-decoration: underline; }
+
+  #usage-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  #usage-bar-track { flex: 1; height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+  #usage-bar-fill { height: 100%; background: var(--signal); border-radius: 3px; transition: width 0.4s ease, background 0.4s ease; }
+  #usage-bar-fill.near-limit { background: var(--dedup); }
+  #usage-bar-fill.over-limit { background: var(--alert); }
+  #usage-bar-label { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+  .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+  .btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 14px; font-size: 12.5px; font-family: inherit; border-radius: 20px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--faint); }
+  .btn.filled { background: var(--signal); color: #06231C; border-color: var(--signal); font-weight: 700; }
+  .btn.filled:hover { background: #5ED0AF; }
+  .spacer { flex: 1; }
+  .ranges { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 3px; }
+  .ranges button {
+    background: none; border: none; color: var(--muted); font-family: inherit; font-size: 12px;
+    padding: 6px 13px; border-radius: 16px; cursor: pointer; transition: color 0.15s, background 0.15s;
+  }
+  .ranges button:hover:not(.active):not(:disabled) { color: var(--text); background: rgba(255,255,255,0.04); }
+  .ranges button.active { background: var(--panel-2); color: var(--text); }
+
+  /* Reading-sentence stat line, not a card grid */
+  .stat-sentence {
+    font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 500; line-height: 1.5;
+    margin-bottom: 26px; color: var(--text);
+  }
+  .stat-sentence .num { font-weight: 700; }
+  .stat-sentence .num.total { color: var(--text); }
+  .stat-sentence .num.signal { color: var(--signal); }
+  .stat-sentence .num.dedup { color: var(--dedup); }
+  .stat-sentence .num.alert { color: var(--alert); }
+  .stat-sentence .plain { color: var(--muted); font-size: 14px; font-family: 'Manrope', sans-serif; font-weight: 400; }
+
+  /* Charts */
+  .charts-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .panel h3 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 14px; text-transform: none; }
+  .panel canvas { max-height: 190px; }
+  .charts-row2 { margin-bottom: 30px; }
+  .charts-row2 canvas { max-height: 150px; }
+
+  /* Service heartbeat strip — flowing pills, not boxed cards */
+  .service-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
+  .service-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+    padding: 8px 14px 8px 10px; font-size: 12.5px;
+  }
+  .heartbeat { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); flex-shrink: 0; }
+  .heartbeat::after {
+    content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid var(--signal);
+    animation: ring 2.2s ease-out infinite;
+  }
+  .heartbeat.down { background: var(--alert); }
+  .heartbeat.down::after { border-color: var(--alert); }
+  @keyframes ring { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
+  .service-pill .name { font-weight: 600; }
+  .service-pill .count { color: var(--muted); }
+
+  /* Main grid */
+  .main-grid { display: grid; grid-template-columns: 1.8fr 1fr; gap: 16px; align-items: start; }
+
+  /* Log-feed style activity, not a boxed table */
+  .log-row {
+    display: grid; grid-template-columns: 68px 1fr auto auto; gap: 12px; align-items: center;
+    padding: 9px 4px; border-left: 2px solid var(--border); padding-left: 12px; margin-bottom: 1px;
+  }
+  .log-row.success { border-left-color: var(--signal); }
+  .log-row.deduplicated { border-left-color: var(--dedup); }
+  .log-row.blocked { border-left-color: var(--alert); }
+  .log-row.error { border-left-color: var(--alert); }
+  .log-row .time { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .log-row .desc { font-size: 13px; }
+  .log-row .desc .agent { color: var(--muted); }
+  .log-row .dur { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .log-row .status-word { font-size: 11.5px; font-weight: 600; }
+  .log-row.success .status-word { color: var(--signal); }
+  .log-row.deduplicated .status-word { color: var(--dedup); }
+  .log-row.blocked .status-word, .log-row.error .status-word { color: var(--alert); }
+
+  /* Agents roster */
+  .agent-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .agent-item:last-child { border-bottom: none; }
+  .agent-item .id { font-size: 13px; font-weight: 600; color: var(--info); }
+  .agent-item .meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+  #empty-state { color: var(--muted); font-size: 13px; padding: 20px 4px; }
+
+  /* Modals */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(6,9,16,0.72);
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 26px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto;
+  }
+  .modal h3 { font-family: 'Space Grotesk', sans-serif; margin: 0 0 6px; font-size: 17px; }
+  .modal p.sub { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; }
+  .modal select {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    padding: 11px 13px; font-size: 14px; font-family: inherit; border-radius: 8px;
+  }
+  .admin-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 4px; }
+  .admin-stat { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; }
+  .admin-stat-n { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
+  .admin-stat-l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .admin-tabs { display: flex; gap: 6px; margin: 16px 0 14px; border-bottom: 1px solid var(--border); }
+  .admin-tab {
+    background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted);
+    font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 6px; cursor: pointer;
+    margin-bottom: -1px; display: flex; align-items: center; gap: 6px; transition: color 0.15s, border-color 0.15s;
+  }
+  .admin-tab.active { color: var(--text); border-bottom-color: var(--signal); }
+  .admin-tab:hover:not(.active) { color: var(--text); }
+  .admin-tab-range {
+    font-size: 10.5px; font-weight: 600; color: var(--muted); background: var(--panel-2);
+    border-radius: 5px; padding: 2px 6px; font-family: 'Space Grotesk', sans-serif;
+  }
+  .admin-tab.active .admin-tab-range { color: var(--signal); }
+
+  .badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .badge.verified { background: rgba(79,191,160,0.14); color: var(--signal); }
+  .badge.unverified { background: rgba(226,88,74,0.14); color: var(--alert); }
+  .badge.admin-role { background: rgba(108,142,239,0.14); color: var(--info); }
+  .badge.role-developer { background: rgba(79,191,160,0.14); color: var(--signal); }
+  .badge.role-auditor { background: rgba(180,180,180,0.14); color: var(--muted); }
+  .sso-subhead { font-size: 12.5px; color: var(--muted); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .sso-inline-form { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
+  .sso-inline-form .field { margin-bottom: 0; flex: 1; min-width: 120px; }
+  .sso-row-actions { display: flex; gap: 6px; align-items: center; }
+  .sso-row-actions select { font-size: 12px; padding: 3px 6px; }
+
+  .user-detail-row {
+    background: var(--panel-2); border-radius: 8px; padding: 12px 14px; margin: 4px 0 8px;
+    font-size: 12.5px; color: var(--muted); line-height: 1.7; display: none;
+  }
+  .user-detail-row.open { display: block; }
+  .user-detail-row b { color: var(--text); }
+  .cred-row.clickable { cursor: pointer; }
+  .user-id-badge {
+    font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; color: var(--muted);
+    background: var(--panel-2); border-radius: 6px; padding: 2px 7px; margin-right: 8px;
+  }
+
+  .modal-error {
+    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #F0A69C;
+    padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px; display: none;
+  }
+  .endpoint-block { margin-bottom: 16px; }
+  .endpoint-block label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+  .endpoint-block .row { display: flex; gap: 8px; }
+  .endpoint-block code {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--text);
+    overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .endpoint-block button.copy {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 0 13px; font-size: 12px; cursor: pointer; font-family: inherit; flex-shrink: 0;
+  }
+  .modal .close-btn {
+    width: 100%; margin-top: 8px; background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; font-family: inherit; transition: border-color 0.15s, color 0.15s;
+  }
+  .modal .close-btn:hover { border-color: var(--faint); color: var(--text); }
+  .cred-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12.5px;
+  }
+  .cred-row:last-child { border-bottom: none; }
+  .cred-row .info .svc { font-weight: 600; }
+  .cred-row .info .meta { color: var(--muted); font-family: 'Space Grotesk', sans-serif; margin-top: 2px; }
+  .cred-row button.revoke {
+    background: none; border: 1px solid var(--border); color: var(--alert);
+    border-radius: 8px; padding: 5px 11px; font-size: 11px; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s;
+  }
+  .cred-row button.revoke:hover { background: rgba(226,88,74,0.12); border-color: var(--alert); }
+  .cred-row.clickable:hover { background: rgba(255,255,255,0.02); }
+
+  /* Session / error states */
+  #session-banner {
+    display: none; background: rgba(217,164,65,0.12); border: 1px solid var(--dedup); color: #F0CB8A;
+    padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px;
+  }
+  .panel-error {
+    display: none; align-items: center; justify-content: space-between; gap: 10px;
+    background: rgba(226,88,74,0.1); border: 1px solid var(--alert); color: #F0A69C;
+    padding: 9px 12px; font-size: 12.5px; border-radius: 8px; margin-bottom: 10px;
+  }
+  .panel-error button {
+    background: none; border: 1px solid var(--alert); color: #F0A69C; border-radius: 14px;
+    padding: 4px 11px; font-size: 11.5px; cursor: pointer; font-family: inherit; flex-shrink: 0;
+  }
+
+  /* Focus visibility */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--info); outline-offset: 2px;
+  }
+
+  /* Activity toolbar */
+  .activity-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .activity-toolbar input, .activity-toolbar select {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 11px; font-size: 12.5px; font-family: inherit; border-radius: 8px;
+  }
+  .activity-toolbar input { flex: 1; min-width: 140px; }
+  #load-more-btn {
+    width: 100%; margin-top: 10px; background: none; border: 1px dashed var(--border); color: var(--muted);
+    border-radius: 8px; padding: 9px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  #load-more-btn:hover { border-color: var(--faint); color: var(--text); }
+
+  .user-email-btn {
+    background: none; border: none; color: var(--muted); font-family: inherit; font-size: 12.5px;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 0;
+  }
+
+  @media (max-width: 880px) {
+    .charts-row { grid-template-columns: 1fr; }
+    .main-grid { grid-template-columns: 1fr; }
+    .log-row { grid-template-columns: 56px 1fr; row-gap: 3px; }
+    .log-row .dur, .log-row .status-word { grid-column: 2; justify-self: start; }
+  }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 0 14px; }
+    header.top { flex-direction: column; align-items: flex-start; gap: 12px; }
+    #user-info { align-self: stretch; justify-content: space-between; }
+    .user-email-btn { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stat-sentence { font-size: 16px; }
+    .controls { gap: 8px; }
+    .controls .btn { padding: 8px 12px; font-size: 12.5px; }
+    #usage-bar-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .modal { padding: 20px; border-radius: 12px; }
+    .modal-overlay { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z" fill="#12271F" stroke="#4FBFA0" stroke-width="0.8"/>
+        <circle cx="12" cy="11.5" r="2.4" fill="#4FBFA0"/>
+      </svg>
+      <div class="brand-text">
+        <h1>AgentRaaS</h1>
+        <p>Agent Reliability as a Service</p>
+      </div>
+    </div>
+    <div id="user-info">
+      <a href="/guide" target="_blank" class="user-email-btn" style="text-decoration:none;">Guide</a>
+      <span id="header-plan-badge" class="badge verified" style="display:none;margin-right:8px;"></span>
+      <button type="button" id="header-upgrade-btn" class="badge" style="display:none;margin-right:8px;background:rgba(0,224,168,0.14);color:var(--signal);cursor:pointer;border:none;font-family:inherit;">Upgrade to Agency</button>
+      <button type="button" class="user-email-btn" id="account-btn"></button>
+      <button id="logout-btn">Log out</button>
+    </div>
+  </header>
+
+  <!-- ─── Auth screen ─── -->
+  <div id="auth-screen">
+    <h2 id="auth-title">Log in</h2>
+    <p class="sub" id="auth-sub">Watch what your agents are doing, in real time.</p>
+    <div id="session-banner">Your session expired — log in again to continue.</div>
+    <div id="auth-error"></div>
+    <form id="auth-form">
+      <div class="field"><label for="email">Email</label><input type="email" id="email" autocomplete="email" required></div>
+      <div class="field"><label for="password">Password</label><input type="password" id="password" autocomplete="current-password" required></div>
+      <button type="submit" class="primary" id="auth-submit">Log in</button>
+    </form>
+    <div class="switch-mode"><span id="switch-text">Need an account?</span> <a id="switch-link">Register</a></div>
+    <div class="switch-mode" id="forgot-link-row"><a id="forgot-link">Forgot password?</a></div>
+    <div class="switch-mode"><a id="sso-link">Sign in with SSO</a></div>
+    <form id="sso-org-form" style="display:none;margin-top:10px;">
+      <div class="field"><label for="sso-org-input">Your org ID</label><input type="text" id="sso-org-input" placeholder="org_acme" required></div>
+      <button type="submit" class="primary" id="sso-org-submit">Continue to your identity provider</button>
+    </form>
+  </div>
+
+  <!-- ─── Accept an org invite (from an emailed link) ─── -->
+  <div id="invite-screen" style="display:none;">
+    <h2>Join your team on AgentRaaS</h2>
+    <p class="sub" id="invite-sub">You've been invited to join an org.</p>
+    <div id="invite-error"></div>
+    <form id="invite-form">
+      <div class="field"><label for="invite-password-input">Password</label><input type="password" id="invite-password-input" autocomplete="new-password" minlength="8"></div>
+      <p class="sub" style="margin-top:-8px;">Only needed if you don't already have an AgentRaaS account — leave blank if you do, and log in normally afterward.</p>
+      <button type="submit" class="primary" id="invite-submit">Accept invite</button>
+    </form>
+  </div>
+
+  <!-- ─── Forgot password request ─── -->
+  <div id="forgot-screen" style="display:none;">
+    <h2>Reset your password</h2>
+    <p class="sub">Enter your account email and we'll send a reset link.</p>
+    <div id="forgot-message" style="display:none;"></div>
+    <form id="forgot-form">
+      <div class="field"><label for="forgot-email">Email</label><input type="email" id="forgot-email" autocomplete="email" required></div>
+      <button type="submit" class="primary" id="forgot-submit">Send reset link</button>
+    </form>
+    <div class="switch-mode"><a id="back-to-login-link">Back to log in</a></div>
+  </div>
+
+  <!-- ─── Reset password (from emailed link) ─── -->
+  <div id="reset-screen" style="display:none;">
+    <h2>Set a new password</h2>
+    <p class="sub">Choose a new password for your account.</p>
+    <div id="reset-error"></div>
+    <form id="reset-form">
+      <div class="field"><label for="reset-password-input">New password</label><input type="password" id="reset-password-input" autocomplete="new-password" required minlength="8"></div>
+      <div class="field"><label for="reset-confirm-input">Confirm new password</label><input type="password" id="reset-confirm-input" autocomplete="new-password" required minlength="8"></div>
+      <button type="submit" class="primary" id="reset-submit">Set new password</button>
+    </form>
+  </div>
+
+  <!-- ─── Check your email (post-registration) ─── -->
+  <div id="verify-notice-screen" style="display:none;">
+    <h2>Check your email</h2>
+    <p class="sub" id="verify-notice-text">We sent a verification link to your email. Click it to activate your account.</p>
+    <div id="verify-notice-dev" style="display:none;"></div>
+    <div class="switch-mode"><a id="verify-back-to-login-link">Back to log in</a></div>
+  </div>
+
+  <!-- ─── Dashboard ─── -->
+  <div id="dashboard">
+    <div class="signal-strip">
+      <div class="caption"><span class="pulse-dot"></span> Watching your agents live</div>
+      <svg viewBox="0 0 800 46" preserveAspectRatio="none">
+        <path d="M0,23 L20,23 L28,8 L36,38 L44,23 L60,23 L68,14 L76,32 L84,23 L110,23 L118,6 L126,40 L134,23 L160,23 L168,17 L176,29 L184,23 L400,23 L420,23 L428,8 L436,38 L444,23 L460,23 L468,14 L476,32 L484,23 L510,23 L518,6 L526,40 L534,23 L560,23 L568,17 L576,29 L584,23 L800,23"
+          fill="none" stroke="#4FBFA0" stroke-width="1.4" opacity="0.55"/>
+      </svg>
+    </div>
+
+    <div id="welcome-banner" style="display:none;background:rgba(0,224,168,0.08);border:1px solid rgba(0,224,168,0.3);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:700;margin-bottom:3px;">Welcome — let's connect your first agent</div>
+        <div style="color:var(--muted);font-size:13.5px;">Click "+ Connect agent" below to get your API key and webhook URL. Need a walkthrough? <a href="/guide" target="_blank" style="color:var(--signal);">Read the guide →</a></div>
+      </div>
+    </div>
+
+    <div id="usage-over-limit-banner" style="display:none;"></div>
+    <div id="usage-bar-row" style="display:none;">
+      <div id="usage-bar-track"><div id="usage-bar-fill"></div></div>
+      <div id="usage-bar-label"></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn filled" id="connect-agent-btn">+ Connect agent</button>
+      <button class="btn" id="credentials-btn">Credentials</button>
+      <button class="btn" id="custom-actions-btn">Custom actions</button>
+      <button class="btn" id="admin-btn" style="display:none;">Admin</button>
+      <button class="btn" id="enterprise-btn">Enterprise</button>
+      <button class="btn" id="seed-btn">Seed demo data</button>
+      <button class="btn" id="export-btn">Export CSV</button>
+      <button class="btn" id="refresh-btn">Refresh</button>
+      <div class="spacer"></div>
+      <div class="ranges">
+        <button data-range="24h" class="active">24h</button>
+        <button data-range="7d">7d</button>
+        <button data-range="30d">30d</button>
+        <button data-range="90d">90d</button>
+      </div>
+    </div>
+
+    <div class="stat-sentence">
+      <span class="num total" id="stat-total">—</span> <span class="plain">actions verified,</span>
+      <span class="num signal" id="stat-success">—</span> <span class="plain">succeeded,</span>
+      <span class="num dedup" id="stat-deduplicated">—</span> <span class="plain">duplicates caught,</span>
+      <span class="num alert" id="stat-errors-blocked">—</span> <span class="plain">stopped. Averaging</span>
+      <span class="num total" id="stat-duration">—</span> <span class="plain">per action.</span>
+    </div>
+
+    <div class="charts-row">
+      <div class="panel">
+        <h3>Request volume</h3>
+        <canvas id="volume-chart"></canvas>
+      </div>
+      <div class="panel">
+        <h3>Outcome mix</h3>
+        <canvas id="status-chart"></canvas>
+      </div>
+    </div>
+    <div class="panel charts-row2">
+      <h3>Top services</h3>
+      <canvas id="service-chart"></canvas>
+    </div>
+
+    <div class="service-strip" id="service-strip"></div>
+
+    <div class="main-grid">
+      <div class="panel">
+        <h3>Recent activity</h3>
+        <div class="panel-error" id="activity-error"><span>Couldn't load activity.</span><button id="activity-retry">Retry</button></div>
+        <div class="activity-toolbar">
+          <input type="text" id="activity-search" placeholder="Search service, action, agent...">
+          <select id="activity-status-filter">
+            <option value="">All statuses</option>
+            <option value="success">Success</option>
+            <option value="deduplicated">Deduplicated</option>
+            <option value="blocked">Blocked</option>
+            <option value="error">Error</option>
+          </select>
+          <select id="activity-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="slowest">Slowest first</option>
+            <option value="fastest">Fastest first</option>
+          </select>
+        </div>
+        <div id="activity-body"></div>
+        <div id="empty-state" style="display:none;">Nothing here yet in this range.</div>
+        <button id="load-more-btn">Load more</button>
+      </div>
+      <div class="panel">
+        <h3 id="agents-title">Active agents (24h)</h3>
+        <div class="panel-error" id="agents-error"><span>Couldn't load agents.</span><button id="agents-retry">Retry</button></div>
+        <div id="agents-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Connect Agent modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Connect an agent">
+    <div id="connect-form-view">
+      <h3>Connect an agent</h3>
+      <p class="sub">Generate a key scoped to one org/agent. Shown once — copy it now.</p>
+      <div class="modal-error" id="connect-error"></div>
+      <form id="connect-form">
+        <div class="field"><label for="connect-org">Org ID</label><input type="text" id="connect-org" placeholder="org_acme" required></div>
+        <div class="field"><label for="connect-agent">Agent ID</label><input type="text" id="connect-agent" placeholder="agent_invoice" required></div>
+        <div class="field"><label for="connect-label">Label (optional)</label><input type="text" id="connect-label" placeholder="n8n production workflow"></div>
+        <button type="submit" class="primary" id="connect-submit">Generate connection</button>
+      </form>
+    </div>
+    <div id="connect-result-view" style="display:none;">
+      <h3>Connection ready</h3>
+      <p class="sub" style="color:var(--alert);">Shown once — store this key now.</p>
+      <div class="endpoint-block"><label>API key</label><div class="row"><code id="result-key"></code><button class="copy" data-target="result-key">Copy</button></div></div>
+      <div class="endpoint-block"><label>Webhook URL (n8n / generic HTTP)</label><div class="row"><code id="result-webhook"></code><button class="copy" data-target="result-webhook">Copy</button></div></div>
+      <div class="endpoint-block"><label>MCP endpoint</label><div class="row"><code id="result-mcp"></code><button class="copy" data-target="result-mcp">Copy</button></div></div>
+      <div class="endpoint-block"><label>curl example</label><div class="row"><code id="result-curl"></code><button class="copy" data-target="result-curl">Copy</button></div></div>
+      <div class="endpoint-block"><label>n8n HTTP Request node</label><div class="row"><code id="result-n8n"></code><button class="copy" data-target="result-n8n">Copy</button></div></div>
+    </div>
+    <button class="close-btn" id="modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Credentials modal -->
+<div class="modal-overlay" id="creds-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Service credentials">
+    <h3>Service credentials</h3>
+    <p class="sub">Your own API keys — used to call each service on your agent's behalf. Encrypted, never shown again.</p>
+    <div class="modal-error" id="creds-error"></div>
+    <form id="creds-form">
+      <div class="field"><label for="creds-org">Org ID</label><input type="text" id="creds-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="creds-service">Service</label><select id="creds-service" required></select></div>
+      <div class="field"><label for="creds-type">Credential type</label>
+        <select id="creds-type">
+          <option value="api_key">API key / token</option>
+          <option value="basic">Username + password (or key + secret)</option>
+        </select>
+      </div>
+      <div class="field" id="creds-apikey-field"><label for="creds-apikey">API key / token</label><input type="text" id="creds-apikey" placeholder="sk_live_..."></div>
+      <div class="field" id="creds-username-field" style="display:none;"><label for="creds-username">Username / key</label><input type="text" id="creds-username" placeholder="e.g. Twilio Account SID"></div>
+      <div class="field" id="creds-password-field" style="display:none;"><label for="creds-password">Password / secret</label><input type="text" id="creds-password" placeholder="e.g. Twilio Auth Token"></div>
+      <button type="submit" class="primary" id="creds-submit">Save credential</button>
+    </form>
+    <h3 style="margin-top:26px;">Saved credentials</h3>
+    <div id="creds-list"></div>
+    <button class="close-btn" id="creds-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Custom Actions modal -->
+<div class="modal-overlay" id="custom-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Custom actions">
+    <h3>Custom actions</h3>
+    <p class="sub">Register any endpoint — not just the built-in services — so your agents can call it too, with the same dedup, audit, and rate-limit protection. You approve the URL here; agents only ever invoke it by name afterward.</p>
+    <div class="modal-error" id="custom-error"></div>
+    <form id="custom-form">
+      <div class="field"><label for="custom-org">Org ID</label><input type="text" id="custom-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="custom-name">Action name</label><input type="text" id="custom-name" placeholder="my_internal_crm" required></div>
+      <div class="field"><label for="custom-method">Method</label>
+        <select id="custom-method">
+          <option value="POST">POST</option>
+          <option value="GET">GET</option>
+          <option value="PUT">PUT</option>
+          <option value="PATCH">PATCH</option>
+          <option value="DELETE">DELETE</option>
+        </select>
+      </div>
+      <div class="field"><label for="custom-url">Target URL</label><input type="text" id="custom-url" placeholder="https://api.example.com/endpoint" required></div>
+      <div class="field"><label for="custom-authtype">Auth type</label>
+        <select id="custom-authtype">
+          <option value="none">None (URL carries its own secret)</option>
+          <option value="bearer">Bearer token</option>
+          <option value="basic">Username + password</option>
+          <option value="header">Custom header</option>
+        </select>
+      </div>
+      <div class="field" id="custom-headername-field" style="display:none;"><label for="custom-headername">Header name</label><input type="text" id="custom-headername" placeholder="X-API-Key"></div>
+      <div class="field" id="custom-apikey-field" style="display:none;"><label for="custom-apikey">API key / token / header value</label><input type="text" id="custom-apikey" placeholder="..."></div>
+      <div class="field" id="custom-username-field" style="display:none;"><label for="custom-username">Username</label><input type="text" id="custom-username"></div>
+      <div class="field" id="custom-password-field" style="display:none;"><label for="custom-password">Password</label><input type="text" id="custom-password"></div>
+      <button type="submit" class="primary" id="custom-submit">Register action</button>
+    </form>
+    <h3 style="margin-top:26px;">Registered actions</h3>
+    <div id="custom-list"></div>
+    <button class="close-btn" id="custom-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Enterprise: SSO configs + members + invites -->
+<div class="modal-overlay" id="enterprise-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Enterprise SSO and members">
+    <h3>Enterprise: SSO &amp; members</h3>
+    <p class="sub">Configure single sign-on and manage who belongs to an org, with a role (Admin, Developer, or read-only Auditor). You need to be an admin of the org — the first person to touch this for a brand-new org becomes its admin automatically.</p>
+    <div class="modal-error" id="enterprise-error"></div>
+    <div class="sso-inline-form">
+      <div class="field"><label for="enterprise-org-input">Org ID</label><input type="text" id="enterprise-org-input" placeholder="org_acme"></div>
+      <button type="button" class="btn" id="enterprise-load-btn">Load</button>
+    </div>
+
+    <div class="sso-subhead">Identity providers</div>
+    <div id="enterprise-configs-list"></div>
+    <form id="enterprise-config-form">
+      <div class="field"><label for="config-issuer">Issuer URL</label><input type="text" id="config-issuer" placeholder="https://your-tenant.okta.com/oauth2/default"></div>
+      <div class="field"><label for="config-client-id">Client ID</label><input type="text" id="config-client-id"></div>
+      <div class="field"><label for="config-client-secret">Client secret</label><input type="text" id="config-client-secret"></div>
+      <div class="field"><label for="config-domains">Allowed email domains (comma-separated)</label><input type="text" id="config-domains" placeholder="acme.com,acme.io"></div>
+      <div class="field"><label for="config-default-role">Default role (when no group claim matches)</label>
+        <select id="config-default-role"><option value="developer">Developer</option><option value="admin">Admin</option><option value="auditor">Auditor</option></select>
+      </div>
+      <button type="submit" class="primary" id="enterprise-config-submit">Add identity provider</button>
+    </form>
+
+    <div class="sso-subhead">Members</div>
+    <div id="enterprise-members-list"></div>
+
+    <div class="sso-subhead">Invite by email</div>
+    <form id="enterprise-invite-form" class="sso-inline-form">
+      <div class="field"><label for="invite-email-input">Email</label><input type="email" id="invite-email-input" required></div>
+      <div class="field"><label for="invite-role-select">Role</label>
+        <select id="invite-role-select"><option value="developer">Developer</option><option value="admin">Admin</option><option value="auditor">Auditor</option></select>
+      </div>
+      <button type="submit" class="primary" id="enterprise-invite-submit">Send invite</button>
+    </form>
+    <div id="enterprise-invites-list"></div>
+
+    <button class="close-btn" id="enterprise-modal-close">Close</button>
+  </div>
+</div>
+<div class="modal-overlay" id="account-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Account settings">
+    <h3>Account</h3>
+    <p class="sub" id="account-email-display"></p>
+
+    <h3 style="margin-top:8px;font-size:14px;">Plan</h3>
+    <div id="billing-current-plan" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:12px;">Loading…</div>
+    <div id="billing-error" class="modal-error"></div>
+    <div id="billing-agency-section" style="display:none;margin-bottom:24px;">
+      <p class="sub">Agency: $149/month — up to 10 client tenants, white-label branding, 50,000 actions/month.</p>
+      <button type="button" class="btn filled" id="billing-agency-btn" style="width:100%;justify-content:center;">Upgrade to Agency</button>
+    </div>
+    <p class="sub" style="margin-bottom:24px;">Need HA clustering, SSO, or DLP? <a href="mailto:support@agentraas.io">Contact sales about Enterprise</a>.</p>
+
+    <div id="branding-section" style="display:none;margin-bottom:24px;">
+      <h3 style="margin-top:8px;font-size:14px;">White-label branding</h3>
+      <p class="sub">Shown to client tenants viewing a branded org. Agency plan only.</p>
+      <input type="text" id="branding-org-input" placeholder="Org ID" style="width:100%;margin-bottom:8px;">
+      <input type="text" id="branding-name-input" placeholder="Display name" style="width:100%;margin-bottom:8px;">
+      <input type="text" id="branding-logo-input" placeholder="Logo URL" style="width:100%;margin-bottom:8px;">
+      <div id="branding-error" class="modal-error"></div>
+      <button type="button" class="btn secondary" id="branding-save-btn" style="width:100%;justify-content:center;">Save branding</button>
+    </div>
+
+    <h3 style="margin-top:8px;font-size:14px;">Self-host AgentRaaS</h3>
+    <p class="sub">Download the deployable package and run it on your own server — one command to install.</p>
+    <div id="self-host-loading" style="color:var(--muted);font-size:13px;margin-bottom:24px;">Checking...</div>
+    <div id="self-host-no-agent" style="display:none;background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:24px;">
+      Connect an agent first — the download unlocks once you have.
+    </div>
+    <div id="self-host-request-form" style="display:none;margin-bottom:24px;">
+      <div class="modal-error" id="self-host-error"></div>
+      <div class="field"><label for="self-host-reason">What will you use it for?</label><textarea id="self-host-reason" rows="2" style="width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:13px;resize:vertical;" required></textarea></div>
+      <div class="field" style="margin-top:10px;"><label for="self-host-company">Company / team (optional)</label><input type="text" id="self-host-company"></div>
+      <button type="button" class="btn" id="self-host-submit" style="display:flex;justify-content:center;width:100%;margin-top:12px;">Get self-host package</button>
+    </div>
+
+    <h3 style="font-size:14px;">Change password</h3>
+    <div class="modal-error" id="account-error"></div>
+    <div class="modal-error" id="account-success" style="background:rgba(79,191,160,0.12);border-color:var(--signal);color:#9BE0CC;"></div>
+    <form id="account-form">
+      <div class="field"><label for="current-password">Current password</label><input type="password" id="current-password" autocomplete="current-password" required></div>
+      <div class="field"><label for="new-password">New password</label><input type="password" id="new-password" autocomplete="new-password" required minlength="8"></div>
+      <div class="field"><label for="confirm-password">Confirm new password</label><input type="password" id="confirm-password" autocomplete="new-password" required minlength="8"></div>
+      <button type="submit" class="primary" id="account-submit">Update password</button>
+    </form>
+    <button class="close-btn" id="account-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Admin modal -->
+<div class="modal-overlay" id="admin-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Admin" style="max-width:680px;">
+    <h3>Admin — system overview</h3>
+    <div id="admin-stat-grid" class="admin-stat-grid">
+      <div class="admin-stat"><div class="admin-stat-n" id="admin-stat-users">—</div><div class="admin-stat-l">Users</div></div>
+      <div class="admin-stat"><div class="admin-stat-n" id="admin-stat-orgs">—</div><div class="admin-stat-l">Orgs</div></div>
+      <div class="admin-stat"><div class="admin-stat-n" id="admin-stat-actions">—</div><div class="admin-stat-l">Actions this month</div></div>
+    </div>
+    <p class="sub" id="admin-overview-line" style="margin-top:8px;"></p>
+    <div class="admin-tabs">
+      <button type="button" class="admin-tab active" data-tab="local">Local <span class="admin-tab-range">1-9</span></button>
+      <button type="button" class="admin-tab" data-tab="service">Service <span class="admin-tab-range">10-99</span></button>
+      <button type="button" class="admin-tab" data-tab="external">External <span class="admin-tab-range">100+</span></button>
+    </div>
+    <div id="admin-users-list" style="max-height:380px;overflow-y:auto;"></div>
+    <button class="close-btn" id="admin-modal-close">Close</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Escapes user-controlled data before interpolating into innerHTML.
+  // Needed because email validation intentionally allows a wide character
+  // set (RFC-compliant email addresses can contain many special characters)
+  // — the correct fix for that is escaping at render time, not
+  // over-restricting a format that has legitimate reasons to be permissive.
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Swaps a submit button's text to show what's happening, instead of just
+  // going inert with no explanation. Returns a function that restores the
+  // original text — call it in a finally block so it always runs.
+  function withLoadingText(btn, loadingText) {
+    const original = btn.textContent;
+    btn.textContent = loadingText;
+    return () => { btn.textContent = original; };
+  }
+
+  const authScreen = document.getElementById('auth-screen');
+  const dashboard = document.getElementById('dashboard');
+  const userInfo = document.getElementById('user-info');
+  const accountBtn = document.getElementById('account-btn');
+  const authForm = document.getElementById('auth-form');
+  const authError = document.getElementById('auth-error');
+  const authTitle = document.getElementById('auth-title');
+  const authSub = document.getElementById('auth-sub');
+  const authSubmit = document.getElementById('auth-submit');
+  const switchText = document.getElementById('switch-text');
+  const switchLink = document.getElementById('switch-link');
+  const sessionBanner = document.getElementById('session-banner');
+
+  let mode = 'login';
+  let currentRange = '24h';
+  let volumeChart, statusChart, serviceChart;
+  let hasEverAuthenticated = false;
+  let currentUserEmail = '';
+  let refreshTimer = null;
+  let anyModalOpen = false;
+  let activityLimit = 50;
+  let activityRows = [];
+  const MUTED = '#7C8AA3';
+  const GRID = '#212A3D';
+  const CHART_FONT = { family: "'Space Grotesk', sans-serif", size: 11 };
+
+  function setMode(next) {
+    mode = next; authError.style.display = 'none';
+    if (mode === 'login') {
+      authTitle.textContent = 'Log in'; authSub.textContent = 'Watch what your agents are doing, in real time.';
+      authSubmit.textContent = 'Log in'; switchText.textContent = 'Need an account?'; switchLink.textContent = 'Register';
+      document.getElementById('password').autocomplete = 'current-password';
+    } else {
+      authTitle.textContent = 'Create an account'; authSub.textContent = 'One account per organization is enough to get started.';
+      authSubmit.textContent = 'Create account'; switchText.textContent = 'Already have an account?'; switchLink.textContent = 'Log in';
+      document.getElementById('password').autocomplete = 'new-password';
+    }
+  }
+  switchLink.addEventListener('click', () => setMode(mode === 'login' ? 'register' : 'login'));
+
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); authError.style.display = 'none'; sessionBanner.style.display = 'none'; authSubmit.disabled = true;
+    const restoreText = withLoadingText(authSubmit, mode === 'login' ? 'Logging in…' : 'Registering…');
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const endpoint = mode === 'login' ? '/api/v1/auth/login' : '/api/v1/auth/register';
+    try {
+      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, password }) });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.code === 'EMAIL_NOT_VERIFIED') {
+          authError.innerHTML = `${data.error} <a href="#" id="inline-resend-link">Resend verification email</a>`;
+          authError.style.display = 'block';
+          document.getElementById('inline-resend-link').addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            await fetch('/api/v1/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+            authError.textContent = 'If that account needs verification, a new link has been sent.';
+          });
+          return;
+        }
+        authError.textContent = data.error || 'Something went wrong.'; authError.style.display = 'block'; return;
+      }
+      if (mode === 'register') {
+        authScreen.style.display = 'none';
+        document.getElementById('verify-notice-screen').style.display = 'block';
+        const devBox = document.getElementById('verify-notice-dev');
+        if (data.dev_verify_url) {
+          devBox.style.display = 'block';
+          devBox.innerHTML = `No email server configured on this deployment — verify directly: <a href="${data.dev_verify_url}">${data.dev_verify_url}</a>`;
+        } else {
+          devBox.style.display = 'none';
+        }
+        return;
+      }
+      showDashboard(data.user);
+    } catch (err) { authError.textContent = 'Could not reach the server.'; authError.style.display = 'block'; }
+    finally { authSubmit.disabled = false; restoreText(); }
+  });
+
+  document.getElementById('verify-back-to-login-link').addEventListener('click', () => {
+    document.getElementById('verify-notice-screen').style.display = 'none';
+    authScreen.style.display = 'block';
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
+    stopAutoRefresh(); hasEverAuthenticated = false;
+    dashboard.style.display = 'none'; userInfo.style.display = 'none'; authScreen.style.display = 'block';
+  });
+
+  document.querySelectorAll('.ranges button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ranges button').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active'); currentRange = btn.dataset.range; activityLimit = 50; loadAll();
+    });
+  });
+  document.getElementById('refresh-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('refresh-btn');
+    if (btn.disabled) return; // already refreshing, ignore extra clicks
+    const restoreText = withLoadingText(btn, 'Refreshing…');
+    btn.disabled = true;
+    try { await loadAll(); } finally { btn.disabled = false; restoreText(); }
+  });
+  document.getElementById('seed-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('seed-btn');
+    if (btn.disabled) return; // already seeding, ignore extra clicks
+    const restoreText = withLoadingText(btn, 'Seeding…');
+    btn.disabled = true;
+    try {
+      await fetch('/api/v1/demo/seed', { method: 'POST', credentials: 'include' });
+      await loadAll();
+    } finally {
+      btn.disabled = false; restoreText();
+    }
+  });
+  document.getElementById('export-btn').addEventListener('click', () => { window.location.href = '/api/v1/export/csv'; });
+
+  function showDashboard(user) {
+    authScreen.style.display = 'none'; dashboard.style.display = 'block'; userInfo.style.display = 'flex';
+    currentUserEmail = user.email;
+    accountBtn.textContent = user.email;
+    const planBadgeEl = document.getElementById('header-plan-badge');
+    planBadgeEl.textContent = 'Agency';
+    planBadgeEl.style.display = user.plan === 'agency' ? 'inline-flex' : 'none';
+    document.getElementById('header-upgrade-btn').style.display = user.plan === 'agency' ? 'none' : 'inline-flex';
+    hasEverAuthenticated = true;
+    sessionBanner.style.display = 'none';
+
+    const isCloud = user.deployment_mode === 'cloud';
+    document.getElementById('admin-btn').style.display = (user.is_admin && isCloud) ? 'flex' : 'none';
+
+    // Seed data is an admin-only convenience for testing/demoing — regular
+    // users have their own real activity to look at, not a reason to
+    // fabricate demo data. Export CSV stays available to everyone in cloud
+    // mode, since it now correctly exports only their own data.
+    document.getElementById('seed-btn').style.display = (isCloud && user.is_admin) ? 'flex' : 'none';
+    document.getElementById('export-btn').style.display = isCloud ? 'flex' : 'none';
+
+    // Self-hosted free tier: only 24h of dashboard history, matching the
+    // "24h + 100k calls/month" free tier — longer ranges require a
+    // commercial license. Cloud always gets full range access.
+    if (!isCloud) {
+      document.querySelectorAll('.ranges button').forEach((btn) => {
+        if (btn.dataset.range !== '24h') {
+          btn.disabled = true;
+          btn.title = 'Longer history requires a commercial license — see LICENSE.md';
+          btn.style.opacity = '0.4';
+          btn.style.cursor = 'not-allowed';
+        }
+      });
+    }
+
+    checkWelcomeBannerState();
+    loadAll();
+    startAutoRefresh();
+  }
+
+  async function checkWelcomeBannerState() {
+    try {
+      const res = await fetch('/api/v1/agents/keys', { credentials: 'include' });
+      const keys = await res.json();
+      document.getElementById('welcome-banner').style.display = (Array.isArray(keys) && keys.length === 0) ? 'flex' : 'none';
+    } catch (err) { /* not critical — just skip showing the banner if this fails */ }
+  }
+  function loadAll() {
+    return Promise.all([loadStats(), loadServices(), loadRecent(), loadAgents(), loadTimeseries(), loadByService(), loadUsage()]);
+  }
+
+  async function loadUsage() {
+    try {
+      const res = await fetch('/api/v1/usage', { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      if (!res.ok) return;
+      const data = await res.json();
+      const row = document.getElementById('usage-bar-row');
+      const fill = document.getElementById('usage-bar-fill');
+      const label = document.getElementById('usage-bar-label');
+      const banner = document.getElementById('usage-over-limit-banner');
+      row.style.display = 'flex';
+      fill.classList.remove('near-limit', 'over-limit');
+      banner.style.display = 'none';
+
+      // Self-hosted deployments have no limit on any tier (see LICENSE.md) —
+      // the bar just shows a full, uncapped track with the raw call count.
+      if (data.unlimited || data.limit == null) {
+        fill.style.width = '100%';
+        label.textContent = `${data.total.toLocaleString()} calls this month (self-hosted — unlimited)`;
+        return;
+      }
+
+      const pct = Math.min(100, (data.total / data.limit) * 100);
+      fill.style.width = `${pct}%`;
+
+      const isOverLimit = data.total >= data.limit;
+      if (isOverLimit) fill.classList.add('over-limit');
+      else if (pct >= 80) fill.classList.add('near-limit');
+
+      if (isOverLimit) {
+        banner.className = data.enforced ? 'cloud' : 'exempt';
+        banner.style.display = 'flex';
+        if (data.enforced) {
+          banner.innerHTML = `<span>You've reached your ${data.limit.toLocaleString()}/month limit — new actions are being blocked until next month.</span><a href="mailto:support@agentraas.io">Upgrade</a>`;
+        } else {
+          banner.innerHTML = `<span>You've passed the free tier's ${data.limit.toLocaleString()}/month limit. Upgrade to Agency, or self-host for free with no limit.</span><a href="mailto:support@agentraas.io">Contact us</a>`;
+        }
+      }
+
+      const modeLabel = data.enforced ? '' : ' (exempt from limit)';
+      label.textContent = `${data.total.toLocaleString()} / ${data.limit.toLocaleString()} calls this month${modeLabel}`;
+    } catch (err) { console.error('loadStats failed:', err); }
+  }
+
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    refreshTimer = setInterval(() => {
+      if (document.hidden || anyModalOpen) return; // don't refresh in background tabs or mid-form-entry
+      loadAll();
+    }, 12000);
+    startUsageStream();
+  }
+  function stopAutoRefresh() { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; } stopUsageStream(); }
+
+  // ─── Real-time usage count (SSE) ───
+  // The call count updates the instant an action happens, instead of
+  // waiting for the next 12s poll above — see /api/v1/usage/stream in
+  // src/core/dashboard. The 12s poll above still runs as a fallback (also
+  // covers every other stat panel, which aren't SSE-driven).
+  let usageEventSource = null;
+  let usageStreamDebounce = null;
+  function startUsageStream() {
+    if (usageEventSource || typeof EventSource === 'undefined') return;
+    usageEventSource = new EventSource('/api/v1/usage/stream', { withCredentials: true });
+    usageEventSource.onmessage = () => {
+      // The SSE payload carries only the org that just changed, not the
+      // full aggregated/limit/enforced shape loadUsage() needs — treat it
+      // purely as a "something changed, refresh now" signal. Debounced so
+      // a rapid burst of actions doesn't fire a request per event.
+      clearTimeout(usageStreamDebounce);
+      usageStreamDebounce = setTimeout(loadUsage, 250);
+    };
+    usageEventSource.onerror = () => {
+      // EventSource auto-reconnects on its own; the 12s poll covers any gap
+      // in the meantime, so there's nothing extra to do here.
+    };
+  }
+  function stopUsageStream() {
+    clearTimeout(usageStreamDebounce);
+    if (usageEventSource) { usageEventSource.close(); usageEventSource = null; }
+  }
+
+  function formatDuration(ms) {
+    if (ms === null || ms === undefined) return '—';
+    const n = Number(ms);
+    return n < 1000 ? `${Math.round(n)}ms` : `${(n / 1000).toFixed(2)}s`;
+  }
+  function timeOnly(iso) { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+
+  async function loadStats() {
+    try {
+      const res = await fetch(`/api/v1/dashboard/stats?range=${currentRange}`, { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      const s = await res.json();
+      document.getElementById('stat-total').textContent = s.total ?? '0';
+      document.getElementById('stat-success').textContent = s.success ?? '0';
+      document.getElementById('stat-deduplicated').textContent = s.deduplicated ?? '0';
+      document.getElementById('stat-errors-blocked').textContent = (Number(s.blocked||0) + Number(s.errors||0));
+      document.getElementById('stat-duration').textContent = formatDuration(s.avg_duration);
+
+      const data = {
+        labels: ['Success', 'Deduplicated', 'Blocked', 'Errors'],
+        datasets: [{ data: [Number(s.success)||0, Number(s.deduplicated)||0, Number(s.blocked)||0, Number(s.errors)||0],
+          backgroundColor: ['#4FBFA0', '#D9A441', '#E2584A', '#8B3A32'], borderColor: '#131928', borderWidth: 2 }],
+      };
+      const ctx = document.getElementById('status-chart');
+      if (statusChart) { statusChart.data = data; statusChart.update(); }
+      else statusChart = new Chart(ctx, { type: 'doughnut', data, options: { cutout: '68%', plugins: { legend: { position: 'bottom', labels: { color: MUTED, font: CHART_FONT, padding: 14, boxWidth: 10 } } } } });
+    } catch (err) { console.error('loadTimeseries failed:', err); }
+  }
+
+  async function loadTimeseries() {
+    try {
+      const res = await fetch(`/api/v1/dashboard/timeseries?range=${currentRange}`, { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      const s = await res.json();
+      const labels = s.points.map(p => { const d = new Date(p.bucket); return s.bucket === 'hour' ? d.toLocaleTimeString([], { hour: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' }); });
+      const values = s.points.map(p => Number(p.total));
+      const data = { labels, datasets: [{ data: values, backgroundColor: '#4FBFA0', borderRadius: 3, barPercentage: 0.5, categoryPercentage: 0.9 }] };
+      const ctx = document.getElementById('volume-chart');
+      if (volumeChart) { volumeChart.data = data; volumeChart.update(); }
+      else volumeChart = new Chart(ctx, { type: 'bar', data, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: MUTED, font: CHART_FONT }, grid: { display: false } }, y: { ticks: { color: MUTED, font: CHART_FONT, precision: 0 }, grid: { color: GRID } } } } });
+    } catch (err) { console.error('loadByService failed:', err); }
+  }
+
+  async function loadByService() {
+    try {
+      const res = await fetch(`/api/v1/dashboard/by-service?range=${currentRange}`, { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      const s = await res.json();
+      const labels = s.services.map(r => r.service);
+      const values = s.services.map(r => Number(r.total));
+      const data = { labels, datasets: [{ data: values, backgroundColor: '#6C8EEF', borderRadius: 3, maxBarThickness: 20 }] };
+      const ctx = document.getElementById('service-chart');
+      if (serviceChart) { serviceChart.data = data; serviceChart.update(); }
+      else serviceChart = new Chart(ctx, { type: 'bar', data, options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: MUTED, font: CHART_FONT, precision: 0 }, grid: { color: GRID } }, y: { ticks: { color: MUTED, font: CHART_FONT }, grid: { display: false } } } } });
+    } catch (err) { console.error('loadServices failed:', err); }
+  }
+
+  async function loadServices() {
+    try {
+      const res = await fetch('/api/v1/services', { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      const services = await res.json();
+      const strip = document.getElementById('service-strip');
+      strip.innerHTML = '';
+      for (const svc of services) {
+        const healthy = svc.circuit_state !== 'open';
+        const div = document.createElement('div');
+        div.className = 'service-pill';
+        div.innerHTML = `<span class="heartbeat ${healthy ? '' : 'down'}"></span><span class="name">${svc.name.charAt(0).toUpperCase() + svc.name.slice(1)}</span><span class="count">${svc.actions_24h} today</span>`;
+        strip.appendChild(div);
+      }
+    } catch (err) {}
+  }
+
+  async function loadRecent() {
+    const errorBox = document.getElementById('activity-error');
+    try {
+      const res = await fetch(`/api/v1/recent?limit=${activityLimit}`, { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      if (!res.ok) throw new Error('bad status');
+      errorBox.style.display = 'none';
+      activityRows = await res.json();
+      renderActivity();
+    } catch (err) {
+      errorBox.style.display = 'flex';
+    }
+  }
+
+  function renderActivity() {
+    const search = document.getElementById('activity-search').value.trim().toLowerCase();
+    const statusFilter = document.getElementById('activity-status-filter').value;
+    const sortMode = document.getElementById('activity-sort').value;
+
+    let rows = activityRows.filter((row) => {
+      if (statusFilter && row.status !== statusFilter) return false;
+      if (search) {
+        const haystack = `${row.service} ${row.action} ${row.org_id} ${row.agent_id}`.toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    rows = rows.slice().sort((a, b) => {
+      if (sortMode === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+      if (sortMode === 'slowest') return (Number(b.duration_ms)||0) - (Number(a.duration_ms)||0);
+      if (sortMode === 'fastest') return (Number(a.duration_ms)||0) - (Number(b.duration_ms)||0);
+      return new Date(b.created_at) - new Date(a.created_at); // newest (default)
+    });
+
+    const body = document.getElementById('activity-body');
+    const empty = document.getElementById('empty-state');
+    body.innerHTML = '';
+    if (!rows.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    for (const row of rows) {
+      const div = document.createElement('div');
+      div.className = `log-row ${row.status}`;
+      div.innerHTML = `
+        <span class="time">${timeOnly(row.created_at)}</span>
+        <span class="desc">${row.service}.${row.action} <span class="agent">— ${row.org_id}/${row.agent_id}</span></span>
+        <span class="dur">${formatDuration(row.duration_ms)}</span>
+        <span class="status-word">${row.status}</span>`;
+      body.appendChild(div);
+    }
+  }
+
+  document.getElementById('activity-search').addEventListener('input', renderActivity);
+  document.getElementById('activity-status-filter').addEventListener('change', renderActivity);
+  document.getElementById('activity-sort').addEventListener('change', renderActivity);
+  document.getElementById('load-more-btn').addEventListener('click', () => { activityLimit += 50; loadRecent(); });
+  document.getElementById('activity-retry').addEventListener('click', loadRecent);
+
+  async function loadAgents() {
+    const errorBox = document.getElementById('agents-error');
+    try {
+      const res = await fetch('/api/v1/agents', { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      if (!res.ok) throw new Error('bad status');
+      errorBox.style.display = 'none';
+      const rows = await res.json();
+      const list = document.getElementById('agents-list');
+      list.innerHTML = '';
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;">No active agents in the last 24h.</div>'; return; }
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'agent-item';
+        div.innerHTML = `<div><div class="id">${row.org_id} / ${row.agent_id}</div><div class="meta">${row.total_actions} actions · last ${new Date(row.last_seen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+        list.appendChild(div);
+      }
+    } catch (err) {
+      errorBox.style.display = 'flex';
+    }
+  }
+  document.getElementById('agents-retry').addEventListener('click', loadAgents);
+
+  function handleUnauthenticated() {
+    stopAutoRefresh();
+    dashboard.style.display = 'none'; userInfo.style.display = 'none'; authScreen.style.display = 'block';
+    if (hasEverAuthenticated) { sessionBanner.style.display = 'block'; }
+    hasEverAuthenticated = false;
+  }
+
+  // ─── Connect Agent modal ───
+  const modalOverlay = document.getElementById('modal-overlay');
+  const connectFormView = document.getElementById('connect-form-view');
+  const connectResultView = document.getElementById('connect-result-view');
+  const connectForm = document.getElementById('connect-form');
+  const connectError = document.getElementById('connect-error');
+  const connectSubmit = document.getElementById('connect-submit');
+
+  document.getElementById('connect-agent-btn').addEventListener('click', () => {
+    connectFormView.style.display = 'block'; connectResultView.style.display = 'none';
+    connectError.style.display = 'none'; connectForm.reset(); modalOverlay.style.display = 'flex';
+    anyModalOpen = true;
+    document.getElementById('connect-org').focus();
+  });
+  document.getElementById('modal-close').addEventListener('click', () => { modalOverlay.style.display = 'none'; anyModalOpen = false; });
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) { modalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  connectForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); connectError.style.display = 'none'; connectSubmit.disabled = true;
+    const restoreText = withLoadingText(connectSubmit, 'Connecting…');
+    const org_id = document.getElementById('connect-org').value.trim();
+    const agent_id = document.getElementById('connect-agent').value.trim();
+    const label = document.getElementById('connect-label').value.trim();
+    try {
+      const res = await fetch('/api/v1/agents/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ org_id, agent_id, label: label || undefined }) });
+      const data = await res.json();
+      if (!res.ok) { connectError.textContent = data.error || 'Could not generate a connection.'; connectError.style.display = 'block'; return; }
+      document.getElementById('result-key').textContent = data.api_key;
+      document.getElementById('result-webhook').textContent = data.webhook_url;
+      document.getElementById('result-mcp').textContent = data.mcp_url;
+      document.getElementById('result-curl').textContent = `curl -X POST ${data.webhook_url} \\\n  -H "Authorization: Bearer ${data.api_key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"service":"stripe","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'`;
+      document.getElementById('result-n8n').textContent = `Method: POST\nURL: ${data.webhook_url}\nHeader: Authorization = Bearer ${data.api_key}\nBody (JSON): { "service": "stripe", "action": "charge.create", "payload": { ... } }`;
+      connectFormView.style.display = 'none'; connectResultView.style.display = 'block';
+      document.getElementById('welcome-banner').style.display = 'none';
+    } catch (err) { connectError.textContent = 'Could not reach the server.'; connectError.style.display = 'block'; }
+    finally { connectSubmit.disabled = false; restoreText(); }
+  });
+
+  document.querySelectorAll('.copy').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const text = document.getElementById(btn.dataset.target).textContent;
+      navigator.clipboard.writeText(text).then(() => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1200); });
+    });
+  });
+
+  // ─── Credentials modal ───
+  const credsModalOverlay = document.getElementById('creds-modal-overlay');
+  const credsForm = document.getElementById('creds-form');
+  const credsError = document.getElementById('creds-error');
+  const credsSubmit = document.getElementById('creds-submit');
+  const credsTypeSelect = document.getElementById('creds-type');
+  const credsServiceSelect = document.getElementById('creds-service');
+  let knownServices = [];
+
+  function updateCredsFieldVisibility() {
+    const isBasic = credsTypeSelect.value === 'basic';
+    document.getElementById('creds-apikey-field').style.display = isBasic ? 'none' : 'block';
+    document.getElementById('creds-username-field').style.display = isBasic ? 'block' : 'none';
+    document.getElementById('creds-password-field').style.display = isBasic ? 'block' : 'none';
+  }
+  credsTypeSelect.addEventListener('change', updateCredsFieldVisibility);
+
+  document.getElementById('credentials-btn').addEventListener('click', async () => {
+    credsError.style.display = 'none'; credsForm.reset(); updateCredsFieldVisibility();
+    if (!knownServices.length) {
+      try { const res = await fetch('/api/v1/services', { credentials: 'include' }); if (res.ok) knownServices = await res.json(); } catch (err) {}
+      credsServiceSelect.innerHTML = knownServices.map(s => `<option value="${s.name}">${s.name.charAt(0).toUpperCase() + s.name.slice(1)}</option>`).join('');
+    }
+    credsModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('creds-org').focus();
+    loadCredentialsList();
+  });
+  document.getElementById('creds-modal-close').addEventListener('click', () => { credsModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  credsModalOverlay.addEventListener('click', (e) => { if (e.target === credsModalOverlay) { credsModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  credsForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); credsError.style.display = 'none'; credsSubmit.disabled = true;
+    const restoreText = withLoadingText(credsSubmit, 'Saving…');
+    const org_id = document.getElementById('creds-org').value.trim();
+    const service = credsServiceSelect.value;
+    const isBasic = credsTypeSelect.value === 'basic';
+    const credentials = isBasic
+      ? { username: document.getElementById('creds-username').value.trim(), password: document.getElementById('creds-password').value.trim() }
+      : { api_key: document.getElementById('creds-apikey').value.trim() };
+    try {
+      const res = await fetch('/api/v1/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ org_id, service, credentials }) });
+      const data = await res.json();
+      if (!res.ok) { credsError.textContent = data.error || 'Could not save credential.'; credsError.style.display = 'block'; return; }
+      credsForm.reset(); updateCredsFieldVisibility(); loadCredentialsList();
+    } catch (err) { credsError.textContent = 'Could not reach the server.'; credsError.style.display = 'block'; }
+    finally { credsSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadCredentialsList() {
+    const list = document.getElementById('creds-list');
+    try {
+      const res = await fetch('/api/v1/credentials', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No credentials saved yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${row.service.charAt(0).toUpperCase() + row.service.slice(1)} — ${escapeHtml(row.org_id)}</div><div class="meta">${escapeHtml(row.masked_preview)}</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.revoke').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/credentials/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadCredentialsList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Custom Actions modal ───
+  const customModalOverlay = document.getElementById('custom-modal-overlay');
+  const customForm = document.getElementById('custom-form');
+  const customError = document.getElementById('custom-error');
+  const customSubmit = document.getElementById('custom-submit');
+  const customAuthType = document.getElementById('custom-authtype');
+
+  function updateCustomFieldVisibility() {
+    const t = customAuthType.value;
+    document.getElementById('custom-headername-field').style.display = t === 'header' ? 'block' : 'none';
+    document.getElementById('custom-apikey-field').style.display = (t === 'bearer' || t === 'header') ? 'block' : 'none';
+    document.getElementById('custom-username-field').style.display = t === 'basic' ? 'block' : 'none';
+    document.getElementById('custom-password-field').style.display = t === 'basic' ? 'block' : 'none';
+  }
+  customAuthType.addEventListener('change', updateCustomFieldVisibility);
+
+  document.getElementById('custom-actions-btn').addEventListener('click', () => {
+    customError.style.display = 'none'; customForm.reset(); updateCustomFieldVisibility();
+    customModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('custom-org').focus();
+    loadCustomActionsList();
+  });
+  document.getElementById('custom-modal-close').addEventListener('click', () => { customModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  customModalOverlay.addEventListener('click', (e) => { if (e.target === customModalOverlay) { customModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  customForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); customError.style.display = 'none'; customSubmit.disabled = true;
+    const restoreText = withLoadingText(customSubmit, 'Registering…');
+    const org_id = document.getElementById('custom-org').value.trim();
+    const name = document.getElementById('custom-name').value.trim();
+    const method = document.getElementById('custom-method').value;
+    const target_url = document.getElementById('custom-url').value.trim();
+    const auth_type = customAuthType.value;
+    const auth_header_name = document.getElementById('custom-headername').value.trim();
+
+    let credential;
+    if (auth_type === 'basic') {
+      credential = { username: document.getElementById('custom-username').value.trim(), password: document.getElementById('custom-password').value.trim() };
+    } else if (auth_type === 'bearer' || auth_type === 'header') {
+      credential = { api_key: document.getElementById('custom-apikey').value.trim() };
+    }
+
+    try {
+      const res = await fetch('/api/v1/custom-actions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, name, method, target_url, auth_type, auth_header_name: auth_header_name || undefined, credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) { customError.textContent = data.error || 'Could not register action.'; customError.style.display = 'block'; return; }
+      customForm.reset(); updateCustomFieldVisibility(); loadCustomActionsList();
+    } catch (err) { customError.textContent = 'Could not reach the server.'; customError.style.display = 'block'; }
+    finally { customSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadCustomActionsList() {
+    const list = document.getElementById('custom-list');
+    try {
+      const res = await fetch('/api/v1/custom-actions', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No custom actions registered yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.name)} — ${escapeHtml(row.org_id)}</div><div class="meta">${row.method} ${escapeHtml(row.target_url)}</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.revoke').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/custom-actions/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadCustomActionsList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Enterprise modal (SSO configs, members, invites) ───
+  const enterpriseModalOverlay = document.getElementById('enterprise-modal-overlay');
+  const enterpriseError = document.getElementById('enterprise-error');
+  const enterpriseOrgInput = document.getElementById('enterprise-org-input');
+  let enterpriseCurrentOrg = '';
+
+  function enterpriseShowError(msg) { enterpriseError.textContent = msg; enterpriseError.style.display = 'block'; }
+  function roleBadge(role) {
+    const cls = role === 'admin' ? 'admin-role' : role === 'auditor' ? 'role-auditor' : 'role-developer';
+    return `<span class="badge ${cls}">${escapeHtml(role)}</span>`;
+  }
+
+  document.getElementById('enterprise-btn').addEventListener('click', () => {
+    enterpriseError.style.display = 'none';
+    document.getElementById('enterprise-configs-list').innerHTML = '';
+    document.getElementById('enterprise-members-list').innerHTML = '';
+    document.getElementById('enterprise-invites-list').innerHTML = '';
+    enterpriseModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    enterpriseOrgInput.focus();
+  });
+  document.getElementById('enterprise-modal-close').addEventListener('click', () => { enterpriseModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  enterpriseModalOverlay.addEventListener('click', (e) => { if (e.target === enterpriseModalOverlay) { enterpriseModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  document.getElementById('enterprise-load-btn').addEventListener('click', () => loadEnterpriseOrg());
+  enterpriseOrgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); loadEnterpriseOrg(); } });
+
+  async function loadEnterpriseOrg() {
+    const orgId = enterpriseOrgInput.value.trim();
+    if (!orgId) { enterpriseShowError('Enter an org ID first.'); return; }
+    enterpriseCurrentOrg = orgId;
+    enterpriseError.style.display = 'none';
+    await Promise.all([loadEnterpriseConfigs(), loadEnterpriseMembers(), loadEnterpriseInvites()]);
+  }
+
+  async function loadEnterpriseConfigs() {
+    const list = document.getElementById('enterprise-configs-list');
+    try {
+      const res = await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/configs`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { list.innerHTML = ''; enterpriseShowError(data.error || 'Could not load SSO configs.'); return; }
+      const configs = data.configs || [];
+      if (!configs.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No identity providers configured yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const c of configs) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(c.client_id)} ${c.enabled ? '' : '<span class="badge unverified">disabled</span>'}</div><div class="meta">${escapeHtml(c.issuer_url)} · domains: ${escapeHtml(c.allowed_domains)} · secret ${escapeHtml(c.client_secret_preview)} · default role: ${escapeHtml(c.default_role)}</div></div><button class="revoke" data-id="${c.id}">Delete</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.revoke').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/configs/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' });
+          loadEnterpriseConfigs();
+        });
+      });
+    } catch (err) { enterpriseShowError('Could not reach the server.'); }
+  }
+
+  const enterpriseConfigForm = document.getElementById('enterprise-config-form');
+  const enterpriseConfigSubmit = document.getElementById('enterprise-config-submit');
+  enterpriseConfigForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!enterpriseCurrentOrg) { enterpriseShowError('Load an org first.'); return; }
+    enterpriseError.style.display = 'none'; enterpriseConfigSubmit.disabled = true;
+    const restoreText = withLoadingText(enterpriseConfigSubmit, 'Saving…');
+    const body = {
+      issuer_url: document.getElementById('config-issuer').value.trim(),
+      client_id: document.getElementById('config-client-id').value.trim(),
+      client_secret: document.getElementById('config-client-secret').value.trim(),
+      allowed_domains: document.getElementById('config-domains').value.trim(),
+      default_role: document.getElementById('config-default-role').value,
+    };
+    try {
+      const res = await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/configs`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { enterpriseShowError(data.error || 'Could not save identity provider.'); return; }
+      enterpriseConfigForm.reset(); loadEnterpriseConfigs();
+    } catch (err) { enterpriseShowError('Could not reach the server.'); }
+    finally { enterpriseConfigSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadEnterpriseMembers() {
+    const list = document.getElementById('enterprise-members-list');
+    try {
+      const res = await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/members`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { list.innerHTML = ''; return; } // 403 here is normal for a non-admin viewer; the configs call above already surfaced the error
+      const members = data.members || [];
+      if (!members.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No members yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const m of members) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(m.email)} ${roleBadge(m.role)}</div></div>
+          <div class="sso-row-actions">
+            <select data-user="${m.user_id}" class="member-role-select">
+              <option value="admin" ${m.role === 'admin' ? 'selected' : ''}>Admin</option>
+              <option value="developer" ${m.role === 'developer' ? 'selected' : ''}>Developer</option>
+              <option value="auditor" ${m.role === 'auditor' ? 'selected' : ''}>Auditor</option>
+            </select>
+            <button class="revoke" data-user="${m.user_id}">Remove</button>
+          </div>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.member-role-select').forEach((sel) => {
+        sel.addEventListener('change', async () => {
+          await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/members/${sel.dataset.user}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role: sel.value }),
+          });
+          loadEnterpriseMembers();
+        });
+      });
+      list.querySelectorAll('.revoke').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/members/${btn.dataset.user}`, { method: 'DELETE', credentials: 'include' });
+          loadEnterpriseMembers();
+        });
+      });
+    } catch (err) {}
+  }
+
+  async function loadEnterpriseInvites() {
+    const list = document.getElementById('enterprise-invites-list');
+    try {
+      const res = await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/invites`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { list.innerHTML = ''; return; }
+      const invites = data.invites || [];
+      if (!invites.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No pending invites.</div>'; return; }
+      list.innerHTML = '';
+      for (const inv of invites) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(inv.email)} ${roleBadge(inv.role)}</div><div class="meta">expires ${new Date(inv.expires_at).toLocaleDateString()}</div></div><button class="revoke" data-id="${inv.id}">Revoke</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.revoke').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/invites/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' });
+          loadEnterpriseInvites();
+        });
+      });
+    } catch (err) {}
+  }
+
+  const enterpriseInviteForm = document.getElementById('enterprise-invite-form');
+  const enterpriseInviteSubmit = document.getElementById('enterprise-invite-submit');
+  enterpriseInviteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!enterpriseCurrentOrg) { enterpriseShowError('Load an org first.'); return; }
+    enterpriseError.style.display = 'none'; enterpriseInviteSubmit.disabled = true;
+    const restoreText = withLoadingText(enterpriseInviteSubmit, 'Sending…');
+    const body = { email: document.getElementById('invite-email-input').value.trim(), role: document.getElementById('invite-role-select').value };
+    try {
+      const res = await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/invites`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { enterpriseShowError(data.error || 'Could not send invite.'); return; }
+      enterpriseInviteForm.reset(); loadEnterpriseInvites();
+      if (data.dev_accept_url) { enterpriseShowError(`Dev mode (no SMTP configured) — accept link: ${data.dev_accept_url}`); }
+    } catch (err) { enterpriseShowError('Could not reach the server.'); }
+    finally { enterpriseInviteSubmit.disabled = false; restoreText(); }
+  });
+
+  // ─── SSO sign-in link on the login screen ───
+  const ssoOrgForm = document.getElementById('sso-org-form');
+  document.getElementById('sso-link').addEventListener('click', () => {
+    ssoOrgForm.style.display = ssoOrgForm.style.display === 'none' ? 'block' : 'none';
+    if (ssoOrgForm.style.display === 'block') document.getElementById('sso-org-input').focus();
+  });
+  ssoOrgForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const orgId = document.getElementById('sso-org-input').value.trim();
+    if (!orgId) return;
+    window.location.href = `/api/v1/auth/sso/${encodeURIComponent(orgId)}/login`;
+  });
+
+  // ─── Accept an org invite ───
+  const inviteScreen = document.getElementById('invite-screen');
+  const inviteForm = document.getElementById('invite-form');
+  const inviteError = document.getElementById('invite-error');
+  const inviteSubmit = document.getElementById('invite-submit');
+  let pendingInviteToken = null;
+  inviteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    inviteError.style.display = 'none'; inviteSubmit.disabled = true;
+    const restoreText = withLoadingText(inviteSubmit, 'Joining…');
+    const password = document.getElementById('invite-password-input').value;
+    try {
+      const res = await fetch('/api/v1/auth/invites/accept', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ token: pendingInviteToken, password: password || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { inviteError.textContent = data.error || 'Could not accept this invite.'; inviteError.style.display = 'block'; return; }
+      window.location.href = '/dashboard';
+    } catch (err) { inviteError.textContent = 'Could not reach the server.'; inviteError.style.display = 'block'; }
+    finally { inviteSubmit.disabled = false; restoreText(); }
+  });
+
+  // ─── Account modal (change password) ───
+  const accountModalOverlay = document.getElementById('account-modal-overlay');
+  const accountForm = document.getElementById('account-form');
+  const accountError = document.getElementById('account-error');
+  const accountSuccess = document.getElementById('account-success');
+  const accountSubmit = document.getElementById('account-submit');
+
+  accountBtn.addEventListener('click', async () => {
+    document.getElementById('account-email-display').textContent = currentUserEmail;
+    accountError.style.display = 'none'; accountSuccess.style.display = 'none'; accountForm.reset();
+    accountModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('current-password').focus();
+    await loadSelfHostGateState();
+    await loadBillingPlanState();
+  });
+  document.getElementById('account-modal-close').addEventListener('click', () => { accountModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  accountModalOverlay.addEventListener('click', (e) => { if (e.target === accountModalOverlay) { accountModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  // ─── Self-host download gate: must have connected an agent, then submit a
+  // short request form before the actual download unlocks ───
+  async function loadSelfHostGateState() {
+    const loadingEl = document.getElementById('self-host-loading');
+    const noAgentEl = document.getElementById('self-host-no-agent');
+    const formEl = document.getElementById('self-host-request-form');
+    loadingEl.style.display = 'block'; noAgentEl.style.display = 'none'; formEl.style.display = 'none';
+    try {
+      const res = await fetch('/api/v1/agents/keys', { credentials: 'include' });
+      const keys = await res.json();
+      loadingEl.style.display = 'none';
+      if (Array.isArray(keys) && keys.length > 0) {
+        formEl.style.display = 'block';
+      } else {
+        noAgentEl.style.display = 'block';
+      }
+    } catch (err) {
+      loadingEl.textContent = 'Could not check status — try again.';
+    }
+  }
+
+  // ─── Billing / Agency upgrade ───
+  async function loadBillingPlanState() {
+    const planEl = document.getElementById('billing-current-plan');
+    const agencySection = document.getElementById('billing-agency-section');
+    const brandingSection = document.getElementById('branding-section');
+    try {
+      const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
+      const data = await res.json();
+      const plan = data.user?.plan || 'free';
+      planEl.textContent = plan === 'agency' ? 'You are on the Agency plan.' : 'You are on the Free plan.';
+      agencySection.style.display = plan === 'agency' ? 'none' : 'block';
+      brandingSection.style.display = plan === 'agency' ? 'block' : 'none';
+    } catch (err) {
+      planEl.textContent = 'Could not load plan status.';
+    }
+  }
+
+  let paddleLoaded = false;
+  function loadPaddleScript() {
+    return new Promise((resolve, reject) => {
+      if (paddleLoaded || window.Paddle) { paddleLoaded = true; resolve(); return; }
+      const script = document.createElement('script');
+      script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
+      script.onload = () => { paddleLoaded = true; resolve(); };
+      script.onerror = () => reject(new Error('Could not load Paddle checkout.'));
+      document.head.appendChild(script);
+    });
+  }
+
+  // Shared checkout trigger - used by both the header's quick-access button
+  // and the Account modal's Agency button, so the logic lives in one place.
+  // Agency is the only self-serve paid plan (Enterprise is sales-assisted).
+  // errorBox is optional: pass an element to show errors inline, or omit to
+  // fall back to alert() (used by the header button, which has no nearby
+  // space for an inline error message).
+  async function startAgencyCheckout(btn, errorBox) {
+    if (errorBox) errorBox.style.display = 'none';
+    btn.disabled = true;
+    const restoreText = withLoadingText(btn, 'Loading checkout...');
+    try {
+      const infoRes = await fetch('/api/v1/billing/checkout-info', { credentials: 'include' });
+      const info = await infoRes.json();
+      if (!infoRes.ok) {
+        const msg = info.error || 'Billing is not available.';
+        if (errorBox) { errorBox.textContent = msg; errorBox.style.display = 'block'; } else { alert(msg); }
+        return;
+      }
+      await loadPaddleScript();
+      Paddle.Environment.set(info.environment);
+      Paddle.Initialize({ token: info.client_token });
+      Paddle.Checkout.open({
+        items: [{ priceId: info.price_id, quantity: 1 }],
+        customer: { email: info.email },
+        customData: info.custom_data,
+      });
+    } catch (err) {
+      const msg = err.message || 'Could not start checkout.';
+      if (errorBox) { errorBox.textContent = msg; errorBox.style.display = 'block'; } else { alert(msg); }
+    } finally {
+      btn.disabled = false; restoreText();
+    }
+  }
+
+  document.getElementById('billing-agency-btn').addEventListener('click', () => {
+    startAgencyCheckout(document.getElementById('billing-agency-btn'), document.getElementById('billing-error'));
+  });
+
+  document.getElementById('header-upgrade-btn').addEventListener('click', () => {
+    startAgencyCheckout(document.getElementById('header-upgrade-btn'), null);
+  });
+
+  document.getElementById('branding-save-btn').addEventListener('click', async () => {
+    const orgId = document.getElementById('branding-org-input').value.trim();
+    const errorBox = document.getElementById('branding-error');
+    errorBox.style.display = 'none';
+    if (!orgId) { errorBox.textContent = 'Enter an org ID.'; errorBox.style.display = 'block'; return; }
+    const btn = document.getElementById('branding-save-btn');
+    btn.disabled = true;
+    const restoreText = withLoadingText(btn, 'Saving...');
+    try {
+      const res = await fetch(`/api/v1/org-branding/${encodeURIComponent(orgId)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({
+          display_name: document.getElementById('branding-name-input').value.trim() || undefined,
+          logo_url: document.getElementById('branding-logo-input').value.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errorBox.textContent = data.error || 'Could not save branding.'; errorBox.style.display = 'block'; }
+    } catch (err) {
+      errorBox.textContent = 'Could not save branding.'; errorBox.style.display = 'block';
+    } finally {
+      btn.disabled = false; restoreText();
+    }
+  });
+
+  document.getElementById('self-host-submit').addEventListener('click', async () => {
+    const errorBox = document.getElementById('self-host-error');
+    errorBox.style.display = 'none';
+    const reason = document.getElementById('self-host-reason').value;
+    const company = document.getElementById('self-host-company').value;
+    const submitBtn = document.getElementById('self-host-submit');
+    submitBtn.disabled = true;
+    const restoreText = withLoadingText(submitBtn, 'Preparing download…');
+    try {
+      const res = await fetch('/api/v1/download/self-host/request', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ reason, company }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errorBox.textContent = data.error || 'Could not process request.'; errorBox.style.display = 'block'; return; }
+      window.location.href = '/api/v1/download/self-host';
+    } catch (err) {
+      errorBox.textContent = 'Could not reach the server.'; errorBox.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false; restoreText();
+    }
+  });
+
+  // ─── Admin modal ───
+  const adminModalOverlay = document.getElementById('admin-modal-overlay');
+  let adminUsersCache = [];
+  let adminActiveTab = 'local';
+
+  document.getElementById('admin-btn').addEventListener('click', () => {
+    adminModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    loadAdminData();
+  });
+  document.getElementById('admin-modal-close').addEventListener('click', () => { adminModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  adminModalOverlay.addEventListener('click', (e) => { if (e.target === adminModalOverlay) { adminModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  document.querySelectorAll('.admin-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      adminActiveTab = tab.dataset.tab;
+      document.querySelectorAll('.admin-tab').forEach((t) => t.classList.toggle('active', t === tab));
+      renderAdminUsersList();
+    });
+  });
+
+  async function loadAdminData() {
+    try {
+      const [overviewRes, usersRes] = await Promise.all([
+        fetch('/api/v1/admin/overview', { credentials: 'include' }),
+        fetch('/api/v1/admin/users', { credentials: 'include' }),
+      ]);
+      if (overviewRes.status === 403 || usersRes.status === 403) {
+        document.getElementById('admin-overview-line').textContent = 'Admin access required.';
+        document.getElementById('admin-stat-grid').style.display = 'none';
+        return;
+      }
+      const overview = await overviewRes.json();
+      adminUsersCache = await usersRes.json();
+
+      document.getElementById('admin-stat-users').textContent = overview.total_users;
+      document.getElementById('admin-stat-orgs').textContent = overview.total_orgs;
+      document.getElementById('admin-stat-actions').textContent = overview.this_month.success || 0;
+      document.getElementById('admin-overview-line').textContent = `Running in ${overview.deployment_mode} mode`;
+
+      renderAdminUsersList();
+    } catch (err) {}
+  }
+
+  function renderAdminUsersList() {
+    const list = document.getElementById('admin-users-list');
+    list.innerHTML = '';
+    const users = adminUsersCache.filter((u) => {
+      if (adminActiveTab === 'local') return u.id < 10;
+      if (adminActiveTab === 'service') return u.id >= 10 && u.id < 100;
+      return u.id >= 100;
+    });
+
+    if (!users.length) {
+      list.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:12px 0;">No ${adminActiveTab} users yet.</div>`;
+      return;
+    }
+
+    for (const u of users) {
+      const row = document.createElement('div');
+      row.className = 'cred-row clickable';
+      const lastLogin = u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : 'never';
+      const orgsLabel = u.org_count === 0 ? 'no orgs yet' : `${u.org_count} org${u.org_count === 1 ? '' : 's'}`;
+      const adminBadge = u.is_admin ? '<span class="badge admin-role">Admin</span>' : '';
+      const planBadge = u.plan === 'agency' ? '<span class="badge role-developer">Agency</span>' : '';
+      row.innerHTML = `
+        <div class="info">
+          <div class="svc"><span class="user-id-badge">#${u.id}</span>${escapeHtml(u.email)} ${adminBadge} ${planBadge}</div>
+          <div class="meta">${orgsLabel} · ${u.usage_this_month} actions this month · last login ${lastLogin}</div>
+        </div>`;
+      list.appendChild(row);
+
+      // Expandable detail row — every field the admin/users endpoint has.
+      const detail = document.createElement('div');
+      detail.className = 'user-detail-row';
+      const orgsListHtml = u.orgs.length ? u.orgs.map(escapeHtml).join(', ') : 'none';
+      const verifiedBadge = u.email_verified
+        ? '<span class="badge verified">Verified</span>'
+        : '<span class="badge unverified">Not verified</span>';
+      detail.innerHTML = `
+        <div><b>Email:</b> ${verifiedBadge}</div>
+        <div><b>Created:</b> ${new Date(u.created_at).toLocaleString()}</div>
+        <div><b>Last login:</b> ${lastLogin}</div>
+        <div><b>Orgs:</b> ${orgsListHtml}</div>
+        <div><b>API keys:</b> ${u.api_keys_count} · <b>Custom actions:</b> ${u.custom_actions_count} · <b>Saved credentials:</b> ${u.credentials_count}</div>
+        <div><b>Usage this month:</b> ${u.usage_this_month} actions</div>`;
+      list.appendChild(detail);
+
+      row.querySelector('.info').addEventListener('click', () => detail.classList.toggle('open'));
+    }
+  }
+
+  accountForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    accountError.style.display = 'none'; accountSuccess.style.display = 'none'; accountSubmit.disabled = true;
+    const current_password = document.getElementById('current-password').value;
+    const new_password = document.getElementById('new-password').value;
+    const confirm_password = document.getElementById('confirm-password').value;
+    if (new_password !== confirm_password) {
+      accountError.textContent = 'New password and confirmation don\'t match.'; accountError.style.display = 'block';
+      accountSubmit.disabled = false; return;
+    }
+    const restoreText = withLoadingText(accountSubmit, 'Updating…');
+    try {
+      const res = await fetch('/api/v1/auth/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ current_password, new_password }) });
+      const data = await res.json();
+      if (!res.ok) { accountError.textContent = data.error || 'Could not update password.'; accountError.style.display = 'block'; return; }
+      accountSuccess.textContent = 'Password updated.'; accountSuccess.style.display = 'block'; accountForm.reset();
+    } catch (err) { accountError.textContent = 'Could not reach the server.'; accountError.style.display = 'block'; }
+    finally { accountSubmit.disabled = false; restoreText(); }
+  });
+
+  // ─── Escape closes whichever modal is open ───
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    [modalOverlay, credsModalOverlay, customModalOverlay, accountModalOverlay, adminModalOverlay].forEach((ov) => {
+      if (ov.style.display === 'flex') { ov.style.display = 'none'; anyModalOpen = false; }
+    });
+  });
+
+  // ─── Forgot password ───
+  const forgotScreen = document.getElementById('forgot-screen');
+  const forgotForm = document.getElementById('forgot-form');
+  const forgotMessage = document.getElementById('forgot-message');
+  const forgotSubmit = document.getElementById('forgot-submit');
+
+  document.getElementById('forgot-link').addEventListener('click', () => {
+    authScreen.style.display = 'none'; forgotScreen.style.display = 'block';
+    forgotMessage.style.display = 'none'; forgotForm.reset();
+  });
+  document.getElementById('back-to-login-link').addEventListener('click', () => {
+    forgotScreen.style.display = 'none'; authScreen.style.display = 'block';
+  });
+
+  forgotForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); forgotSubmit.disabled = true;
+    const restoreText = withLoadingText(forgotSubmit, 'Sending…');
+    const email = document.getElementById('forgot-email').value.trim();
+    try {
+      const res = await fetch('/api/v1/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      forgotMessage.textContent = data.message || 'If an account exists for that email, a reset link has been sent.';
+      forgotMessage.style.display = 'block';
+      forgotForm.reset();
+    } catch (err) {
+      forgotMessage.textContent = 'Could not reach the server.';
+      forgotMessage.style.display = 'block';
+    } finally {
+      forgotSubmit.disabled = false; restoreText();
+    }
+  });
+
+  // ─── Reset password (from emailed link) ───
+  const resetScreen = document.getElementById('reset-screen');
+  const resetForm = document.getElementById('reset-form');
+  const resetError = document.getElementById('reset-error');
+  const resetSubmit = document.getElementById('reset-submit');
+  let pendingResetToken = null;
+
+  resetForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); resetError.style.display = 'none'; resetSubmit.disabled = true;
+    const new_password = document.getElementById('reset-password-input').value;
+    const confirm_password = document.getElementById('reset-confirm-input').value;
+    if (new_password !== confirm_password) {
+      resetError.textContent = 'Passwords don\'t match.'; resetError.style.display = 'block';
+      resetSubmit.disabled = false; return;
+    }
+    const restoreText = withLoadingText(resetSubmit, 'Setting password…');
+    try {
+      const res = await fetch('/api/v1/auth/reset-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: pendingResetToken, new_password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { resetError.textContent = data.error || 'Could not reset password.'; resetError.style.display = 'block'; return; }
+      resetScreen.style.display = 'none'; authScreen.style.display = 'block';
+      authError.textContent = ''; authError.style.display = 'none';
+      // Clear the token from the URL so refreshing doesn't re-show the reset form.
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch (err) {
+      resetError.textContent = 'Could not reach the server.'; resetError.style.display = 'block';
+    } finally {
+      resetSubmit.disabled = false; restoreText();
+    }
+  });
+
+  (async function checkSession() {
+    // A password-reset link or email-verification link takes priority over
+    // the normal login/session flow.
+    const urlParams = new URLSearchParams(window.location.search);
+    const resetToken = urlParams.get('reset_token');
+    if (resetToken) {
+      pendingResetToken = resetToken;
+      resetScreen.style.display = 'block';
+      return;
+    }
+
+    const inviteToken = urlParams.get('invite_token');
+    if (inviteToken) {
+      window.history.replaceState({}, '', window.location.pathname);
+      pendingInviteToken = inviteToken;
+      inviteScreen.style.display = 'block';
+      return;
+    }
+
+    const verifyToken = urlParams.get('verify_token');
+    if (verifyToken) {
+      window.history.replaceState({}, '', window.location.pathname); // don't leave the token sitting in the URL/history
+      try {
+        const res = await fetch(`/api/v1/auth/verify-email?token=${encodeURIComponent(verifyToken)}`, { credentials: 'include' });
+        const data = await res.json();
+        if (res.ok) { showDashboard(data.user); return; }
+        authError.textContent = data.error || 'Could not verify your email.'; authError.style.display = 'block';
+      } catch (err) {
+        authError.textContent = 'Could not reach the server.'; authError.style.display = 'block';
+      }
+      authScreen.style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
+      if (res.ok) { const data = await res.json(); showDashboard(data.user); return; }
+    } catch (err) {}
+    authScreen.style.display = 'block';
+  })();
+})();
+</script>
+</body>
+</html>
