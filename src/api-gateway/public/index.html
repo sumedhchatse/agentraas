@@ -232,6 +232,31 @@
     width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
     padding: 11px 13px; font-size: 14px; font-family: inherit; border-radius: 8px;
   }
+  .modal.wide { max-width: 640px; }
+  .field-rule-row {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; margin-bottom: 10px;
+  }
+  .field-rule-row .row1 { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .field-rule-row .row1 input[type="text"] { flex: 1; }
+  .field-rule-row .row1 select { width: auto; flex-shrink: 0; min-width: 100px; }
+  .field-rule-row .required-label { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); flex-shrink: 0; white-space: nowrap; }
+  .field-rule-row .remove-field-btn {
+    background: none; border: none; color: var(--alert); cursor: pointer; font-size: 13px;
+    flex-shrink: 0; padding: 4px 8px;
+  }
+  .field-rule-row .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+  .field-rule-row .row2 input { flex: 1; min-width: 90px; font-size: 12.5px; padding: 8px 10px; }
+  .field-rule-row .row2 input::placeholder { color: var(--muted); }
+  .rule-summary-row {
+    background: var(--panel-2); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  }
+  .rule-summary-row .info .svc { font-size: 13.5px; font-weight: 600; }
+  .rule-summary-row .info .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #vr-test-result { font-size: 12.5px; padding: 8px 10px; border-radius: 6px; margin-top: 8px; display: none; }
+  #vr-test-result.pass { background: rgba(0,224,168,0.12); color: var(--signal); display: block; }
+  #vr-test-result.fail { background: rgba(226,88,74,0.12); color: var(--alert); display: block; }
   .admin-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 4px; }
   .admin-stat { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; }
   .admin-stat-n { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
@@ -482,6 +507,7 @@
       <button class="btn filled" id="connect-agent-btn">+ Connect agent</button>
       <button class="btn" id="credentials-btn">Credentials</button>
       <button class="btn" id="custom-actions-btn">Custom actions</button>
+      <button class="btn" id="validation-rules-btn">Validation rules</button>
       <button class="btn" id="admin-btn" style="display:none;">Admin</button>
       <button class="btn" id="enterprise-btn">Enterprise</button>
       <button class="btn" id="seed-btn">Seed demo data</button>
@@ -559,6 +585,10 @@
   <div class="modal" role="dialog" aria-modal="true" aria-label="Connect an agent">
     <div id="connect-form-view">
       <h3>Connect an agent</h3>
+      <div id="connected-agents-section" style="margin-bottom:22px;">
+        <div id="connected-agents-count" style="font-size:12.5px;color:var(--muted);margin-bottom:8px;">Loading…</div>
+        <div id="connected-agents-list"></div>
+      </div>
       <p class="sub">Generate a key scoped to one org/agent. Shown once — copy it now.</p>
       <div class="modal-error" id="connect-error"></div>
       <form id="connect-form">
@@ -643,6 +673,36 @@
     <h3 style="margin-top:26px;">Registered actions</h3>
     <div id="custom-list"></div>
     <button class="close-btn" id="custom-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Validation Rules modal -->
+<div class="modal-overlay" id="vr-modal-overlay">
+  <div class="modal wide" role="dialog" aria-modal="true" aria-label="Validation rules">
+    <h3>Validation rules</h3>
+    <p class="sub">Define required fields, types, and constraints for any service.action — including Custom Actions, which otherwise have no validation at all. A rule you save here always overrides a curated service's built-in rule for that same action.</p>
+    <div class="modal-error" id="vr-error"></div>
+    <form id="vr-form">
+      <div class="field"><label for="vr-org">Org ID</label><input type="text" id="vr-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="vr-service">Service</label><input type="text" id="vr-service" placeholder="stripe (or custom)" required></div>
+      <div class="field"><label for="vr-action">Action</label><input type="text" id="vr-action" placeholder="charge.create" required></div>
+
+      <label style="display:block;margin:14px 0 8px;font-size:13px;font-weight:600;">Field rules</label>
+      <div id="vr-fields-container"></div>
+      <button type="button" class="btn" id="vr-add-field-btn" style="margin-bottom:14px;">+ Add field</button>
+
+      <div style="margin-bottom:14px;">
+        <label for="vr-test-payload" style="display:block;margin-bottom:8px;font-size:13px;font-weight:600;">Test against a sample payload (optional)</label>
+        <textarea id="vr-test-payload" rows="3" placeholder='{"amount": 5000, "currency": "usd"}' style="width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:ui-monospace,monospace;font-size:12.5px;resize:vertical;"></textarea>
+        <button type="button" class="btn" id="vr-test-btn" style="margin-top:8px;">Test</button>
+        <div id="vr-test-result"></div>
+      </div>
+
+      <button type="submit" class="primary" id="vr-submit">Save rule</button>
+    </form>
+    <h3 style="margin-top:26px;">Saved rules</h3>
+    <div id="vr-list"></div>
+    <button class="close-btn" id="vr-modal-close">Close</button>
   </div>
 </div>
 
@@ -1202,11 +1262,67 @@
   const connectError = document.getElementById('connect-error');
   const connectSubmit = document.getElementById('connect-submit');
 
+  async function loadConnectedAgentsList() {
+    const countEl = document.getElementById('connected-agents-count');
+    const listEl = document.getElementById('connected-agents-list');
+    countEl.textContent = 'Loading…';
+    listEl.innerHTML = '';
+    try {
+      const res = await fetch('/api/v1/agents/keys', { credentials: 'include' });
+      const keys = (await res.json()).filter(k => !k.revoked_at);
+      countEl.textContent = keys.length === 0 ? 'No agents connected yet.' : `${keys.length} agent${keys.length === 1 ? '' : 's'} connected`;
+      for (const k of keys) {
+        const row = document.createElement('div');
+        row.className = 'cred-row';
+        const lastUsed = k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'never used';
+        row.innerHTML = `
+          <div class="info">
+            <div class="svc">${escapeHtml(k.org_id)} / ${escapeHtml(k.agent_id)} ${k.label ? `<span style="color:var(--muted);font-weight:400;">(${escapeHtml(k.label)})</span>` : ''}</div>
+            <div class="meta">Key ${escapeHtml(k.key_prefix)}... · last used ${lastUsed}</div>
+          </div>
+          <button type="button" class="btn" data-regen-id="${k.id}" style="margin-right:6px;">Regenerate</button>
+          <button class="revoke" data-revoke-id="${k.id}">Revoke</button>`;
+        listEl.appendChild(row);
+      }
+    } catch (err) {
+      countEl.textContent = 'Could not load connected agents.';
+    }
+  }
+
   document.getElementById('connect-agent-btn').addEventListener('click', () => {
     connectFormView.style.display = 'block'; connectResultView.style.display = 'none';
     connectError.style.display = 'none'; connectForm.reset(); modalOverlay.style.display = 'flex';
     anyModalOpen = true;
     document.getElementById('connect-org').focus();
+    loadConnectedAgentsList();
+  });
+
+  document.getElementById('connected-agents-list').addEventListener('click', async (e) => {
+    const revokeId = e.target.dataset.revokeId;
+    const regenId = e.target.dataset.regenId;
+    if (revokeId) {
+      if (!confirm('Revoke this agent\'s key? It will stop working immediately.')) return;
+      e.target.disabled = true;
+      try {
+        const res = await fetch(`/api/v1/agents/keys/${revokeId}`, { method: 'DELETE', credentials: 'include' });
+        if (res.ok) loadConnectedAgentsList();
+        else alert('Could not revoke key.');
+      } catch (err) { alert('Could not reach the server.'); }
+    } else if (regenId) {
+      if (!confirm('Regenerate this key? The old one stops working immediately, and the new one is shown once.')) return;
+      e.target.disabled = true;
+      try {
+        const res = await fetch(`/api/v1/agents/keys/${regenId}/regenerate`, { method: 'POST', credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Could not regenerate key.'); return; }
+        document.getElementById('result-key').textContent = data.api_key;
+        document.getElementById('result-webhook').textContent = data.webhook_url;
+        document.getElementById('result-mcp').textContent = data.mcp_url;
+        document.getElementById('result-curl').textContent = `curl -X POST ${data.webhook_url} \\\n  -H "Authorization: Bearer ${data.api_key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"service":"mockpay","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'`;
+        document.getElementById('result-n8n').textContent = `Method: POST\nURL: ${data.webhook_url}\nHeader: Authorization = Bearer ${data.api_key}\nBody (JSON): { "service": "mockpay", "action": "charge.create", "payload": { ... } }`;
+        connectFormView.style.display = 'none'; connectResultView.style.display = 'block';
+      } catch (err) { alert('Could not reach the server.'); }
+    }
   });
   document.getElementById('modal-close').addEventListener('click', () => { modalOverlay.style.display = 'none'; anyModalOpen = false; });
   modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) { modalOverlay.style.display = 'none'; anyModalOpen = false; } });
@@ -1224,8 +1340,8 @@
       document.getElementById('result-key').textContent = data.api_key;
       document.getElementById('result-webhook').textContent = data.webhook_url;
       document.getElementById('result-mcp').textContent = data.mcp_url;
-      document.getElementById('result-curl').textContent = `curl -X POST ${data.webhook_url} \\\n  -H "Authorization: Bearer ${data.api_key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"service":"stripe","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'`;
-      document.getElementById('result-n8n').textContent = `Method: POST\nURL: ${data.webhook_url}\nHeader: Authorization = Bearer ${data.api_key}\nBody (JSON): { "service": "stripe", "action": "charge.create", "payload": { ... } }`;
+      document.getElementById('result-curl').textContent = `curl -X POST ${data.webhook_url} \\\n  -H "Authorization: Bearer ${data.api_key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"service":"mockpay","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'`;
+      document.getElementById('result-n8n').textContent = `Method: POST\nURL: ${data.webhook_url}\nHeader: Authorization = Bearer ${data.api_key}\nBody (JSON): { "service": "mockpay", "action": "charge.create", "payload": { ... } }`;
       connectFormView.style.display = 'none'; connectResultView.style.display = 'block';
       document.getElementById('welcome-banner').style.display = 'none';
     } catch (err) { connectError.textContent = 'Could not reach the server.'; connectError.style.display = 'block'; }
@@ -1377,6 +1493,173 @@
       }
       list.querySelectorAll('.revoke').forEach((btn) => {
         btn.addEventListener('click', async () => { await fetch(`/api/v1/custom-actions/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadCustomActionsList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Validation Rules modal ───
+  const vrModalOverlay = document.getElementById('vr-modal-overlay');
+  const vrForm = document.getElementById('vr-form');
+  const vrError = document.getElementById('vr-error');
+  const vrSubmit = document.getElementById('vr-submit');
+  const vrFieldsContainer = document.getElementById('vr-fields-container');
+  let vrFieldRowId = 0;
+
+  function createFieldRow(name, rules) {
+    rules = rules || {};
+    const id = 'vrf' + (vrFieldRowId++);
+    const row = document.createElement('div');
+    row.className = 'field-rule-row';
+    row.dataset.rowId = id;
+    row.innerHTML = `
+      <div class="row1">
+        <input type="text" class="vrf-name" placeholder="field name (e.g. amount)" value="${escapeHtml(name || '')}">
+        <select class="vrf-type">
+          <option value="">any type</option>
+          <option value="string">string</option>
+          <option value="number">number</option>
+          <option value="boolean">boolean</option>
+          <option value="array">array</option>
+          <option value="object">object</option>
+        </select>
+        <label class="required-label"><input type="checkbox" class="vrf-required"> required</label>
+        <button type="button" class="remove-field-btn">✕</button>
+      </div>
+      <div class="row2">
+        <input type="text" class="vrf-min" placeholder="min (number)">
+        <input type="text" class="vrf-max" placeholder="max (number)">
+        <input type="text" class="vrf-minlength" placeholder="minLength">
+        <input type="text" class="vrf-maxlength" placeholder="maxLength">
+        <input type="text" class="vrf-enum" placeholder="enum: a,b,c">
+        <label class="required-label"><input type="checkbox" class="vrf-email"> email format</label>
+      </div>
+    `;
+    row.querySelector('.vrf-type').value = rules.type || '';
+    row.querySelector('.vrf-required').checked = !!rules.required;
+    row.querySelector('.vrf-min').value = rules.min !== undefined ? rules.min : '';
+    row.querySelector('.vrf-max').value = rules.max !== undefined ? rules.max : '';
+    row.querySelector('.vrf-minlength').value = rules.minLength !== undefined ? rules.minLength : '';
+    row.querySelector('.vrf-maxlength').value = rules.maxLength !== undefined ? rules.maxLength : '';
+    row.querySelector('.vrf-enum').value = rules.enum ? rules.enum.join(',') : '';
+    row.querySelector('.vrf-email').checked = rules.format === 'email';
+    row.querySelector('.remove-field-btn').addEventListener('click', () => row.remove());
+    vrFieldsContainer.appendChild(row);
+  }
+
+  function collectFieldsFromRows() {
+    const fields = {};
+    vrFieldsContainer.querySelectorAll('.field-rule-row').forEach((row) => {
+      const name = row.querySelector('.vrf-name').value.trim();
+      if (!name) return;
+      const rule = {};
+      const type = row.querySelector('.vrf-type').value;
+      if (type) rule.type = type;
+      if (row.querySelector('.vrf-required').checked) rule.required = true;
+      const min = row.querySelector('.vrf-min').value.trim();
+      if (min !== '') rule.min = Number(min);
+      const max = row.querySelector('.vrf-max').value.trim();
+      if (max !== '') rule.max = Number(max);
+      const minLength = row.querySelector('.vrf-minlength').value.trim();
+      if (minLength !== '') rule.minLength = Number(minLength);
+      const maxLength = row.querySelector('.vrf-maxlength').value.trim();
+      if (maxLength !== '') rule.maxLength = Number(maxLength);
+      const enumVal = row.querySelector('.vrf-enum').value.trim();
+      if (enumVal) rule.enum = enumVal.split(',').map((s) => s.trim()).filter(Boolean);
+      if (row.querySelector('.vrf-email').checked) rule.format = 'email';
+      fields[name] = rule;
+    });
+    return fields;
+  }
+
+  function resetVrForm() {
+    vrForm.reset();
+    vrFieldsContainer.innerHTML = '';
+    createFieldRow();
+    // className, not .style.display — an inline style would permanently
+    // outrank the #vr-test-result.pass/.fail CSS rules that show it again.
+    document.getElementById('vr-test-result').className = '';
+  }
+
+  document.getElementById('vr-add-field-btn').addEventListener('click', () => createFieldRow());
+
+  document.getElementById('validation-rules-btn').addEventListener('click', () => {
+    vrError.style.display = 'none'; resetVrForm();
+    vrModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('vr-org').focus();
+    loadValidationRulesList();
+  });
+  document.getElementById('vr-modal-close').addEventListener('click', () => { vrModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  vrModalOverlay.addEventListener('click', (e) => { if (e.target === vrModalOverlay) { vrModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  document.getElementById('vr-test-btn').addEventListener('click', async () => {
+    const resultEl = document.getElementById('vr-test-result');
+    let payload;
+    const raw = document.getElementById('vr-test-payload').value.trim();
+    try { payload = raw ? JSON.parse(raw) : {}; } catch (err) {
+      resultEl.className = 'fail'; resultEl.textContent = 'Sample payload is not valid JSON.'; return;
+    }
+    const fields = collectFieldsFromRows();
+    try {
+      const res = await fetch('/api/v1/validation-rules/test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ fields, payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) { resultEl.className = 'fail'; resultEl.textContent = data.error || 'Could not test rule.'; return; }
+      resultEl.className = data.valid ? 'pass' : 'fail';
+      resultEl.textContent = data.valid ? '✓ Payload passes this rule.' : `✗ ${data.error}`;
+    } catch (err) { resultEl.className = 'fail'; resultEl.textContent = 'Could not reach the server.'; }
+  });
+
+  vrForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); vrError.style.display = 'none'; vrSubmit.disabled = true;
+    const restoreText = withLoadingText(vrSubmit, 'Saving…');
+    const org_id = document.getElementById('vr-org').value.trim();
+    const service = document.getElementById('vr-service').value.trim();
+    const action = document.getElementById('vr-action').value.trim();
+    const fields = collectFieldsFromRows();
+    if (Object.keys(fields).length === 0) {
+      vrError.textContent = 'Add at least one field.'; vrError.style.display = 'block';
+      vrSubmit.disabled = false; restoreText(); return;
+    }
+    try {
+      const res = await fetch('/api/v1/validation-rules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, service, action, fields }),
+      });
+      const data = await res.json();
+      if (!res.ok) { vrError.textContent = data.error || 'Could not save rule.'; vrError.style.display = 'block'; return; }
+      resetVrForm(); loadValidationRulesList();
+    } catch (err) { vrError.textContent = 'Could not reach the server.'; vrError.style.display = 'block'; }
+    finally { vrSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadValidationRulesList() {
+    const list = document.getElementById('vr-list');
+    try {
+      const res = await fetch('/api/v1/validation-rules', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No validation rules yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const fieldCount = Object.keys(row.fields || {}).length;
+        const div = document.createElement('div');
+        div.className = 'rule-summary-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.service)}.${escapeHtml(row.action)} — ${escapeHtml(row.org_id)}</div><div class="meta">${fieldCount} field rule${fieldCount === 1 ? '' : 's'}</div></div><div style="display:flex;gap:6px;"><button class="btn edit-rule" data-id="${row.id}" style="padding:6px 12px;font-size:12px;">Edit</button><button class="revoke delete-rule" data-id="${row.id}">Delete</button></div>`;
+        list.appendChild(div);
+        div.querySelector('.edit-rule').addEventListener('click', () => {
+          document.getElementById('vr-org').value = row.org_id;
+          document.getElementById('vr-service').value = row.service;
+          document.getElementById('vr-action').value = row.action;
+          vrFieldsContainer.innerHTML = '';
+          for (const [fname, frules] of Object.entries(row.fields || {})) createFieldRow(fname, frules);
+          if (!vrFieldsContainer.children.length) createFieldRow();
+          document.getElementById('vr-org').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+      list.querySelectorAll('.delete-rule').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/validation-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadValidationRulesList(); });
       });
     } catch (err) {}
   }

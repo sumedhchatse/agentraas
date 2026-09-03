@@ -9,8 +9,8 @@ function createMcp(deps) {
     proxy,
     SERVICE_CONFIG,
     SERVICE_ROUTES,
-    VALIDATION_RULES,
-    validatePayload,
+    validateFields,
+    getEffectiveValidationRule,
     resolveCustomRoute,
     verifyApiKey,
     getEffectiveRateLimit,
@@ -110,8 +110,9 @@ function createMcp(deps) {
       }
 
       try {
-        if (resolvedServiceName !== 'custom') {
-          const validationError = validatePayload(resolvedServiceName, resolvedActionName, payload, VALIDATION_RULES);
+        const effectiveRule = await getEffectiveValidationRule(orgId, resolvedServiceName, resolvedActionName);
+        if (effectiveRule) {
+          const validationError = validateFields(payload, effectiveRule.fields);
           if (validationError) {
             await releaseDedupSlot(dedupKey);
             await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'blocked', 'validation_failed', Date.now() - startTime, dedupHash);

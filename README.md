@@ -231,9 +231,11 @@ started or self-host from `/dashboard`, or contact
 - [x] Distributed token-bucket rate limiter (`src/ee/rate_limiter`)
 - [x] Tamper-evident audit logs + SIEM export
 - [x] Agency tier — multi-tenant, white-label dashboard branding
-- [ ] Official Python SDK package
-- [ ] Custom validation rule builder (UI)
-- [ ] n8n/Flowise/Langflow native node packaging
+- [x] Official Python SDK package (`src/sdk` — built, tested end-to-end against a live instance, not yet published to PyPI)
+- [x] Custom validation rule builder (UI) — per-org, per-service.action rules, including Custom Actions (which previously had no validation at all)
+- [x] n8n/Flowise/Langflow integrations (`integrations/`) — n8n community node (compiles against real `n8n-workflow` types; full live-registration unverified, see `integrations/templates/README.md`), Flowise custom tool, Langflow custom component
+- [ ] Publish the Python SDK to PyPI
+- [ ] Resolve n8n community-node live-registration issue and get it listed in the n8n community nodes directory
 
 ---
 
@@ -250,11 +252,12 @@ AgentRaaS uses a custom **fair-code / source-available license** — see
 This is not an OSI-approved open-source license — it's modeled on n8n's
 Sustainable Use License.
 
-`src/core/*` (the code above the line) is MIT/Apache-2.0 — genuinely open.
-`src/ee/*` (Enterprise: SSO, RBAC, HMAC, DLP, distributed rate limiting) is
-source-available under a separate commercial license, required for
-production use beyond a trial. See [RESTRUCTURE_PLAN.md](./RESTRUCTURE_PLAN.md)
-for the full core/ee split and how pricing tiers map onto it.
+Everything in this repo (`src/core`, `src/api-gateway`, `src/sdk`,
+`integrations/`) is MIT/Apache-2.0 — genuinely open. Enterprise features
+(SSO, RBAC, HMAC verification, DLP, distributed rate limiting, HA) live in
+a separate `ee/` module under a source-available commercial license,
+required for production use beyond a trial — see the Pricing section
+above or contact **support@agentraas.io**.
 
 ---
 

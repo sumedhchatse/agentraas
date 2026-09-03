@@ -20,12 +20,19 @@ if [ -f "$PROJECT_DIR/.env" ]; then
   set +a
 fi
 
-echo "→ Relabeling SELinux context..."
-sudo restorecon -Rv "$PROJECT_DIR" > /dev/null
+echo "→ Relabeling SELinux context (best-effort — compose.yaml's :z shared
+   labels mean this is no longer required, only a safety net for a system
+   where sudo needs a password and can't prompt over a non-interactive
+   session; skipped rather than failing the whole deploy in that case)..."
+sudo -n restorecon -Rv "$PROJECT_DIR" > /dev/null 2>&1 || echo "  (skipped — no passwordless sudo for restorecon; :z labels should cover it)"
 
-echo "→ Recreating containers (down + up, not restart — required for :Z relabeling to apply)..."
-podman-compose down
-podman-compose up -d
+# podman-compose prints every resolved `-e VAR=value`, including secrets
+# (JWT_SECRET, DB password, Paddle keys, SMTP password, ...), to stdout —
+# redirect it away. Same fix already applied to install.sh; deploy.sh had
+# been missing it.
+echo "→ Recreating containers (down + up, not restart — needed for env/volume changes to apply)..."
+podman-compose down > /dev/null 2>&1
+podman-compose up -d > /dev/null 2>&1
 
 echo "→ Fixing Redis data directory ownership (rootless Podman resets this on every container recreate)..."
 podman unshare chown -R 999:999 "$PROJECT_DIR/data/redis" 2>/dev/null || true

@@ -14,8 +14,8 @@ function createProxy(deps) {
     fastify,
     axios,
     SERVICE_ROUTES,
-    VALIDATION_RULES,
-    validatePayload,
+    validateFields,
+    getEffectiveValidationRule,
     resolveCustomRoute,
     verifyApiKey,
     getEffectiveRateLimit,
@@ -290,11 +290,14 @@ function createProxy(deps) {
     }
 
     try {
-      // Custom actions have no pre-defined validation rules (the human who registered
-      // it owns responsibility for what payload shape it expects) — only curated
-      // services go through the config-driven validator.
-      if (service !== 'custom') {
-        const validationError = validatePayload(service, action, payload, VALIDATION_RULES);
+      // Curated services validate against config/services.json's static rules
+      // by default; an org can override or add to that from the dashboard's
+      // Validation Rules panel (custom_validation_rules table) — that always
+      // wins when one exists. Custom Actions have no static fallback at all,
+      // so a custom rule is the only way to get validation on one.
+      const effectiveRule = await getEffectiveValidationRule(orgId, service, action);
+      if (effectiveRule) {
+        const validationError = validateFields(payload, effectiveRule.fields);
         if (validationError) {
           status = 'blocked'; errorType = 'validation_failed';
           await releaseDedupSlot(dedupKey);

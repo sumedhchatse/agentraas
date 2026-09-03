@@ -107,6 +107,18 @@ account (separate, lives on your own server).
 
 ---
 
+## Understanding the two keys
+
+These are two separate things, easy to mix up at first:
+
+| | Agent Key | Service Credential |
+|---|---|---|
+| What it is | The key from **+ Connect agent** (`ar_live_...`) | Your own real key for a service (e.g. Stripe's `sk_live_...`), added via the **Credentials** panel |
+| What it's for | Proves your agent is allowed to talk to AgentRaaS | Lets AgentRaaS make the real call to that service on your behalf |
+| Who sees it | Your agent — puts it in the `Authorization` header | Only AgentRaaS's server — your agent never sees this at all |
+
+The flow: **your agent -> (Agent Key) -> AgentRaaS -> (Service Credential) -> the real API**. There's no separate "incoming" vs "outgoing" agent key — just these two, each handling one leg of the trip.
+
 ## Making your first call
 
 Once connected, your agent calls AgentRaaS instead of the real API
@@ -114,10 +126,17 @@ directly. A plain webhook call looks like:
 
 ```bash
 curl -X POST https://your-instance/v1/webhook/<org_id>/<agent_id> \
-  -H "Authorization: Bearer <your-api-key>" \
+  -H "Authorization: Bearer <your-agent-key>" \
   -H "Content-Type: application/json" \
-  -d '{"service":"stripe","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'
+  -d '{"service":"mockpay","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'
 ```
+
+This example uses `mockpay` — a built-in fake service made for testing,
+so it works immediately with no setup. To call a real service like
+Stripe instead, change `"service"` to `"stripe"` — but that only works
+once you've saved your real Stripe key in the **Credentials** panel
+first (see below); without it, the call will fail since there's no
+credential to use.
 
 - `service` — which connector to use (`stripe`, `twilio`, `slack`, etc. —
   see the full list on the dashboard's Credentials panel).
