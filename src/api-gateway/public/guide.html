@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Getting started — AgentRaaS</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z' fill='%2306231C' stroke='%2300E0A8' stroke-width='0.8'/%3E%3Ccircle cx='12' cy='11.5' r='2.4' fill='%2300E0A8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0A0D14; --ink-2: #0F1420;
+    --border-dark: #232A3A;
+    --text: #F5F6F9; --muted: #8B93A6;
+    --signal: #00E0A8; --signal-deep: #06231C;
+    --info: #7C9CFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--ink); color: var(--text); font-family: 'Manrope', sans-serif; font-size: 16px; line-height: 1.7; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 60px 32px 100px; }
+  a { color: var(--signal); }
+  header.nav { border-bottom: 1px solid var(--border-dark); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .brand .logo { width: 34px; height: 34px; background: var(--signal); border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+  .brand h1 { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; }
+  .brand span { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .back-link { font-size: 14px; color: var(--muted); }
+  h2 { font-family: 'Space Grotesk', sans-serif; font-size: 28px; margin: 44px 0 16px; }
+  h2:first-child { margin-top: 0; }
+  h3 { font-family: 'Space Grotesk', sans-serif; font-size: 17px; margin: 28px 0 10px; color: var(--signal); }
+  p { margin-bottom: 14px; color: #C5CAD6; }
+  ol, ul { margin: 0 0 16px 22px; color: #C5CAD6; }
+  li { margin-bottom: 8px; }
+  code { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 2px 6px; font-size: 14px; font-family: 'Space Grotesk', monospace; color: var(--signal); }
+  pre { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 10px; padding: 18px 20px; overflow-x: auto; margin-bottom: 16px; }
+  pre code { background: none; border: none; padding: 0; color: #C5CAD6; }
+  hr { border: none; border-top: 1px solid var(--border-dark); margin: 40px 0; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-dark); font-size: 14.5px; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .lead { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+  .steps-quick { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 14px; padding: 24px 28px; margin: 24px 0 40px; }
+  .steps-quick ol { margin-left: 20px; }
+  .steps-quick li { color: var(--text); }
+  .toc { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 10px; padding: 16px 20px; margin: 24px 0 40px; font-size: 14.5px; }
+  .toc a { display: block; padding: 4px 0; color: var(--muted); }
+  .toc a:hover { color: var(--signal); }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z" fill="#06231C" stroke="#00E0A8" stroke-width="1"/><circle cx="12" cy="11.5" r="2.6" fill="#00E0A8"/></svg></span>
+    <div><h1>AgentRaaS</h1><span>Agent Reliability as a Service</span></div>
+  </a>
+  <a href="/dashboard" class="back-link">← Back to dashboard</a>
+</header>
+
+<div class="wrap">
+  <h2 style="font-size:38px;">Getting started with AgentRaaS</h2>
+  <p class="lead">Connecting your first agent — on Cloud, or on your own self-hosted instance — and where to find everything again later.</p>
+
+  <div class="steps-quick">
+    <p style="color:var(--text);font-weight:600;margin-bottom:10px;">The short version</p>
+    <ol>
+      <li>Register and log in.</li>
+      <li>Click <b>+ Connect agent</b>, give it a name.</li>
+      <li>You get three things, shown <b>once</b>: an API key, a webhook URL, and an MCP URL. Save the API key somewhere safe — it's not shown again.</li>
+      <li>Point your agent at the webhook URL (or MCP URL, if your agent framework speaks MCP), with the API key in the <code>Authorization</code> header.</li>
+      <li>Done — every call your agent makes now goes through AgentRaaS first.</li>
+    </ol>
+  </div>
+
+  <div class="toc">
+    <a href="#cloud-vs-self-hosted">Cloud vs. self-hosted — which do I want?</a>
+    <a href="#cloud">Cloud: step by step</a>
+    <a href="#self-hosted">Self-hosted: step by step</a>
+    <a href="#find-values">Where do I find these values again later?</a>
+    <a href="#first-call">Making your first call</a>
+    <a href="#credentials">Adding your own service credentials</a>
+    <a href="#custom">Something not on the list?</a>
+  </div>
+
+  <h2 id="cloud-vs-self-hosted">Cloud vs. self-hosted — which do I want?</h2>
+  <table>
+    <tr><th></th><th>AgentRaaS Cloud</th><th>Self-hosted</th></tr>
+    <tr><td>Where it runs</td><td>Our servers</td><td>Your own server</td></tr>
+    <tr><td>Setup</td><td>Register, log in, done</td><td>Register, download, run <code>install.sh</code></td></tr>
+    <tr><td>Monthly limit</td><td>500 actions on the free tier, enforced (Agency/Enterprise raise it)</td><td>None — unlimited, on any tier</td></tr>
+    <tr><td>Good for</td><td>Trying it out, no infra to manage</td><td>Your own data residency, unlimited volume</td></tr>
+  </table>
+  <p>You can do both — try it on Cloud first, and self-host later if you want your own instance. Nothing about your Cloud data moves to self-host automatically; they're separate.</p>
+
+  <h2 id="cloud">Cloud: step by step</h2>
+  <ol>
+    <li><b>Register</b> at the dashboard and verify your email (check your inbox — or, if you don't receive anything, check whether your deployment has email configured; a verification link is always available as a fallback in that case).</li>
+    <li><b>Log in.</b></li>
+    <li>Click <b>+ Connect agent</b> in the top toolbar.</li>
+    <li>Fill in:
+      <ul>
+        <li><b>Org ID</b> — a short identifier for whoever owns this agent (a team, a client, your company). Letters, numbers, underscores, and hyphens only. If you're not sure what to put, use something like <code>myteam</code> or <code>acme_corp</code> — you can create more later if you need to separate different customers or environments.</li>
+        <li><b>Agent ID</b> — a short identifier for this specific agent, e.g. <code>invoice_bot</code> or <code>support_agent</code>. Same character rules as Org ID.</li>
+        <li><b>Label</b> (optional) — a human-friendly name shown in your agent list, e.g. "Production invoice bot".</li>
+      </ul>
+    </li>
+    <li>Click <b>Connect</b>. You'll see:
+      <ul>
+        <li><b>API key</b> — starts with <code>ar_live_</code>. Copy this now — it is shown exactly once and cannot be retrieved again. If you lose it, connect a new agent (you can revoke the old one from the Credentials panel).</li>
+        <li><b>Webhook URL</b> — where your agent sends requests.</li>
+        <li><b>MCP URL</b> — for agent frameworks that speak MCP instead of plain webhooks.</li>
+      </ul>
+    </li>
+  </ol>
+  <p>That's it — your agent is connected. Every action it takes through AgentRaaS will show up on your dashboard within a few seconds.</p>
+
+  <h2 id="self-hosted">Self-hosted: step by step</h2>
+  <p>Self-hosting has two logins to keep straight: your AgentRaaS Cloud account (used only to get the download), and your self-hosted instance's own account (separate, lives on your own server).</p>
+  <ol>
+    <li><b>On AgentRaaS Cloud:</b> register, log in, and connect at least one agent first (see above) — the self-host download only unlocks once you've actually tried the product.</li>
+    <li>Open your <b>Account</b> menu (click your email, top right) → <b>Self-host AgentRaaS</b>. Fill in the short form (what you'll use it for, and optionally your company/team name), then download the <code>.zip</code>.</li>
+    <li>On your own server, unzip it and run:
+      <pre><code>./install.sh</code></pre>
+      This generates fresh secrets, runs the database migrations, and starts the stack.
+    </li>
+    <li>Once it's running, go to <code>http://your-server:13000/dashboard</code> (or whatever host/port you configured). Your account is already pre-seeded with the email you used on Cloud — click <b>Forgot password</b> and enter that same email to set a password for <i>this</i> instance (see <code>SETUP_INSTRUCTIONS.txt</code> in the download for the exact link).</li>
+    <li>Log in, then <b>+ Connect agent</b>, exactly as in the Cloud steps above — this generates a fresh API key/webhook URL/MCP URL specific to your self-hosted instance. Cloud and self-hosted API keys are never interchangeable.</li>
+  </ol>
+
+  <h2 id="find-values">Where do I find these values again later?</h2>
+  <ul>
+    <li><b>API key</b> — nowhere. It's shown once, by design (AgentRaaS never stores it in a form we could show you again — only a hash of it). If you've lost it, connect a new agent and revoke the old one.</li>
+    <li><b>Org ID / Agent ID / Webhook URL</b> — always visible in the <b>Credentials</b> panel, under your list of connected agents.</li>
+    <li><b>MCP URL</b> — the same for every agent on a given deployment: <code>&lt;your-instance-url&gt;/mcp</code>.</li>
+  </ul>
+
+  <h2 id="first-call">Making your first call</h2>
+  <p>Once connected, your agent calls AgentRaaS instead of the real API directly. A plain webhook call looks like:</p>
+  <pre><code>curl -X POST https://your-instance/v1/webhook/&lt;org_id&gt;/&lt;agent_id&gt; \
+  -H "Authorization: Bearer &lt;your-api-key&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"service":"stripe","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'</code></pre>
+  <ul>
+    <li><code>service</code> — which connector to use (<code>stripe</code>, <code>twilio</code>, <code>slack</code>, etc. — see the full list on the dashboard's Credentials panel).</li>
+    <li><code>action</code> — which operation on that service (each connector supports a few — check the Credentials panel's dropdown for the exact list).</li>
+    <li><code>payload</code> — whatever that action needs, matching the real API's own fields.</li>
+  </ul>
+  <p>AgentRaaS handles the actual call to Stripe/Twilio/whichever service, and guarantees that an identical retry within the dedup window returns the cached result instead of doing it twice.</p>
+
+  <h2 id="credentials">Adding your own service credentials</h2>
+  <p>Before your agent can actually call a service like Stripe or Twilio, you need to give AgentRaaS your API key for that service:</p>
+  <ol>
+    <li>Open the <b>Credentials</b> panel.</li>
+    <li>Pick the service and enter your key (or username/password, for services that use that instead).</li>
+    <li>Save. It's encrypted at rest — nobody, including AgentRaaS staff, can read it back out; it's only ever used server-side to make the call on your agent's behalf.</li>
+  </ol>
+
+  <h2 id="custom">Something not on the list?</h2>
+  <p>If the service you need isn't one of the built-in connectors, use <b>Custom Actions</b> to register any endpoint yourself — same dedup protection, same SSRF guarding, same audit trail. Open the <b>Custom actions</b> panel and follow the form; it walks you through the same service/action/payload shape as the built-in connectors.</p>
+
+  <hr>
+  <p style="color:var(--muted);font-size:14px;">Questions this didn't answer? <a href="mailto:support@agentraas.io">support@agentraas.io</a></p>
+</div>
+
+</body>
+</html>
