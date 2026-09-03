@@ -211,6 +211,31 @@ function createProxy(deps) {
     };
   }
 
+  // Multi-Destination Fan-Out (event broadcasting) — best-effort copies of
+  // the same payload to every configured fanout_urls destination, after
+  // the primary target_url call has already succeeded. Never awaited by
+  // the caller and never affects the primary response, the dedup outcome,
+  // or the audit log status: a fan-out destination being down is that
+  // destination's problem, not a reason to fail (or retry, and risk
+  // double-executing) the action the caller actually asked for.
+  async function broadcastFanout(route, payload, reqId) {
+    if (!route.fanoutUrls || route.fanoutUrls.length === 0) return;
+    await Promise.allSettled(
+      route.fanoutUrls.map((url) =>
+        axios({
+          method: 'POST',
+          url,
+          headers: { 'Content-Type': 'application/json', 'X-AgentRaaS-ReqId': reqId, 'X-AgentRaaS-Fanout': 'true' },
+          data: payload,
+          timeout: 10000,
+          validateStatus: () => true,
+        }).catch((err) => {
+          fastify.log.warn({ url, reqId, err: err.message }, 'Fan-out broadcast failed (best-effort, not retried)');
+        })
+      )
+    );
+  }
+
   // ─── UNIFIED HANDLER ───
   async function handleRequest(request, reply, source) {
     const reqId = generateRequestId();
@@ -327,6 +352,7 @@ function createProxy(deps) {
       }
 
       const result = await forwardAction(resolvedRoute, service, action, orgId, payload, reqId);
+      broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
       await completeDedupSlot(dedupKey, result);
       await incrementMonthlyUsage(orgId);
       await logAudit(reqId, apiKey, orgId, agentId, service, action, status, errorType, Date.now() - startTime, dedupHash, payload);
@@ -389,6 +415,7 @@ function createProxy(deps) {
     getCircuitStatesBatch,
     recordFailure,
     forwardAction,
+    broadcastFanout,
     handleRequest,
     flushMaintenanceQueue,
   };
