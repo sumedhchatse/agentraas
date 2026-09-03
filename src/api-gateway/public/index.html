@@ -668,6 +668,15 @@
       <div class="field" id="custom-apikey-field" style="display:none;"><label for="custom-apikey">API key / token / header value</label><input type="text" id="custom-apikey" placeholder="..."></div>
       <div class="field" id="custom-username-field" style="display:none;"><label for="custom-username">Username</label><input type="text" id="custom-username"></div>
       <div class="field" id="custom-password-field" style="display:none;"><label for="custom-password">Password</label><input type="text" id="custom-password"></div>
+
+      <label style="display:block;margin:14px 0 6px;font-size:13px;font-weight:600;">Extra headers (optional)</label>
+      <p class="sub" style="margin-bottom:8px;">One per line: <code>Header-Name: value</code>. Prefix the value with <code>secret:</code> to encrypt it at rest (e.g. a signing key) instead of storing it in the clear.</p>
+      <textarea id="custom-extra-headers" rows="2" placeholder="X-Api-Version: 2026-01-01&#10;X-Signing-Key: secret:whsec_abc123" style="width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:ui-monospace,monospace;font-size:12.5px;resize:vertical;margin-bottom:14px;"></textarea>
+
+      <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">Fan-out URLs (optional)</label>
+      <p class="sub" style="margin-bottom:8px;">Comma-separated. Each gets a best-effort copy of the same payload after the primary call succeeds — doesn't affect the response or block on failure.</p>
+      <input type="text" id="custom-fanout-urls" placeholder="https://hooks.slack.com/..., https://your-warehouse.example.com/ingest" style="width:100%;margin-bottom:14px;">
+
       <button type="submit" class="primary" id="custom-submit">Register action</button>
     </form>
     <h3 style="margin-top:26px;">Registered actions</h3>
@@ -1465,10 +1474,27 @@
       credential = { api_key: document.getElementById('custom-apikey').value.trim() };
     }
 
+    // "Header-Name: value" per line; a "secret:" value prefix marks it for
+    // encryption-at-rest instead of being stored in the clear.
+    const extra_headers = document.getElementById('custom-extra-headers').value.split('\n')
+      .map((line) => line.trim()).filter(Boolean)
+      .map((line) => {
+        const idx = line.indexOf(':');
+        if (idx === -1) return null;
+        const name = line.slice(0, idx).trim();
+        let value = line.slice(idx + 1).trim();
+        const secret = value.startsWith('secret:');
+        if (secret) value = value.slice('secret:'.length).trim();
+        return name && value ? { name, value, secret } : null;
+      }).filter(Boolean);
+
+    const fanout_urls = document.getElementById('custom-fanout-urls').value.split(',')
+      .map((u) => u.trim()).filter(Boolean);
+
     try {
       const res = await fetch('/api/v1/custom-actions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ org_id, name, method, target_url, auth_type, auth_header_name: auth_header_name || undefined, credential }),
+        body: JSON.stringify({ org_id, name, method, target_url, auth_type, auth_header_name: auth_header_name || undefined, credential, extra_headers, fanout_urls }),
       });
       const data = await res.json();
       if (!res.ok) { customError.textContent = data.error || 'Could not register action.'; customError.style.display = 'block'; return; }
@@ -1486,9 +1512,13 @@
       if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No custom actions registered yet.</div>'; return; }
       list.innerHTML = '';
       for (const row of rows) {
+        const extras = [];
+        if (row.extra_header_count) extras.push(`${row.extra_header_count} extra header${row.extra_header_count === 1 ? '' : 's'}`);
+        if (row.fanout_url_count) extras.push(`fans out to ${row.fanout_url_count}`);
+        const extrasText = extras.length ? ` · ${extras.join(', ')}` : '';
         const div = document.createElement('div');
         div.className = 'cred-row';
-        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.name)} — ${escapeHtml(row.org_id)}</div><div class="meta">${row.method} ${escapeHtml(row.target_url)}</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.name)} — ${escapeHtml(row.org_id)}</div><div class="meta">${row.method} ${escapeHtml(row.target_url)}${extrasText}</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
         list.appendChild(div);
       }
       list.querySelectorAll('.revoke').forEach((btn) => {
