@@ -30,6 +30,7 @@ function createMcp(deps) {
     getCircuitState,
     recordFailure,
     forwardAction,
+    broadcastFanout,
   } = proxy;
 
   async function handleMCP(request, reply) {
@@ -136,6 +137,7 @@ function createMcp(deps) {
         }
 
         const result = await forwardAction(resolvedRoute, resolvedServiceName, resolvedActionName, orgId, payload, reqId);
+        broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
         await completeDedupSlot(dedupKey, result);
         await incrementMonthlyUsage(orgId);
         await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'success', null, Date.now() - startTime, dedupHash, payload);

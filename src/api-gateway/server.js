@@ -2052,9 +2052,51 @@ fastify.delete('/api/v1/credentials/:id', { preHandler: requireAuthRateLimited }
   return { revoked: true };
 });
 
+// Header names, per RFC 7230 token chars — kept narrow (no spaces/colons)
+// since these get set directly as outbound HTTP headers.
+function isValidHeaderName(name) {
+  return typeof name === 'string' && /^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,100}$/.test(name);
+}
+
+const MAX_EXTRA_HEADERS = 10;
+const MAX_FANOUT_URLS = 5;
+
+// Dynamic Header & Secret Injection: validates and (for secret:true entries)
+// encrypts a submitted extra_headers array before it's stored. Returns
+// { error } or { headers: [...] } ready for JSONB storage.
+function prepareExtraHeaders(extraHeaders) {
+  if (extraHeaders === undefined) return { headers: [] };
+  if (!Array.isArray(extraHeaders)) return { error: 'extra_headers must be an array.' };
+  if (extraHeaders.length > MAX_EXTRA_HEADERS) return { error: `extra_headers supports at most ${MAX_EXTRA_HEADERS} entries.` };
+  const prepared = [];
+  for (const h of extraHeaders) {
+    if (!h || typeof h !== 'object') return { error: 'Each extra_headers entry must be an object.' };
+    if (!isValidHeaderName(h.name)) return { error: `"${h.name}" is not a valid header name.` };
+    if (typeof h.value !== 'string' || h.value.length === 0 || h.value.length > 2000) {
+      return { error: `extra_headers entry "${h.name}" needs a non-empty value (max 2000 characters).` };
+    }
+    prepared.push(h.secret ? { name: h.name, secret: true, value: encryptCredential(h.value) } : { name: h.name, secret: false, value: h.value });
+  }
+  return { headers: prepared };
+}
+
+// Multi-Destination Fan-Out: validates a submitted fanout_urls array with
+// the exact same SSRF guard as target_url — a fan-out destination is just
+// as capable of hitting internal infrastructure as the primary one.
+async function prepareFanoutUrls(fanoutUrls) {
+  if (fanoutUrls === undefined) return { urls: [] };
+  if (!Array.isArray(fanoutUrls)) return { error: 'fanout_urls must be an array.' };
+  if (fanoutUrls.length > MAX_FANOUT_URLS) return { error: `fanout_urls supports at most ${MAX_FANOUT_URLS} destinations.` };
+  for (const url of fanoutUrls) {
+    const err = await validateTargetUrl(url);
+    if (err) return { error: `fanout_urls: ${err}` };
+  }
+  return { urls: fanoutUrls };
+}
+
 // ─── CUSTOM ACTIONS: register any endpoint, not just curated services ───
 fastify.post('/api/v1/custom-actions', { preHandler: requireAuthRateLimited }, async (request, reply) => {
-  const { org_id, name, method, target_url, auth_type, auth_header_name, content_type, credential } = request.body || {};
+  const { org_id, name, method, target_url, auth_type, auth_header_name, content_type, credential, extra_headers, fanout_urls } = request.body || {};
 
   if (!isValidIdentifier(org_id)) return reply.status(422).send({ error: 'org_id must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
   if (!isValidIdentifier(name)) return reply.status(422).send({ error: 'name must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
@@ -2082,14 +2124,20 @@ fastify.post('/api/v1/custom-actions', { preHandler: requireAuthRateLimited }, a
   const urlError = await validateTargetUrl(target_url || '');
   if (urlError) return reply.status(422).send({ error: urlError });
 
+  const extraHeadersResult = prepareExtraHeaders(extra_headers);
+  if (extraHeadersResult.error) return reply.status(422).send({ error: extraHeadersResult.error });
+  const fanoutResult = await prepareFanoutUrls(fanout_urls);
+  if (fanoutResult.error) return reply.status(422).send({ error: fanoutResult.error });
+
   const client = await pg.connect();
   try {
     await client.query('BEGIN');
     await client.query(`UPDATE custom_actions SET revoked_at = NOW() WHERE org_id=$1 AND name=$2 AND revoked_at IS NULL`, [org_id, name]);
     await client.query(
-      `INSERT INTO custom_actions (user_id, org_id, name, method, target_url, auth_type, auth_header_name, content_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [request.user.sub, org_id, name, upperMethod, target_url, authTypeValue, auth_header_name || null, content_type || 'application/json']
+      `INSERT INTO custom_actions (user_id, org_id, name, method, target_url, auth_type, auth_header_name, content_type, extra_headers, fanout_urls)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [request.user.sub, org_id, name, upperMethod, target_url, authTypeValue, auth_header_name || null, content_type || 'application/json',
+       JSON.stringify(extraHeadersResult.headers), JSON.stringify(fanoutResult.urls)]
     );
     await client.query('COMMIT');
   } catch (err) {
@@ -2108,7 +2156,9 @@ fastify.post('/api/v1/custom-actions', { preHandler: requireAuthRateLimited }, a
 
 fastify.get('/api/v1/custom-actions', { preHandler: requireAuthRateLimited }, async (request) => {
   const r = await pg.query(
-    `SELECT id, org_id, name, method, target_url, auth_type, created_at
+    `SELECT id, org_id, name, method, target_url, auth_type, created_at,
+            jsonb_array_length(extra_headers) as extra_header_count,
+            jsonb_array_length(fanout_urls) as fanout_url_count
      FROM custom_actions WHERE user_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC`,
     [request.user.sub]
   );
@@ -2200,12 +2250,20 @@ fastify.post('/api/v1/validation-rules/test', { preHandler: requireAuthRateLimit
 // treats it identically to a curated service — no special-casing needed downstream.
 async function resolveCustomRoute(orgId, actionName) {
   const r = await pg.query(
-    `SELECT method, target_url, auth_type, auth_header_name, content_type
+    `SELECT method, target_url, auth_type, auth_header_name, content_type, extra_headers, fanout_urls
      FROM custom_actions WHERE org_id=$1 AND name=$2 AND revoked_at IS NULL LIMIT 1`,
     [orgId, actionName]
   );
   if (r.rows.length === 0) return null;
   const row = r.rows[0];
+  // Dynamic Header & Secret Injection — decrypt any secret-marked headers
+  // now, so the forwarder's existing route.extraHeaders merge (see
+  // src/core/proxy's forwardAction) just works, same as a curated
+  // service's static config-driven extraHeaders.
+  const extraHeaders = {};
+  for (const h of row.extra_headers || []) {
+    extraHeaders[h.name] = h.secret ? decryptCredential(h.value) : h.value;
+  }
   return {
     method: row.method,
     url: row.target_url,
@@ -2213,6 +2271,8 @@ async function resolveCustomRoute(orgId, actionName) {
     authType: row.auth_type === 'header' ? 'custom-header' : row.auth_type,
     authHeader: row.auth_type === 'header' ? row.auth_header_name : (row.auth_type === 'bearer' ? 'Authorization' : null),
     contentType: row.content_type,
+    extraHeaders,
+    fanoutUrls: row.fanout_urls || [],
     validation: {},
     credentialKey: `custom:${actionName}`, // isolates this action's credential from any same-named built-in service
   };

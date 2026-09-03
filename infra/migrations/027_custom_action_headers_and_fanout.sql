@@ -1,0 +1,21 @@
+-- 027_custom_action_headers_and_fanout.sql
+-- Two additive Custom Action capabilities from the strategy doc:
+--
+-- Dynamic Header & Secret Injection: extra_headers, an array of
+-- {name, value, secret}. secret:true means `value` is stored encrypted
+-- (same AES-256-GCM scheme as service_credentials.encrypted_payload,
+-- crypto-helper.js) rather than plain, for things like a signing key or
+-- API-Version header that shouldn't sit in the clear. Applied via the
+-- forwarder's existing route.extraHeaders merge (src/core/proxy/index.js)
+-- — that mechanism already existed for curated services' static config;
+-- this is what lets a Custom Action set the same thing dynamically.
+--
+-- Multi-Destination Fan-Out (event broadcasting): fanout_urls, a plain
+-- array of URLs. The primary target_url stays the one authoritative
+-- response the caller gets back (unchanged behavior, fully backward
+-- compatible with existing Custom Actions); each fanout_urls entry gets
+-- the same payload POSTed to it as a best-effort broadcast after the
+-- primary call succeeds — never blocks or fails the primary request.
+-- Same SSRF guard (validateTargetUrl) as target_url at registration time.
+ALTER TABLE custom_actions ADD COLUMN IF NOT EXISTS extra_headers JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE custom_actions ADD COLUMN IF NOT EXISTS fanout_urls JSONB NOT NULL DEFAULT '[]'::jsonb;
