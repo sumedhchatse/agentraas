@@ -1,0 +1,108 @@
+version: "3.8"
+
+networks:
+  agentraas-net:
+    name: agentraas-net
+    driver: bridge
+
+services:
+  ar-redis:
+    image: docker.io/redis:7-alpine
+    container_name: ar-redis
+    hostname: ar-redis
+    networks:
+      - agentraas-net
+    ports:
+      - "127.0.0.1:16379:6379"
+    volumes:
+      - ./data/redis:/data:z
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  ar-postgres:
+    image: docker.io/postgres:15-alpine
+    container_name: ar-postgres
+    hostname: ar-postgres
+    networks:
+      - agentraas-net
+    environment:
+      POSTGRES_USER: agentraas
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: agentraas
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data:z
+      - ./infra/migrations:/docker-entrypoint-initdb.d:z
+    restart: unless-stopped
+
+  ar-minio:
+    image: docker.io/minio/minio:latest
+    container_name: ar-minio
+    hostname: ar-minio
+    networks:
+      - agentraas-net
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19001:9001"
+    volumes:
+      - ./data/minio:/data:z
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  ar-api:
+    build:
+      context: ./src/api-gateway
+      dockerfile: Containerfile
+    container_name: ar-api
+    hostname: ar-api
+    networks:
+      - agentraas-net
+    environment:
+      NODE_ENV: "${NODE_ENV:-development}"
+      PORT: 3000
+      REDIS_URL: redis://ar-redis:6379
+      DATABASE_URL: "postgres://agentraas:${POSTGRES_PASSWORD}@ar-postgres:5432/agentraas"
+      JWT_SECRET: "${JWT_SECRET}"
+      CREDENTIALS_ENCRYPTION_KEY: "${CREDENTIALS_ENCRYPTION_KEY}"
+      DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
+      PUBLIC_URL: "${PUBLIC_URL:-http://localhost:13000}"
+      CLOUD_MONTHLY_LIMIT: "${CLOUD_MONTHLY_LIMIT}"
+      PADDLE_API_KEY: "${PADDLE_API_KEY:-}"
+      PADDLE_WEBHOOK_SECRET: "${PADDLE_WEBHOOK_SECRET:-}"
+      PADDLE_CLIENT_TOKEN: "${PADDLE_CLIENT_TOKEN:-}"
+      PADDLE_PRO_PRICE_ID: "${PADDLE_PRO_PRICE_ID:-}"
+      PADDLE_ENVIRONMENT: "${PADDLE_ENVIRONMENT:-sandbox}"
+      PRO_MONTHLY_LIMIT: "${PRO_MONTHLY_LIMIT:-10000}"
+      PRO_RATE_LIMIT_PER_MIN: "${PRO_RATE_LIMIT_PER_MIN:-1000}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      MINIO_ENDPOINT: ar-minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:13000:3000"
+    depends_on:
+      - ar-redis
+      - ar-postgres
+      - ar-minio
+    volumes:
+      - ./config:/config:z
+      - ./src/api-gateway:/app:z
+      - ./src/ee:/app/ee:z
+      - ./src/core:/app/core:z
+      - ./secrets:/app/secrets:ro,z
+      # Read-only mount of the whole project — used by the gated self-host
+      # download (zips this) and the /license, /privacy, /terms, /security,
+      # /readme routes (read these files directly). Not writable from inside
+      # the container, so this doesn't create a path for the app to modify
+      # its own source.
+      - .:/repo:ro,z
+    command: npm run dev
+    restart: unless-stopped
