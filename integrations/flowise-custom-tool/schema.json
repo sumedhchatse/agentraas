@@ -1,0 +1,20 @@
+[
+  {
+    "property": "service",
+    "description": "A curated AgentRaaS service (e.g. stripe, twilio, hubspot — see your dashboard's Services list), or \"custom\" for a registered Custom Action.",
+    "type": "string",
+    "required": true
+  },
+  {
+    "property": "action",
+    "description": "Dotted action name for a curated service (e.g. charge.create), or your Custom Action's registered name when service is \"custom\".",
+    "type": "string",
+    "required": true
+  },
+  {
+    "property": "payload",
+    "description": "Request body to forward to the upstream API, as a JSON string, e.g. {\"amount\": 5000, \"currency\": \"usd\"}",
+    "type": "string",
+    "required": true
+  }
+]

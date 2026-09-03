@@ -56,7 +56,7 @@ const archiver = require('archiver');
 const fs = require('fs');
 const path = require('path');
 const { loadConfig, buildServiceRoutes, getValidationRules } = require('./config-loader');
-const { validatePayload } = require('./validator');
+const { validateFields, isValidRuleDefinition } = require('./validator');
 const {
   hashPassword,
   verifyPassword,
@@ -246,6 +246,25 @@ try {
 } catch (err) {
   fastify.log.error(`Failed to load config: ${err.message}`);
   process.exit(1);
+}
+
+// Resolves the validation rule that actually applies to one service.action
+// call, for one org: a dashboard-managed custom rule (see the Validation
+// Rules panel and /api/v1/validation-rules below) always wins if one
+// exists, falling back to the curated service's static config-driven rule
+// (VALIDATION_RULES) otherwise. Custom Actions (service === 'custom') have
+// no static fallback at all — a custom rule is the only way to validate
+// one. Checked on every proxied request (proxy/mcp), so this stays a
+// single indexed lookup rather than anything heavier.
+async function getEffectiveValidationRule(orgId, service, action) {
+  const custom = await pg.query(
+    'SELECT fields FROM custom_validation_rules WHERE org_id = $1 AND service = $2 AND action = $3',
+    [orgId, service, action]
+  );
+  if (custom.rows.length > 0) return { fields: custom.rows[0].fields };
+  if (service === 'custom') return null;
+  const staticRule = VALIDATION_RULES.find((r) => r.service === service && r.action === action);
+  return staticRule ? { fields: staticRule.fields } : null;
 }
 
 const redis = new Redis(REDIS_URL);
@@ -636,7 +655,8 @@ async function getUserOrgIds(userId) {
     `SELECT org_id FROM users WHERE id = $1 AND org_id IS NOT NULL
      UNION SELECT DISTINCT org_id FROM api_keys WHERE user_id = $1
      UNION SELECT DISTINCT org_id FROM custom_actions WHERE user_id = $1
-     UNION SELECT DISTINCT org_id FROM service_credentials WHERE user_id = $1${orgMembersClause}`,
+     UNION SELECT DISTINCT org_id FROM service_credentials WHERE user_id = $1
+     UNION SELECT DISTINCT org_id FROM custom_validation_rules WHERE created_by = $1${orgMembersClause}`,
     [userId]
   );
   return result.rows.map((r) => r.org_id);
@@ -2104,6 +2124,77 @@ fastify.delete('/api/v1/custom-actions/:id', { preHandler: requireAuthRateLimite
   return { revoked: true };
 });
 
+// ─── VALIDATION RULES (custom validation rule builder) ───
+// Lets an org define its own payload validation for any service.action —
+// including Custom Actions, which otherwise have no validation at all (see
+// the comment in src/core/proxy — the human who registered one owns
+// responsibility for its shape, unless they define a rule here). For
+// curated services this always overrides the static config/services.json
+// rule for that action, rather than merging with it — one rule, one source
+// of truth, easier to reason about than a field-by-field merge.
+// Curated service actions are dotted (e.g. "charge.create" — see
+// config/services.json), so this needs to be a bit more permissive than
+// isValidIdentifier (org_id/agent_id/custom-action names, none of which
+// contain dots) while still keeping the charset safe for a JSONB/SQL key.
+function isValidActionName(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 100 && /^[a-zA-Z0-9_.-]+$/.test(value);
+}
+
+fastify.post('/api/v1/validation-rules', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const { org_id, service, action, fields } = request.body || {};
+  if (!isValidIdentifier(org_id)) return reply.status(422).send({ error: 'org_id must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
+  if (!isValidIdentifier(service)) return reply.status(422).send({ error: 'service must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
+  if (!isValidActionName(action)) return reply.status(422).send({ error: 'action must be 1-100 characters, letters/numbers/dots/underscore/hyphen only.' });
+  if (!(await checkOrgWritePermission(request.user.sub, org_id))) {
+    return reply.status(403).send({ error: 'Auditors have read-only access to this org.' });
+  }
+  const fieldsError = isValidRuleDefinition(fields);
+  if (fieldsError) return reply.status(422).send({ error: fieldsError });
+
+  const r = await pg.query(
+    `INSERT INTO custom_validation_rules (org_id, service, action, fields, created_by)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (org_id, service, action) DO UPDATE SET fields = EXCLUDED.fields, updated_at = NOW()
+     RETURNING id, org_id, service, action, fields, updated_at`,
+    [org_id, service, action, JSON.stringify(fields), request.user.sub]
+  );
+  return { saved: true, rule: r.rows[0] };
+});
+
+fastify.get('/api/v1/validation-rules', { preHandler: requireAuthRateLimited }, async (request) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return [];
+  const r = await pg.query(
+    `SELECT id, org_id, service, action, fields, created_at, updated_at
+     FROM custom_validation_rules WHERE org_id = ANY($1) ORDER BY updated_at DESC`,
+    [orgIds]
+  );
+  return r.rows;
+});
+
+fastify.delete('/api/v1/validation-rules/:id', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return reply.status(404).send({ error: 'Validation rule not found.' });
+  const r = await pg.query(
+    `DELETE FROM custom_validation_rules WHERE id = $1 AND org_id = ANY($2) RETURNING id`,
+    [request.params.id, orgIds]
+  );
+  if (r.rows.length === 0) return reply.status(404).send({ error: 'Validation rule not found.' });
+  return { deleted: true };
+});
+
+// Lets the dashboard's rule builder show a live pass/fail preview against a
+// sample payload before saving — pure function, no DB write, so it's safe
+// to call on every keystroke without rate-limit concerns beyond the normal
+// dashboard limiter.
+fastify.post('/api/v1/validation-rules/test', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const { fields, payload } = request.body || {};
+  const fieldsError = isValidRuleDefinition(fields);
+  if (fieldsError) return reply.status(422).send({ error: fieldsError });
+  const validationError = validateFields(payload || {}, fields);
+  return { valid: !validationError, error: validationError };
+});
+
 // Looks up a registered custom action and returns it shaped like a SERVICE_ROUTES
 // entry, so the rest of the pipeline (dedup, validation, circuit breaker, forwarding)
 // treats it identically to a curated service — no special-casing needed downstream.
@@ -2178,6 +2269,36 @@ fastify.delete('/api/v1/agents/keys/:id', { preHandler: requireAuthRateLimited }
   return { revoked: true };
 });
 
+// Revokes the old key and issues a fresh one for the same org/agent/label,
+// in one action - the new key is shown once, same as Connect Agent's response.
+fastify.post('/api/v1/agents/keys/:id/regenerate', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const existing = await pg.query(
+    `SELECT org_id, agent_id, label FROM api_keys WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
+    [request.params.id, request.user.sub]
+  );
+  if (existing.rows.length === 0) return reply.status(404).send({ error: 'Key not found.' });
+  const { org_id, agent_id, label } = existing.rows[0];
+
+  await pg.query(`UPDATE api_keys SET revoked_at = NOW() WHERE id = $1`, [request.params.id]);
+
+  const rawKey = 'ar_live_' + crypto.randomBytes(24).toString('hex');
+  const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+  const keyPrefix = rawKey.slice(0, 16);
+  await pg.query(
+    `INSERT INTO api_keys (user_id, org_id, agent_id, label, key_hash, key_prefix) VALUES ($1,$2,$3,$4,$5,$6)`,
+    [request.user.sub, org_id, agent_id, label, keyHash, keyPrefix]
+  );
+
+  const origin = PUBLIC_URL;
+  return {
+    api_key: rawKey, // shown once - not retrievable again after this response
+    webhook_url: `${origin}/v1/webhook/${org_id}/${agent_id}`,
+    mcp_url: `${origin}/mcp`,
+    org_id,
+    agent_id,
+  };
+});
+
 // ─── WEBHOOK + SDK + MCP (agent-facing, unchanged — protected by API key, not dashboard login) ───
 // Payload hashing, Redis dedup, circuit breaker, and the unified forwarder
 // now live in src/core/proxy; MCP JSON-RPC handling lives in src/core/mcp
@@ -2187,15 +2308,15 @@ fastify.delete('/api/v1/agents/keys/:id', { preHandler: requireAuthRateLimited }
 // hoisted, so referencing them before their textual definition is safe.
 const proxy = createProxy({
   redis, fastify, axios,
-  SERVICE_ROUTES, VALIDATION_RULES, validatePayload,
+  SERVICE_ROUTES, validateFields, getEffectiveValidationRule,
   resolveCustomRoute, verifyApiKey, getEffectiveRateLimit,
   checkUsageLimit, incrementMonthlyUsage, getCredential,
   logAudit, extractUpstreamErrorMessage, AGENT_RATE_LIMIT_PER_MIN, ENTERPRISE_MODE,
   maintenanceQueue,
 });
 const mcp = createMcp({
-  fastify, proxy, SERVICE_CONFIG, SERVICE_ROUTES, VALIDATION_RULES,
-  validatePayload, resolveCustomRoute, verifyApiKey, getEffectiveRateLimit,
+  fastify, proxy, SERVICE_CONFIG, SERVICE_ROUTES, validateFields, getEffectiveValidationRule,
+  resolveCustomRoute, verifyApiKey, getEffectiveRateLimit,
   checkUsageLimit, incrementMonthlyUsage, logAudit, extractUpstreamErrorMessage,
 });
 
