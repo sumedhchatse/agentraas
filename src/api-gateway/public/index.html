@@ -248,6 +248,7 @@
   .field-rule-row .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
   .field-rule-row .row2 input { flex: 1; min-width: 90px; font-size: 12.5px; padding: 8px 10px; }
   .field-rule-row .row2 input::placeholder { color: var(--muted); }
+  .field-rule-row .row2 select { flex: 1; min-width: 90px; width: auto; font-size: 12.5px; padding: 8px 10px; }
   .rule-summary-row {
     background: var(--panel-2); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px;
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -508,6 +509,8 @@
       <button class="btn" id="credentials-btn">Credentials</button>
       <button class="btn" id="custom-actions-btn">Custom actions</button>
       <button class="btn" id="validation-rules-btn">Validation rules</button>
+      <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
+      <button class="btn" id="dlq-btn">Failed requests</button>
       <button class="btn" id="admin-btn" style="display:none;">Admin</button>
       <button class="btn" id="enterprise-btn">Enterprise</button>
       <button class="btn" id="seed-btn">Seed demo data</button>
@@ -696,6 +699,17 @@
       <div class="field"><label for="vr-service">Service</label><input type="text" id="vr-service" placeholder="stripe (or custom)" required></div>
       <div class="field"><label for="vr-action">Action</label><input type="text" id="vr-action" placeholder="charge.create" required></div>
 
+      <div class="field">
+        <label for="vr-template-select">API Guard Template (optional)</label>
+        <select id="vr-template-select">
+          <option value="">— pick a common recipe to start from —</option>
+          <option value="stripe_charge">Stripe: charge.create (amount &gt; 0, currency required)</option>
+          <option value="whatsapp_message">WhatsApp / Twilio: message send (E.164 phone check)</option>
+          <option value="hubspot_contact">HubSpot / Zoho: contact create (email required + valid)</option>
+          <option value="calendly_booking">Calendly / Cal.com: booking create (required scheduling fields)</option>
+        </select>
+      </div>
+
       <label style="display:block;margin:14px 0 8px;font-size:13px;font-weight:600;">Field rules</label>
       <div id="vr-fields-container"></div>
       <button type="button" class="btn" id="vr-add-field-btn" style="margin-bottom:14px;">+ Add field</button>
@@ -712,6 +726,42 @@
     <h3 style="margin-top:26px;">Saved rules</h3>
     <div id="vr-list"></div>
     <button class="close-btn" id="vr-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Outage Alerts (notification webhooks) modal -->
+<div class="modal-overlay" id="nw-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Outage alerts">
+    <h3>Instant outage alerts</h3>
+    <p class="sub">Get pinged in Slack, Discord, or Telegram the moment AgentRaaS's circuit breaker shields your org from an unresponsive service — rate-limited to one alert per service per minute, so a burst of blocked requests doesn't spam you.</p>
+    <div class="modal-error" id="nw-error"></div>
+    <form id="nw-form">
+      <div class="field"><label for="nw-org">Org ID</label><input type="text" id="nw-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="nw-type">Type</label>
+        <select id="nw-type">
+          <option value="slack">Slack (incoming webhook)</option>
+          <option value="discord">Discord (webhook URL)</option>
+          <option value="telegram">Telegram (bot)</option>
+        </select>
+      </div>
+      <div class="field"><label for="nw-target" id="nw-target-label">Webhook URL</label><input type="text" id="nw-target" placeholder="https://hooks.slack.com/services/..." required></div>
+      <div class="field" id="nw-chatid-field" style="display:none;"><label for="nw-chatid">Chat ID</label><input type="text" id="nw-chatid" placeholder="-1001234567890"></div>
+      <button type="submit" class="primary" id="nw-submit">Save</button>
+    </form>
+    <h3 style="margin-top:26px;">Configured alerts</h3>
+    <div id="nw-list"></div>
+    <button class="close-btn" id="nw-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Failed requests (dead letter queue / one-click replay) modal -->
+<div class="modal-overlay" id="dlq-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Failed requests">
+    <h3>Failed requests</h3>
+    <p class="sub">Requests where the target API itself returned an error — not ones blocked by AgentRaaS (validation, usage limits, an already-open circuit). Review the payload, edit it if needed, and replay once the underlying issue is fixed.</p>
+    <div class="modal-error" id="dlq-error"></div>
+    <div id="dlq-list"></div>
+    <button class="close-btn" id="dlq-modal-close">Close</button>
   </div>
 </div>
 
@@ -1561,7 +1611,11 @@
         <input type="text" class="vrf-minlength" placeholder="minLength">
         <input type="text" class="vrf-maxlength" placeholder="maxLength">
         <input type="text" class="vrf-enum" placeholder="enum: a,b,c">
-        <label class="required-label"><input type="checkbox" class="vrf-email"> email format</label>
+        <select class="vrf-format">
+          <option value="">no format check</option>
+          <option value="email">email format</option>
+          <option value="e164">phone (E.164)</option>
+        </select>
       </div>
     `;
     row.querySelector('.vrf-type').value = rules.type || '';
@@ -1571,7 +1625,7 @@
     row.querySelector('.vrf-minlength').value = rules.minLength !== undefined ? rules.minLength : '';
     row.querySelector('.vrf-maxlength').value = rules.maxLength !== undefined ? rules.maxLength : '';
     row.querySelector('.vrf-enum').value = rules.enum ? rules.enum.join(',') : '';
-    row.querySelector('.vrf-email').checked = rules.format === 'email';
+    row.querySelector('.vrf-format').value = rules.format || '';
     row.querySelector('.remove-field-btn').addEventListener('click', () => row.remove());
     vrFieldsContainer.appendChild(row);
   }
@@ -1595,7 +1649,8 @@
       if (maxLength !== '') rule.maxLength = Number(maxLength);
       const enumVal = row.querySelector('.vrf-enum').value.trim();
       if (enumVal) rule.enum = enumVal.split(',').map((s) => s.trim()).filter(Boolean);
-      if (row.querySelector('.vrf-email').checked) rule.format = 'email';
+      const format = row.querySelector('.vrf-format').value;
+      if (format) rule.format = format;
       fields[name] = rule;
     });
     return fields;
@@ -1611,6 +1666,52 @@
   }
 
   document.getElementById('vr-add-field-btn').addEventListener('click', () => createFieldRow());
+
+  // ─── API Guard Templates ─── 1-click starting points for common APIs,
+  // rather than asking everyone to write field rules from scratch. Each
+  // only expresses what the validator can actually check (payload shape —
+  // required/type/format/range) — e.g. "Calendly double-booking
+  // prevention" from the pitch really needs a live lookup against
+  // existing bookings, which this system doesn't do; that template just
+  // guards the fields a booking call needs, honestly labeled as such.
+  const VR_TEMPLATES = {
+    stripe_charge: {
+      service: 'stripe', action: 'charge.create',
+      fields: {
+        amount: { type: 'number', required: true, min: 1 },
+        currency: { type: 'string', required: true, minLength: 3, maxLength: 3 },
+      },
+    },
+    whatsapp_message: {
+      service: 'whatsapp', action: 'message.send',
+      fields: {
+        to: { type: 'string', required: true, format: 'e164' },
+      },
+    },
+    hubspot_contact: {
+      service: 'hubspot', action: 'contact.create',
+      fields: {
+        email: { type: 'string', required: true, format: 'email' },
+      },
+    },
+    calendly_booking: {
+      service: 'calendly', action: 'booking.create',
+      fields: {
+        start_time: { type: 'string', required: true },
+        invitee_email: { type: 'string', required: true, format: 'email' },
+      },
+    },
+  };
+
+  document.getElementById('vr-template-select').addEventListener('change', (e) => {
+    const template = VR_TEMPLATES[e.target.value];
+    e.target.value = ''; // one-shot picker, not a persistent selection tied to the rule
+    if (!template) return;
+    document.getElementById('vr-service').value = template.service;
+    document.getElementById('vr-action').value = template.action;
+    vrFieldsContainer.innerHTML = '';
+    for (const [fname, frules] of Object.entries(template.fields)) createFieldRow(fname, frules);
+  });
 
   document.getElementById('validation-rules-btn').addEventListener('click', () => {
     vrError.style.display = 'none'; resetVrForm();
@@ -1690,6 +1791,149 @@
       }
       list.querySelectorAll('.delete-rule').forEach((btn) => {
         btn.addEventListener('click', async () => { await fetch(`/api/v1/validation-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadValidationRulesList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Outage Alerts (notification webhooks) modal ───
+  const nwModalOverlay = document.getElementById('nw-modal-overlay');
+  const nwForm = document.getElementById('nw-form');
+  const nwError = document.getElementById('nw-error');
+  const nwSubmit = document.getElementById('nw-submit');
+  const nwType = document.getElementById('nw-type');
+
+  function updateNwFieldVisibility() {
+    const isTelegram = nwType.value === 'telegram';
+    document.getElementById('nw-chatid-field').style.display = isTelegram ? 'block' : 'none';
+    document.getElementById('nw-target-label').textContent = isTelegram ? 'Bot token' : 'Webhook URL';
+    document.getElementById('nw-target').placeholder = isTelegram ? '123456:ABC-DEF...' : 'https://hooks.slack.com/services/...';
+  }
+  nwType.addEventListener('change', updateNwFieldVisibility);
+
+  document.getElementById('notification-webhooks-btn').addEventListener('click', () => {
+    nwError.style.display = 'none'; nwForm.reset(); updateNwFieldVisibility();
+    nwModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('nw-org').focus();
+    loadNotificationWebhooksList();
+  });
+  document.getElementById('nw-modal-close').addEventListener('click', () => { nwModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  nwModalOverlay.addEventListener('click', (e) => { if (e.target === nwModalOverlay) { nwModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  nwForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); nwError.style.display = 'none'; nwSubmit.disabled = true;
+    const restoreText = withLoadingText(nwSubmit, 'Saving…');
+    const org_id = document.getElementById('nw-org').value.trim();
+    const type = nwType.value;
+    const target = document.getElementById('nw-target').value.trim();
+    const chat_id = document.getElementById('nw-chatid').value.trim();
+    try {
+      const res = await fetch('/api/v1/notification-webhooks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, type, target, chat_id: chat_id || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { nwError.textContent = data.error || 'Could not save.'; nwError.style.display = 'block'; return; }
+      nwForm.reset(); updateNwFieldVisibility(); loadNotificationWebhooksList();
+    } catch (err) { nwError.textContent = 'Could not reach the server.'; nwError.style.display = 'block'; }
+    finally { nwSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadNotificationWebhooksList() {
+    const list = document.getElementById('nw-list');
+    try {
+      const res = await fetch('/api/v1/notification-webhooks', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No outage alerts configured yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.type)} — ${escapeHtml(row.org_id)}</div><div class="meta">Added ${new Date(row.created_at).toLocaleDateString()}</div></div><div style="display:flex;gap:6px;"><button class="btn test-webhook" data-id="${row.id}" style="padding:6px 12px;font-size:12px;">Test</button><button class="revoke delete-webhook" data-id="${row.id}">Delete</button></div>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.test-webhook').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const restoreText = withLoadingText(btn, 'Sending…');
+          try { await fetch(`/api/v1/notification-webhooks/${btn.dataset.id}/test`, { method: 'POST', credentials: 'include' }); } finally { restoreText(); }
+        });
+      });
+      list.querySelectorAll('.delete-webhook').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/notification-webhooks/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadNotificationWebhooksList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Failed requests (dead letter queue / one-click replay) modal ───
+  const dlqModalOverlay = document.getElementById('dlq-modal-overlay');
+  const dlqError = document.getElementById('dlq-error');
+
+  document.getElementById('dlq-btn').addEventListener('click', () => {
+    dlqError.style.display = 'none';
+    dlqModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    loadDlqList();
+  });
+  document.getElementById('dlq-modal-close').addEventListener('click', () => { dlqModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  dlqModalOverlay.addEventListener('click', (e) => { if (e.target === dlqModalOverlay) { dlqModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  async function loadDlqList() {
+    const list = document.getElementById('dlq-list');
+    try {
+      const res = await fetch('/api/v1/dead-letter-queue', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No failed requests — nothing waiting to be replayed.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.service)}.${escapeHtml(row.action)} — ${escapeHtml(row.org_id)}</div><div class="meta">${escapeHtml(row.error_message || 'Upstream error')} · ${new Date(row.created_at).toLocaleString()}</div></div><div style="display:flex;gap:6px;"><button class="btn dlq-edit" data-id="${row.id}" style="padding:6px 12px;font-size:12px;">Edit &amp; Replay</button><button class="btn dlq-replay" data-id="${row.id}" style="padding:6px 12px;font-size:12px;">Replay</button><button class="revoke dlq-dismiss" data-id="${row.id}">Dismiss</button></div>`;
+        list.appendChild(div);
+
+        const editRow = document.createElement('div');
+        editRow.id = `dlq-edit-${row.id}`;
+        editRow.style.cssText = 'display:none;padding:0 0 14px;';
+        editRow.innerHTML = `<textarea class="dlq-payload-edit" data-id="${row.id}" rows="6" style="width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:ui-monospace,monospace;font-size:12.5px;resize:vertical;margin-bottom:8px;">${escapeHtml(JSON.stringify(row.payload, null, 2))}</textarea><button class="btn primary dlq-replay-edited" data-id="${row.id}" style="padding:6px 12px;font-size:12px;">Replay edited payload</button>`;
+        list.appendChild(editRow);
+      }
+
+      async function doReplay(id, body) {
+        dlqError.style.display = 'none';
+        try {
+          const res = await fetch(`/api/v1/dead-letter-queue/${id}/replay`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify(body || {}),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.replayed) { dlqError.textContent = data.error || 'Replay failed.'; dlqError.style.display = 'block'; return; }
+          loadDlqList();
+        } catch (err) { dlqError.textContent = 'Could not reach the server.'; dlqError.style.display = 'block'; }
+      }
+
+      list.querySelectorAll('.dlq-edit').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const editRow = document.getElementById(`dlq-edit-${btn.dataset.id}`);
+          editRow.style.display = editRow.style.display === 'none' ? 'block' : 'none';
+        });
+      });
+      list.querySelectorAll('.dlq-replay').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const restoreText = withLoadingText(btn, 'Replaying…');
+          try { await doReplay(btn.dataset.id); } finally { restoreText(); }
+        });
+      });
+      list.querySelectorAll('.dlq-replay-edited').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const textarea = list.querySelector(`.dlq-payload-edit[data-id="${btn.dataset.id}"]`);
+          let payload;
+          try { payload = JSON.parse(textarea.value); }
+          catch (err) { dlqError.textContent = 'Edited payload is not valid JSON.'; dlqError.style.display = 'block'; return; }
+          const restoreText = withLoadingText(btn, 'Replaying…');
+          try { await doReplay(btn.dataset.id, { payload }); } finally { restoreText(); }
+        });
+      });
+      list.querySelectorAll('.dlq-dismiss').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/dead-letter-queue/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadDlqList(); });
       });
     } catch (err) {}
   }

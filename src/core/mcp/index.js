@@ -18,6 +18,9 @@ function createMcp(deps) {
     incrementMonthlyUsage,
     logAudit,
     extractUpstreamErrorMessage,
+    notifyCircuitOpen,
+    pg,
+    encryptCredential,
   } = deps;
   const {
     generateRequestId,
@@ -126,6 +129,7 @@ function createMcp(deps) {
         if (circuitState === 'open') {
           await releaseDedupSlot(dedupKey);
           await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'blocked', 'circuit_open', Date.now() - startTime, dedupHash);
+          notifyCircuitOpen(orgId, resolvedServiceName).catch(() => {}); // fire-and-forget, rate-limited internally
           return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ error: `Circuit breaker open for ${resolvedServiceName}`, reqId }) }], isError: true } });
         }
 
@@ -151,6 +155,13 @@ function createMcp(deps) {
         const responseMessage = err.response
           ? (upstreamMessage || 'Upstream service returned an error.')
           : 'An internal error occurred while processing this request.';
+        if (err.response && pg && encryptCredential) {
+          pg.query(
+            `INSERT INTO dead_letter_queue (req_id, org_id, agent_id, service, action, encrypted_payload, error_message)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [reqId, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, encryptCredential(JSON.stringify(payload)), upstreamMessage || err.message]
+          ).catch((dlqErr) => fastify.log.warn({ dlqErr, reqId }, 'Dead-letter queue write failed'));
+        }
         return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ error: responseMessage, reqId }) }], isError: true } });
       }
     }

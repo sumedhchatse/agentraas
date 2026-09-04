@@ -27,6 +27,9 @@ function createProxy(deps) {
     AGENT_RATE_LIMIT_PER_MIN,
     ENTERPRISE_MODE,
     maintenanceQueue,
+    notifyCircuitOpen,
+    pg,
+    encryptCredential,
   } = deps;
 
   function generateRequestId() { return 'req_' + require('crypto').randomBytes(8).toString('hex'); }
@@ -337,6 +340,7 @@ function createProxy(deps) {
         status = 'blocked'; errorType = 'circuit_open';
         await releaseDedupSlot(dedupKey);
         await logAudit(reqId, apiKey, orgId, agentId, service, action, status, errorType, Date.now() - startTime, dedupHash);
+        notifyCircuitOpen(orgId, service).catch(() => {}); // fire-and-forget, rate-limited internally
         return reply.status(503).send({ error: `Circuit breaker open for ${service}. Try again later.`, reqId });
       }
 
@@ -372,6 +376,18 @@ function createProxy(deps) {
       const responseMessage = err.response
         ? (upstreamMessage || 'Upstream service returned an error.')
         : 'An internal error occurred while processing this request.';
+      // Dead Letter Queue — only for genuine upstream failures (err.response
+      // present: the target API itself returned an error), not client-side
+      // rejections (validation, usage limit, circuit already open) that a
+      // blind replay wouldn't fix. Best-effort: never let a DLQ write
+      // failure change the response the caller already gets.
+      if (err.response && pg && encryptCredential) {
+        pg.query(
+          `INSERT INTO dead_letter_queue (req_id, org_id, agent_id, service, action, encrypted_payload, error_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [reqId, orgId, agentId, service, action, encryptCredential(JSON.stringify(payload)), errorType]
+        ).catch((dlqErr) => fastify.log.warn({ dlqErr, reqId }, 'Dead-letter queue write failed'));
+      }
       return reply.status(err.response?.status || 500).send({ error: responseMessage, reqId, agentraas_note: 'Request blocked by AgentRaaS.' });
     }
   }
