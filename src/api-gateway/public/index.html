@@ -511,6 +511,7 @@
       <button class="btn" id="validation-rules-btn">Validation rules</button>
       <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
       <button class="btn" id="dlq-btn">Failed requests</button>
+      <button class="btn" id="reliability-btn">Reliability report</button>
       <button class="btn" id="admin-btn" style="display:none;">Admin</button>
       <button class="btn" id="enterprise-btn">Enterprise</button>
       <button class="btn" id="seed-btn">Seed demo data</button>
@@ -765,6 +766,16 @@
   </div>
 </div>
 
+<!-- Reliability report (uptime %, success rate, duplicates prevented) -->
+<div class="modal-overlay" id="reliability-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Reliability report">
+    <h3>Reliability report</h3>
+    <p class="sub">Uses the same date range as the dashboard's own 24h/7d/30d/90d selector. Uptime is shared across every org calling a service (one circuit breaker per service, not per org); success rate and duplicates prevented are scoped to your own orgs.</p>
+    <div id="reliability-list"></div>
+    <button class="close-btn" id="reliability-modal-close">Close</button>
+  </div>
+</div>
+
 <!-- Enterprise: SSO configs + members + invites -->
 <div class="modal-overlay" id="enterprise-modal-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Enterprise SSO and members">
@@ -995,6 +1006,7 @@
     btn.addEventListener('click', () => {
       document.querySelectorAll('.ranges button').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active'); currentRange = btn.dataset.range; activityLimit = 50; loadAll();
+      if (reliabilityModalOverlay.style.display === 'flex') loadReliabilityReport();
     });
   });
   document.getElementById('refresh-btn').addEventListener('click', async () => {
@@ -1935,6 +1947,34 @@
       list.querySelectorAll('.dlq-dismiss').forEach((btn) => {
         btn.addEventListener('click', async () => { await fetch(`/api/v1/dead-letter-queue/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadDlqList(); });
       });
+    } catch (err) {}
+  }
+
+  // ─── Reliability report (uptime %, success rate, duplicates prevented) ───
+  const reliabilityModalOverlay = document.getElementById('reliability-modal-overlay');
+  document.getElementById('reliability-btn').addEventListener('click', () => {
+    reliabilityModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    loadReliabilityReport();
+  });
+  document.getElementById('reliability-modal-close').addEventListener('click', () => { reliabilityModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  reliabilityModalOverlay.addEventListener('click', (e) => { if (e.target === reliabilityModalOverlay) { reliabilityModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  async function loadReliabilityReport() {
+    const list = document.getElementById('reliability-list');
+    try {
+      const res = await fetch(`/api/v1/reliability-report?range=${currentRange}`, { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.services.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No services configured.</div>'; return; }
+      list.innerHTML = '';
+      for (const svc of data.services) {
+        const uptimeColor = svc.uptime_pct >= 99.9 ? 'var(--signal)' : svc.uptime_pct >= 99 ? '#E2B24A' : 'var(--alert)';
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${svc.service.charAt(0).toUpperCase() + svc.service.slice(1)}</div><div class="meta">${svc.total_actions} action${svc.total_actions === 1 ? '' : 's'}${svc.success_rate !== null ? ` · ${svc.success_rate}% success` : ''}${svc.duplicates_prevented > 0 ? ` · ${svc.duplicates_prevented} duplicate${svc.duplicates_prevented === 1 ? '' : 's'} prevented` : ''}</div></div><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:${uptimeColor};">${svc.uptime_pct}% uptime</div>`;
+        list.appendChild(div);
+      }
     } catch (err) {}
   }
 
