@@ -1,0 +1,49 @@
+# AgentRaaS as a Docker Compose sidecar — paste the `agentraas`,
+# `agentraas-redis`, and `agentraas-postgres` service blocks below into
+# your existing docker-compose.yml's `services:` section (alongside
+# whatever you're already running — Flowise, Langflow, Dify, or your own
+# app), and the two named volumes into its top-level `volumes:` section.
+#
+# Works the same way regardless of which low-code/agent tool is calling
+# it — AgentRaaS doesn't care who the caller is, only that it points HTTP
+# calls at it instead of the real API. See docker-compose-sidecar/README.md
+# for the small per-tool notes (where each one configures outbound URLs).
+#
+# Full env var reference: https://github.com/sumedhchatse/agentraas/blob/main/.env.example
+
+services:
+  agentraas:
+    image: ghcr.io/sumedhchatse/agentraas:latest
+    container_name: agentraas
+    restart: unless-stopped
+    ports:
+      - "13000:13000"
+    environment:
+      - REDIS_URL=redis://agentraas-redis:6379
+      - DATABASE_URL=postgresql://agentraas:${AGENTRAAS_DB_PASSWORD:-agentraas}@agentraas-postgres:5432/agentraas
+      - JWT_SECRET=${AGENTRAAS_JWT_SECRET:?set a real secret, e.g. openssl rand -hex 32}
+      - CREDENTIALS_ENCRYPTION_KEY=${AGENTRAAS_CRED_KEY:?set a real key, e.g. openssl rand -base64 32}
+      - DEPLOYMENT_MODE=self-hosted
+    depends_on:
+      - agentraas-redis
+      - agentraas-postgres
+
+  agentraas-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - agentraas-redis-data:/data
+
+  agentraas-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentraas
+      POSTGRES_PASSWORD: ${AGENTRAAS_DB_PASSWORD:-agentraas}
+      POSTGRES_DB: agentraas
+    volumes:
+      - agentraas-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  agentraas-redis-data:
+  agentraas-postgres-data:
