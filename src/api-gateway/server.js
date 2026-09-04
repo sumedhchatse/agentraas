@@ -1161,6 +1161,18 @@ fastify.get('/webhook-audit', async (request, reply) => {
   reply.type('text/html').send(fs.readFileSync(htmlPath, 'utf8'));
 });
 
+// ─── SEO: robots.txt + sitemap.xml ───
+// Only the marketing/content pages — /dashboard is a logged-in app, not
+// content, and shouldn't be crawled or indexed as if it were a landing page.
+const SITEMAP_ROUTES = ['/', '/guide', '/webhook-audit', ...Object.keys(DOC_FILES).map((r) => `/${r}`)];
+fastify.get('/robots.txt', async (request, reply) => {
+  reply.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /dashboard\nSitemap: ${PUBLIC_URL}/sitemap.xml\n`);
+});
+fastify.get('/sitemap.xml', async (request, reply) => {
+  const urls = SITEMAP_ROUTES.map((route) => `  <url><loc>${PUBLIC_URL}${route}</loc></url>`).join('\n');
+  reply.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+});
+
 // ─── AUTH ROUTES ───
 fastify.post('/api/v1/auth/register', async (request, reply) => {
   const { email, password, org_id } = request.body || {};
