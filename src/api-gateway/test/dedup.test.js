@@ -184,6 +184,77 @@ test('a failed request releases its dedup slot, so an identical retry executes f
   await redis.del('circuit:mockpay');
 });
 
+test('a per-field dedup rule dedupes on the configured field(s) instead of the whole payload', async () => {
+  const probe = Date.now();
+  const ruleRes = await client.post(
+    '/api/v1/dedup-rules',
+    { org_id: TEST_ORG, service: 'mockpay', action: 'payment.create', fields: ['customer_email'] },
+    { headers: { Cookie: sessionCookie } }
+  );
+  assert.equal(ruleRes.status, 200, `Expected dedup rule save to succeed, got ${ruleRes.status}: ${JSON.stringify(ruleRes.data)}`);
+  const ruleId = ruleRes.data.rule.id;
+
+  try {
+    const email = `same-${probe}@example.com`;
+    // Different amount and idempotency_probe on each call — under the default
+    // whole-payload hash these would NOT dedupe (see the "different payloads"
+    // test above). With a customer_email-keyed rule active, they should.
+    const first = await callWebhook({ service: 'mockpay', action: 'payment.create', payload: { amount: 100, fail: false, customer_email: email, idempotency_probe: `field-a-${probe}` } });
+    assert.equal(first.status, 200);
+    assert.ok(!first.data.cached, 'First call with this email should execute fresh');
+
+    const second = await callWebhook({ service: 'mockpay', action: 'payment.create', payload: { amount: 999, fail: false, customer_email: email, idempotency_probe: `field-b-${probe}` } });
+    assert.equal(second.status, 200);
+    assert.equal(second.data.cached, true, 'Same customer_email with otherwise-different payload should be deduplicated under the field rule');
+    assert.equal(second.data.upstream_id, first.data.upstream_id, 'Cached replay should return the first call\'s result');
+
+    const third = await callWebhook({ service: 'mockpay', action: 'payment.create', payload: { amount: 100, fail: false, customer_email: `different-${probe}@example.com`, idempotency_probe: `field-c-${probe}` } });
+    assert.equal(third.status, 200);
+    assert.ok(!third.data.cached, 'A different customer_email should execute fresh, not dedupe against the first two');
+  } finally {
+    // Remove the rule so it can't affect any other test sharing this org/service/action.
+    const delRes = await client.delete(`/api/v1/dedup-rules/${ruleId}`, { headers: { Cookie: sessionCookie } });
+    assert.equal(delRes.status, 200, `Expected dedup rule cleanup to succeed, got ${delRes.status}: ${JSON.stringify(delRes.data)}`);
+  }
+});
+
+test('an explicit idempotency key still takes precedence over a configured per-field dedup rule', async () => {
+  const probe = Date.now();
+  const ruleRes = await client.post(
+    '/api/v1/dedup-rules',
+    { org_id: TEST_ORG, service: 'mockpay', action: 'payment.create', fields: ['customer_email'] },
+    { headers: { Cookie: sessionCookie } }
+  );
+  assert.equal(ruleRes.status, 200);
+  const ruleId = ruleRes.data.rule.id;
+
+  try {
+    const email = `precedence-${probe}@example.com`;
+    const headers = { Authorization: `Bearer ${apiKey}`, 'X-AgentRaaS-Idempotency-Key': `idem-precedence-${probe}` };
+    const first = await client.post(`/v1/webhook/${TEST_ORG}/${TEST_AGENT}`,
+      { service: 'mockpay', action: 'payment.create', payload: { amount: 1, fail: false, customer_email: email } }, { headers });
+    assert.equal(first.status, 200);
+    assert.ok(!first.data.cached);
+
+    // Same idempotency key, same email — should dedupe via the key (as always).
+    const second = await client.post(`/v1/webhook/${TEST_ORG}/${TEST_AGENT}`,
+      { service: 'mockpay', action: 'payment.create', payload: { amount: 1, fail: false, customer_email: email } }, { headers });
+    assert.equal(second.status, 200);
+    assert.equal(second.data.cached, true);
+
+    // A DIFFERENT idempotency key but the SAME customer_email — if the field
+    // rule were (wrongly) taking precedence this would dedupe; it must not.
+    const third = await client.post(`/v1/webhook/${TEST_ORG}/${TEST_AGENT}`,
+      { service: 'mockpay', action: 'payment.create', payload: { amount: 1, fail: false, customer_email: email } },
+      { headers: { Authorization: `Bearer ${apiKey}`, 'X-AgentRaaS-Idempotency-Key': `idem-precedence-other-${probe}` } });
+    assert.equal(third.status, 200);
+    assert.ok(!third.data.cached, 'A different idempotency key must execute fresh even though the field-rule key (customer_email) matches');
+  } finally {
+    const delRes = await client.delete(`/api/v1/dedup-rules/${ruleId}`, { headers: { Cookie: sessionCookie } });
+    assert.equal(delRes.status, 200);
+  }
+});
+
 test('teardown: close the Redis connection', async () => {
   await redis.quit();
 });

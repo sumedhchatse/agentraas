@@ -56,7 +56,7 @@ const archiver = require('archiver');
 const fs = require('fs');
 const path = require('path');
 const { loadConfig, buildServiceRoutes, getValidationRules } = require('./config-loader');
-const { validateFields, isValidRuleDefinition } = require('./validator');
+const { validateFields, isValidRuleDefinition, isValidDedupRuleDefinition } = require('./validator');
 const {
   hashPassword,
   verifyPassword,
@@ -265,6 +265,22 @@ async function getEffectiveValidationRule(orgId, service, action) {
   if (service === 'custom') return null;
   const staticRule = VALIDATION_RULES.find((r) => r.service === service && r.action === action);
   return staticRule ? { fields: staticRule.fields } : null;
+}
+
+// Resolves the per-field dedup rule that applies to one service.action
+// call, for one org (see the Dedup Rules panel and /api/v1/dedup-rules
+// below, and custom_dedup_rules) — analogous to getEffectiveValidationRule
+// above, but there's no static/curated fallback: every action defaults to
+// whole-payload-hash dedup (src/core/proxy's hashPayload) unless an org
+// explicitly configures a field-based rule here. Checked on every proxied
+// request (proxy/mcp) whenever no client-supplied idempotency key is
+// present, so this stays a single indexed lookup.
+async function getEffectiveDedupRule(orgId, service, action) {
+  const custom = await pg.query(
+    'SELECT fields FROM custom_dedup_rules WHERE org_id = $1 AND service = $2 AND action = $3',
+    [orgId, service, action]
+  );
+  return custom.rows.length > 0 ? { fields: custom.rows[0].fields } : null;
 }
 
 const redis = new Redis(REDIS_URL);
@@ -837,7 +853,8 @@ async function getUserOrgIds(userId) {
      UNION SELECT DISTINCT org_id FROM api_keys WHERE user_id = $1
      UNION SELECT DISTINCT org_id FROM custom_actions WHERE user_id = $1
      UNION SELECT DISTINCT org_id FROM service_credentials WHERE user_id = $1
-     UNION SELECT DISTINCT org_id FROM custom_validation_rules WHERE created_by = $1${orgMembersClause}`,
+     UNION SELECT DISTINCT org_id FROM custom_validation_rules WHERE created_by = $1
+     UNION SELECT DISTINCT org_id FROM custom_dedup_rules WHERE created_by = $1${orgMembersClause}`,
     [userId]
   );
   return result.rows.map((r) => r.org_id);
@@ -2545,6 +2562,57 @@ fastify.post('/api/v1/validation-rules/test', { preHandler: requireAuthRateLimit
   return { valid: !validationError, error: validationError };
 });
 
+// ─── PER-FIELD DEDUP RULES ───
+// Lets an org dedupe on a chosen subset of a payload's own fields (e.g.
+// "email" — same email counts as a duplicate regardless of what else is in
+// the payload) instead of the default whole-payload hash, without every
+// caller having to supply its own idempotency key. See
+// getEffectiveDedupRule and hashFieldValues (src/core/proxy) for how this
+// is resolved and applied on the request path; an explicit per-call
+// idempotency key still always takes precedence over a configured rule.
+fastify.post('/api/v1/dedup-rules', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const { org_id, service, action, fields } = request.body || {};
+  if (!isValidIdentifier(org_id)) return reply.status(422).send({ error: 'org_id must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
+  if (!isValidIdentifier(service)) return reply.status(422).send({ error: 'service must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
+  if (!isValidActionName(action)) return reply.status(422).send({ error: 'action must be 1-100 characters, letters/numbers/dots/underscore/hyphen only.' });
+  if (!(await checkOrgWritePermission(request.user.sub, org_id))) {
+    return reply.status(403).send({ error: 'Auditors have read-only access to this org.' });
+  }
+  const fieldsError = isValidDedupRuleDefinition(fields);
+  if (fieldsError) return reply.status(422).send({ error: fieldsError });
+
+  const r = await pg.query(
+    `INSERT INTO custom_dedup_rules (org_id, service, action, fields, created_by)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (org_id, service, action) DO UPDATE SET fields = EXCLUDED.fields, updated_at = NOW()
+     RETURNING id, org_id, service, action, fields, updated_at`,
+    [org_id, service, action, JSON.stringify(fields), request.user.sub]
+  );
+  return { saved: true, rule: r.rows[0] };
+});
+
+fastify.get('/api/v1/dedup-rules', { preHandler: requireAuthRateLimited }, async (request) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return [];
+  const r = await pg.query(
+    `SELECT id, org_id, service, action, fields, created_at, updated_at
+     FROM custom_dedup_rules WHERE org_id = ANY($1) ORDER BY updated_at DESC`,
+    [orgIds]
+  );
+  return r.rows;
+});
+
+fastify.delete('/api/v1/dedup-rules/:id', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return reply.status(404).send({ error: 'Dedup rule not found.' });
+  const r = await pg.query(
+    `DELETE FROM custom_dedup_rules WHERE id = $1 AND org_id = ANY($2) RETURNING id`,
+    [request.params.id, orgIds]
+  );
+  if (r.rows.length === 0) return reply.status(404).send({ error: 'Dedup rule not found.' });
+  return { deleted: true };
+});
+
 // ─── NOTIFICATION WEBHOOKS (instant outage notifications) ───
 fastify.post('/api/v1/notification-webhooks', { preHandler: requireAuthRateLimited }, async (request, reply) => {
   const { org_id, type, target, chat_id } = request.body || {};
@@ -2857,7 +2925,7 @@ fastify.post('/api/v1/agents/keys/:id/regenerate', { preHandler: requireAuthRate
 // hoisted, so referencing them before their textual definition is safe.
 const proxy = createProxy({
   redis, fastify, axios,
-  SERVICE_ROUTES, validateFields, getEffectiveValidationRule,
+  SERVICE_ROUTES, validateFields, getEffectiveValidationRule, getEffectiveDedupRule,
   resolveCustomRoute, verifyApiKey, getEffectiveRateLimit,
   checkUsageLimit, incrementMonthlyUsage, getCredential,
   logAudit, extractUpstreamErrorMessage, AGENT_RATE_LIMIT_PER_MIN, ENTERPRISE_MODE,
@@ -2865,7 +2933,7 @@ const proxy = createProxy({
   PROXY_RETRY_MAX_ATTEMPTS, PROXY_RETRY_BASE_DELAY_MS,
 });
 const mcp = createMcp({
-  fastify, proxy, SERVICE_CONFIG, SERVICE_ROUTES, validateFields, getEffectiveValidationRule,
+  fastify, proxy, SERVICE_CONFIG, SERVICE_ROUTES, validateFields, getEffectiveValidationRule, getEffectiveDedupRule,
   resolveCustomRoute, verifyApiKey, getEffectiveRateLimit,
   checkUsageLimit, incrementMonthlyUsage, logAudit, extractUpstreamErrorMessage, notifyCircuitOpen,
   pg, encryptCredential,
