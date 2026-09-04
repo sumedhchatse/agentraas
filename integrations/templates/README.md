@@ -5,11 +5,14 @@ tools it's built to sit alongside.
 
 | Tool | What's here | Install |
 |---|---|---|
+| **Python** | [`src/sdk`](../../src/sdk) — `Client`, tested end-to-end against a live instance | `pip install agentraas` (once published — see its README) |
+| **TypeScript/JS** | [`src/sdk-js`](../../src/sdk-js) — `Client`, dependency-free (global `fetch`), tested end-to-end | `npm install agentraas` (once published — see its README) |
 | **n8n** | [`n8n-nodes-agentraas`](../n8n-nodes-agentraas) — a real community node (TypeScript, compiles against `n8n-workflow`) | `npm install n8n-nodes-agentraas` in your n8n instance, or **Settings → Community Nodes** in the UI |
 | **Flowise** | [`flowise-custom-tool`](../flowise-custom-tool) — schema + function to paste into a Custom Tool | Copy-paste, no install (see its README) |
 | **Langflow** | [`langflow-custom-component`](../langflow-custom-component) — a Python `Component` file | Drop into your Langflow custom components directory |
 | **Dify** | No native plugin yet — Dify's HTTP Request node/tool works today: point it at `POST /v1/sdk/:service/:action` with the `X-AgentRaaS-Key` header, same as any other client. | n/a |
 | **n8n workflow** | [`agentraas-stripe-retry-safe.json`](./agentraas-stripe-retry-safe.json) — importable example workflow | n8n → **Import from File** |
+| **Docker Compose sidecar** | [`docker-compose-sidecar/`](./docker-compose-sidecar) — drop AgentRaaS into an existing Flowise/Langflow/Dify compose stack as one more service, plus per-tool wiring notes | Paste into your `docker-compose.yml` |
 
 ## Verification status
 
