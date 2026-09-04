@@ -32,6 +32,7 @@ function createMcp(deps) {
     releaseDedupSlot,
     getCircuitState,
     recordFailure,
+    recordSuccess,
     forwardWithRetry,
     broadcastFanout,
   } = proxy;
@@ -155,6 +156,7 @@ function createMcp(deps) {
         }
 
         const result = await forwardWithRetry(resolvedRoute, resolvedServiceName, resolvedActionName, orgId, payload, reqId, circuitKey);
+        recordSuccess(circuitKey).catch(() => {}); // fire-and-forget — closes a half-open circuit on recovery, never blocks the response
         broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
         await completeDedupSlot(dedupKey, result);
         await incrementMonthlyUsage(orgId);

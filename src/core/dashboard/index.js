@@ -327,6 +327,88 @@ function registerDashboardRoutes(fastify, deps) {
     }));
   });
 
+  // ─── RELIABILITY REPORT ─── turns the circuit-breaker history (see
+  // circuit_breaker_events, migration 030) and audit_log into the kind of
+  // number a customer actually wants to see: uptime %, success rate, and
+  // duplicates prevented, per service, over the same 24h/7d/30d/90d ranges
+  // used elsewhere on the dashboard.
+  //
+  // Uptime is reconstructed from consecutive state-transition events with a
+  // LEAD window (pair each "...->open" event with whatever transition comes
+  // next, or NOW() if it's still open) rather than tracked as a running
+  // total, so it stays correct no matter how the report's own range changes
+  // from call to call. Circuit state is shared across every org calling a
+  // service (one circuit per service, not per org — same as the Redis
+  // circuit:<service> keys it mirrors), so uptime is a platform-wide number;
+  // success rate and duplicates prevented stay scoped to the caller's own
+  // orgs, same as every other stat on this dashboard.
+  fastify.get('/api/v1/reliability-report', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+    const range = request.query.range || '24h';
+    const interval = DASHBOARD_RANGES[range];
+    if (!interval) {
+      return reply.status(400).send({ error: 'Invalid range. Use one of: 24h, 7d, 30d, 90d.' });
+    }
+    const services = Object.keys(SERVICE_CONFIG);
+    const orgIds = await getUserOrgIds(request.user.sub);
+
+    const [uptimeResult, statsResult] = await Promise.all([
+      pg.query(
+        `WITH events AS (
+           SELECT service, to_state, occurred_at,
+                  LEAD(occurred_at) OVER (PARTITION BY service ORDER BY occurred_at) AS next_at
+           FROM circuit_breaker_events
+           WHERE service = ANY($1) AND occurred_at >= NOW() - INTERVAL '${interval}'
+         )
+         SELECT service,
+                COALESCE(SUM(EXTRACT(EPOCH FROM (LEAST(COALESCE(next_at, NOW()), NOW()) - occurred_at))) FILTER (WHERE to_state = 'open'), 0) AS open_seconds
+         FROM events
+         GROUP BY service`,
+        [services]
+      ),
+      orgIds.length === 0
+        ? Promise.resolve({ rows: [] })
+        : pg.query(
+            `SELECT service,
+                    COUNT(*) FILTER (WHERE status = 'success') AS success,
+                    COUNT(*) FILTER (WHERE status = 'error') AS errors,
+                    COUNT(*) FILTER (WHERE status = 'deduplicated') AS duplicates_prevented,
+                    COUNT(*) AS total_actions
+             FROM audit_log
+             WHERE created_at >= NOW() - INTERVAL '${interval}' AND service = ANY($1) AND org_id = ANY($2)
+             GROUP BY service`,
+            [services, orgIds]
+          ),
+    ]);
+
+    const openSecondsMap = {};
+    for (const row of uptimeResult.rows) openSecondsMap[row.service] = parseFloat(row.open_seconds) || 0;
+    const statsMap = {};
+    for (const row of statsResult.rows) statsMap[row.service] = row;
+
+    // Same interval string DASHBOARD_RANGES already validated above, so this
+    // is a fixed set of literals, never request input.
+    const RANGE_SECONDS = { '24h': 86400, '7d': 604800, '30d': 2592000, '90d': 7776000 };
+    const rangeSeconds = RANGE_SECONDS[range];
+
+    const report = services.map((svc) => {
+      const openSeconds = Math.min(openSecondsMap[svc] || 0, rangeSeconds);
+      const uptimePct = Math.round((1 - openSeconds / rangeSeconds) * 10000) / 100;
+      const stats = statsMap[svc];
+      const success = stats ? parseInt(stats.success, 10) : 0;
+      const errors = stats ? parseInt(stats.errors, 10) : 0;
+      const successRate = success + errors > 0 ? Math.round((success / (success + errors)) * 10000) / 100 : null;
+      return {
+        service: svc,
+        uptime_pct: uptimePct,
+        success_rate: successRate,
+        duplicates_prevented: stats ? parseInt(stats.duplicates_prevented, 10) : 0,
+        total_actions: stats ? parseInt(stats.total_actions, 10) : 0,
+      };
+    });
+
+    return { range, services: report };
+  });
+
   fastify.get('/api/v1/export/csv', { preHandler: requireAuthRateLimited }, async (request, reply) => {
     const orgIds = await getUserOrgIds(request.user.sub);
     const headers = ['Timestamp', 'Request ID', 'Org', 'Agent', 'Service', 'Action', 'Status', 'Error', 'Duration_ms'];
