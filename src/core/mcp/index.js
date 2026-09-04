@@ -25,6 +25,8 @@ function createMcp(deps) {
   const {
     generateRequestId,
     hashPayload,
+    hashIdempotencyKey,
+    hashOnly,
     checkAgentRateLimit,
     claimDedupSlot,
     readDedupSlot,
@@ -68,6 +70,7 @@ function createMcp(deps) {
             properties: {
               payload: { type: 'object', description: 'Request payload' },
               org_id: { type: 'string', description: 'Organization ID' },
+              idempotency_key: { type: 'string', description: 'Optional — dedupe on this key instead of the exact payload bytes, so you control what counts as a retry of the same operation. Reusing the key with a genuinely different payload is rejected (not silently applied), matching Stripe-style idempotency keys.' },
             },
             required: ['payload'],
           },
@@ -81,6 +84,7 @@ function createMcp(deps) {
       const payload = params?.arguments?.payload || {};
       const orgId = params?.arguments?.org_id || 'mcp';
       const agentId = params?.arguments?.agent_id || 'mcp-agent';
+      const idempotencyKey = params?.arguments?.idempotency_key || null;
       const apiKey = request.headers['x-agentraas-key'] || 'anonymous';
       const reqId = generateRequestId();
 
@@ -115,7 +119,8 @@ function createMcp(deps) {
       }
 
       const startTime = Date.now();
-      const dedupHash = hashPayload(apiKey, resolvedServiceName, resolvedActionName, payload);
+      const payloadDigest = hashOnly(payload);
+      const dedupHash = idempotencyKey ? hashIdempotencyKey(apiKey, resolvedServiceName, resolvedActionName, idempotencyKey) : hashPayload(apiKey, resolvedServiceName, resolvedActionName, payload);
       const { key: dedupKey, claimed } = await claimDedupSlot(dedupHash);
 
       if (!claimed) {
@@ -124,8 +129,13 @@ function createMcp(deps) {
           await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'blocked', 'duplicate_in_progress', Date.now() - startTime, dedupHash);
           return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ error: 'An identical request is already being processed. Retry shortly.', reqId }) }], isError: true } });
         }
+        if (idempotencyKey && existing.__payloadDigest && existing.__payloadDigest !== payloadDigest) {
+          await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'blocked', 'idempotency_key_reused', Date.now() - startTime, dedupHash);
+          return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ error: 'This idempotency_key was already used with a different payload. Use a new key for a different request.', reqId }) }], isError: true } });
+        }
         await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'deduplicated', null, Date.now() - startTime, dedupHash);
-        return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ ...existing, cached: true, reqId }) }], isError: false } });
+        const { __payloadDigest, ...cached } = existing;
+        return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ ...cached, cached: true, reqId }) }], isError: false } });
       }
 
       try {
@@ -158,7 +168,7 @@ function createMcp(deps) {
         const result = await forwardWithRetry(resolvedRoute, resolvedServiceName, resolvedActionName, orgId, payload, reqId, circuitKey);
         recordSuccess(circuitKey).catch(() => {}); // fire-and-forget — closes a half-open circuit on recovery, never blocks the response
         broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
-        await completeDedupSlot(dedupKey, result);
+        await completeDedupSlot(dedupKey, idempotencyKey ? { ...result, __payloadDigest: payloadDigest } : result);
         await incrementMonthlyUsage(orgId);
         await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'success', null, Date.now() - startTime, dedupHash, payload);
         return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ ...result, reqId }) }], isError: false } });
