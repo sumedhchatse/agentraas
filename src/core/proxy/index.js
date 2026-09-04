@@ -16,6 +16,7 @@ function createProxy(deps) {
     SERVICE_ROUTES,
     validateFields,
     getEffectiveValidationRule,
+    getEffectiveDedupRule,
     resolveCustomRoute,
     verifyApiKey,
     getEffectiveRateLimit,
@@ -61,6 +62,22 @@ function createProxy(deps) {
   }
   function hashOnly(payload) {
     return require('crypto').createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  }
+
+  // ─── PER-FIELD DEDUP RULES ───
+  // A third dedup mode alongside the two above: instead of the whole
+  // payload or a client-supplied key, dedupe on a dashboard-configured
+  // subset of the payload's own fields (e.g. "email" — two calls with the
+  // same email count as duplicates even if other fields, like a timestamp
+  // or trace id, differ). See custom_dedup_rules / getEffectiveDedupRule in
+  // server.js. Sort the field list so the hash is stable regardless of the
+  // order the rule's fields were configured in; missing fields hash as
+  // null rather than being skipped, so "email present" and "email absent"
+  // are never treated as the same key.
+  function hashFieldValues(apiKey, service, action, payload, fields) {
+    const values = {};
+    for (const f of [...fields].sort()) values[f] = payload?.[f] ?? null;
+    return require('crypto').createHash('sha256').update(JSON.stringify({ apiKey, service, action, fields: values })).digest('hex');
   }
 
   // Token-bucket rate limit for agent-facing traffic (webhook/SDK/MCP), keyed
@@ -411,7 +428,17 @@ function createProxy(deps) {
     const startTime = Date.now();
     let status = 'success', errorType = null;
     const payloadDigest = hashOnly(payload);
-    const dedupHash = idempotencyKey ? hashIdempotencyKey(apiKey, service, action, idempotencyKey) : hashPayload(apiKey, service, action, payload);
+    // Precedence: an explicit per-call idempotency key always wins (the
+    // caller is telling us exactly what counts as a retry for THIS
+    // request) — otherwise fall back to an org's configured per-field
+    // dedup rule for this service.action if one exists, otherwise the
+    // default whole-payload hash.
+    const dedupFieldRule = idempotencyKey ? null : await getEffectiveDedupRule(orgId, service, action);
+    const dedupHash = idempotencyKey
+      ? hashIdempotencyKey(apiKey, service, action, idempotencyKey)
+      : dedupFieldRule
+        ? hashFieldValues(apiKey, service, action, payload, dedupFieldRule.fields)
+        : hashPayload(apiKey, service, action, payload);
     const { key: dedupKey, claimed } = await claimDedupSlot(dedupHash);
 
     if (!claimed) {
@@ -546,6 +573,7 @@ function createProxy(deps) {
     hashPayload,
     hashIdempotencyKey,
     hashOnly,
+    hashFieldValues,
     checkAgentRateLimit,
     claimDedupSlot,
     readDedupSlot,

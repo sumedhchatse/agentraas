@@ -133,4 +133,28 @@ function isValidRuleDefinition(fields) {
   return null;
 }
 
-module.exports = { validatePayload, validateFields, isValidRuleDefinition };
+// Structural sanity check for a per-field dedup rule (see
+// getEffectiveDedupRule/custom_dedup_rules in server.js) — just a list of
+// field names to build the dedup key from, so the check is much thinner
+// than isValidRuleDefinition above (no per-field type/format rules here,
+// just names).
+const MAX_DEDUP_FIELDS = 10;
+function isValidDedupRuleDefinition(fields) {
+  if (!Array.isArray(fields) || fields.length === 0) {
+    return 'At least one field name is required.';
+  }
+  if (fields.length > MAX_DEDUP_FIELDS) {
+    return `At most ${MAX_DEDUP_FIELDS} fields can be used for a dedup key.`;
+  }
+  const seen = new Set();
+  for (const f of fields) {
+    if (typeof f !== 'string' || f.length === 0 || f.length > 100) {
+      return `"${f}" is not a valid field name.`;
+    }
+    if (seen.has(f)) return `Field "${f}" is listed more than once.`;
+    seen.add(f);
+  }
+  return null;
+}
+
+module.exports = { validatePayload, validateFields, isValidRuleDefinition, isValidDedupRuleDefinition };

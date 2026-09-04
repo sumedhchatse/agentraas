@@ -11,6 +11,7 @@ function createMcp(deps) {
     SERVICE_ROUTES,
     validateFields,
     getEffectiveValidationRule,
+    getEffectiveDedupRule,
     resolveCustomRoute,
     verifyApiKey,
     getEffectiveRateLimit,
@@ -27,6 +28,7 @@ function createMcp(deps) {
     hashPayload,
     hashIdempotencyKey,
     hashOnly,
+    hashFieldValues,
     checkAgentRateLimit,
     claimDedupSlot,
     readDedupSlot,
@@ -120,7 +122,15 @@ function createMcp(deps) {
 
       const startTime = Date.now();
       const payloadDigest = hashOnly(payload);
-      const dedupHash = idempotencyKey ? hashIdempotencyKey(apiKey, resolvedServiceName, resolvedActionName, idempotencyKey) : hashPayload(apiKey, resolvedServiceName, resolvedActionName, payload);
+      // Same precedence as the webhook/SDK path in src/core/proxy: explicit
+      // idempotency_key wins, then an org's per-field dedup rule, then the
+      // default whole-payload hash.
+      const dedupFieldRule = idempotencyKey ? null : await getEffectiveDedupRule(orgId, resolvedServiceName, resolvedActionName);
+      const dedupHash = idempotencyKey
+        ? hashIdempotencyKey(apiKey, resolvedServiceName, resolvedActionName, idempotencyKey)
+        : dedupFieldRule
+          ? hashFieldValues(apiKey, resolvedServiceName, resolvedActionName, payload, dedupFieldRule.fields)
+          : hashPayload(apiKey, resolvedServiceName, resolvedActionName, payload);
       const { key: dedupKey, claimed } = await claimDedupSlot(dedupHash);
 
       if (!claimed) {
