@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentRaaS Status</title>
+<meta name="description" content="Live uptime for every service AgentRaaS protects, computed from real circuit-breaker history — not a marketing number.">
+<meta name="robots" content="index, follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z' fill='%2306231C' stroke='%2300E0A8' stroke-width='0.8'/%3E%3Ccircle cx='12' cy='11.5' r='2.4' fill='%2300E0A8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0A0D14; --ink-2: #0F1420;
+    --border-dark: #232A3A;
+    --text: #F5F6F9; --muted: #8B93A6;
+    --signal: #00E0A8; --signal-deep: #06231C;
+    --alert: #FF5C6C; --warn: #FFC24B; --info: #7C9CFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--ink); color: var(--text); font-family: 'Manrope', sans-serif; font-size: 16px; line-height: 1.6; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 60px 32px 100px; }
+  a { color: var(--signal); }
+  header.nav { border-bottom: 1px solid var(--border-dark); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .brand .logo { width: 34px; height: 34px; background: var(--signal); border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+  .brand h1 { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; }
+  .brand span { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .back-link { font-size: 14px; color: var(--muted); text-decoration: none; }
+  .back-link:hover { color: var(--signal); }
+
+  .banner {
+    border-radius: 16px; padding: 24px 28px; margin-bottom: 32px; display: flex; align-items: center; gap: 16px;
+    border: 1px solid var(--border-dark);
+  }
+  .banner.operational { background: rgba(0,224,168,0.08); border-color: rgba(0,224,168,0.3); }
+  .banner.degraded { background: rgba(255,194,75,0.08); border-color: rgba(255,194,75,0.3); }
+  .banner.major_outage { background: rgba(255,92,108,0.08); border-color: rgba(255,92,108,0.3); }
+  .banner .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .banner.operational .dot { background: var(--signal); box-shadow: 0 0 12px rgba(0,224,168,0.6); }
+  .banner.degraded .dot { background: var(--warn); box-shadow: 0 0 12px rgba(255,194,75,0.6); }
+  .banner.major_outage .dot { background: var(--alert); box-shadow: 0 0 12px rgba(255,92,108,0.6); }
+  .banner-text h2 { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+  .banner-text p { font-size: 13.5px; color: var(--muted); }
+
+  h3.section-title { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+
+  .service-list { border: 1px solid var(--border-dark); border-radius: 14px; overflow: hidden; background: #0D1119; margin-bottom: 40px; }
+  .service-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border-dark); gap: 16px; }
+  .service-row:last-child { border-bottom: none; }
+  .service-row .left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.operational { background: var(--signal); }
+  .status-dot.degraded { background: var(--warn); }
+  .status-dot.down { background: var(--alert); }
+  .service-name { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14.5px; text-transform: capitalize; }
+  .status-label { font-size: 12px; color: var(--muted); }
+  .service-row .right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .uptime-pct { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .uptime-bar { width: 90px; height: 6px; border-radius: 3px; background: var(--border-dark); overflow: hidden; }
+  .uptime-bar .fill { height: 100%; border-radius: 3px; }
+
+  .loading { text-align: center; padding: 40px 0; color: var(--muted); font-size: 14px; }
+
+  .footnote { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .footnote b { color: #C5CAD6; }
+  .meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted); font-family: 'Space Grotesk', monospace; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z" fill="#06231C" stroke="#00E0A8" stroke-width="1"/><circle cx="12" cy="11.5" r="2.6" fill="#00E0A8"/></svg></span>
+    <div><h1>AgentRaaS</h1><span>Agent Reliability as a Service</span></div>
+  </a>
+  <a href="/" class="back-link">← Back to home</a>
+</header>
+
+<div class="wrap">
+  <p class="footnote" style="margin-bottom:28px;">Uptime is computed from real circuit-breaker history for every org using AgentRaaS — the same signal the product itself acts on, not a curated marketing number. 90-day rolling window.</p>
+
+  <div id="banner" class="banner operational" style="display:none;">
+    <span class="dot"></span>
+    <div class="banner-text">
+      <h2 id="banner-title">All systems operational</h2>
+      <p id="banner-sub">Every protected service is responding normally.</p>
+    </div>
+  </div>
+
+  <div id="loading" class="loading">Loading status…</div>
+
+  <div id="content" style="display:none;">
+    <h3 class="section-title">Protected services</h3>
+    <div class="service-list" id="service-list"></div>
+    <div class="meta-row">
+      <span id="last-updated"></span>
+      <span>auto-refreshes every 60s</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const STATUS_LABEL = { operational: 'Operational', degraded: 'Degraded', down: 'Down' };
+
+  function uptimeColor(pct) {
+    if (pct >= 99.9) return 'var(--signal)';
+    if (pct >= 99) return 'var(--warn)';
+    return 'var(--alert)';
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/api/v1/public/status');
+      if (!res.ok) throw new Error('bad status');
+      const data = await res.json();
+
+      const banner = document.getElementById('banner');
+      banner.className = 'banner ' + data.overall;
+      banner.style.display = 'flex';
+      const titles = { operational: 'All systems operational', degraded: 'Degraded performance', major_outage: 'Active outage' };
+      const subs = {
+        operational: 'Every protected service is responding normally.',
+        degraded: 'One or more services are recovering from a recent disruption.',
+        major_outage: 'One or more services are currently unavailable.',
+      };
+      document.getElementById('banner-title').textContent = titles[data.overall] || 'Status';
+      document.getElementById('banner-sub').textContent = subs[data.overall] || '';
+
+      const list = document.getElementById('service-list');
+      list.innerHTML = '';
+      for (const svc of data.services) {
+        const row = document.createElement('div');
+        row.className = 'service-row';
+        const color = uptimeColor(svc.uptime_90d);
+        row.innerHTML = `
+          <div class="left">
+            <span class="status-dot ${svc.status}"></span>
+            <div>
+              <div class="service-name">${svc.service.replace(/_/g, ' ')}</div>
+              <div class="status-label">${STATUS_LABEL[svc.status] || svc.status}</div>
+            </div>
+          </div>
+          <div class="right">
+            <div class="uptime-bar"><div class="fill" style="width:${svc.uptime_90d}%;background:${color};"></div></div>
+            <div class="uptime-pct" style="color:${color};">${svc.uptime_90d}%</div>
+          </div>`;
+        list.appendChild(row);
+      }
+
+      document.getElementById('last-updated').textContent = 'Updated ' + new Date(data.generated_at).toLocaleTimeString();
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    } catch (err) {
+      document.getElementById('loading').textContent = 'Could not load status — try refreshing.';
+    }
+  }
+
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+
+</body>
+</html>
