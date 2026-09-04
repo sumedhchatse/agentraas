@@ -1164,13 +1164,59 @@ fastify.get('/webhook-audit', async (request, reply) => {
 // ─── SEO: robots.txt + sitemap.xml ───
 // Only the marketing/content pages — /dashboard is a logged-in app, not
 // content, and shouldn't be crawled or indexed as if it were a landing page.
-const SITEMAP_ROUTES = ['/', '/guide', '/webhook-audit', ...Object.keys(DOC_FILES).map((r) => `/${r}`)];
+const SITEMAP_ROUTES = ['/', '/guide', '/webhook-audit', '/status', ...Object.keys(DOC_FILES).map((r) => `/${r}`)];
 fastify.get('/robots.txt', async (request, reply) => {
   reply.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /dashboard\nSitemap: ${PUBLIC_URL}/sitemap.xml\n`);
 });
 fastify.get('/sitemap.xml', async (request, reply) => {
   const urls = SITEMAP_ROUTES.map((route) => `  <url><loc>${PUBLIC_URL}${route}</loc></url>`).join('\n');
   reply.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+});
+
+// ─── PUBLIC STATUS PAGE ─── unauthenticated, safe to expose: circuit
+// state and uptime are already platform-wide (shared across every org
+// calling a service, not per-org — see the reliability report's own
+// scoping note), so nothing org-specific ever appears here. Internal-only
+// services (mockpay) are excluded — nothing a real visitor would recognize
+// or care about. Fixed 90-day window, not caller-configurable.
+fastify.get('/api/v1/public/status', async (request, reply) => {
+  const services = Object.keys(SERVICE_CONFIG).filter((s) => !SERVICE_CONFIG[s].internal);
+  const [uptimeResult, circuitStates] = await Promise.all([
+    pg.query(
+      `WITH events AS (
+         SELECT service, to_state, occurred_at,
+                LEAD(occurred_at) OVER (PARTITION BY service ORDER BY occurred_at) AS next_at
+         FROM circuit_breaker_events
+         WHERE service = ANY($1) AND occurred_at >= NOW() - INTERVAL '90 days'
+       )
+       SELECT service,
+              COALESCE(SUM(EXTRACT(EPOCH FROM (LEAST(COALESCE(next_at, NOW()), NOW()) - occurred_at))) FILTER (WHERE to_state = 'open'), 0) AS open_seconds
+       FROM events
+       GROUP BY service`,
+      [services]
+    ),
+    proxy.getCircuitStatesBatch(services),
+  ]);
+  const openSecondsMap = {};
+  for (const row of uptimeResult.rows) openSecondsMap[row.service] = parseFloat(row.open_seconds) || 0;
+  const RANGE_SECONDS = 90 * 86400;
+
+  const report = services.map((svc) => {
+    const openSeconds = Math.min(openSecondsMap[svc] || 0, RANGE_SECONDS);
+    const uptimePct = Math.round((1 - openSeconds / RANGE_SECONDS) * 10000) / 100;
+    const circuitState = circuitStates[svc];
+    const status = circuitState === 'open' ? 'down' : circuitState === 'half-open' ? 'degraded' : 'operational';
+    return { service: svc, status, uptime_90d: uptimePct };
+  });
+  const overall = report.some((s) => s.status === 'down') ? 'major_outage' : report.some((s) => s.status === 'degraded') ? 'degraded' : 'operational';
+
+  return { overall, generated_at: new Date().toISOString(), services: report.sort((a, b) => a.service.localeCompare(b.service)) };
+});
+
+fastify.get('/status', async (request, reply) => {
+  const htmlPath = path.join(__dirname, 'public', 'status.html');
+  if (!fs.existsSync(htmlPath)) return reply.status(404).send({ error: 'Status page not found' });
+  reply.type('text/html').send(fs.readFileSync(htmlPath, 'utf8'));
 });
 
 // ─── AUTH ROUTES ───
