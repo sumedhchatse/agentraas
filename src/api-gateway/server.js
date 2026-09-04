@@ -676,6 +676,15 @@ fastify.post('/api/v1/tools/webhook-audit', async (request, reply) => {
 // createProxy() once its other dependencies exist.
 const AGENT_RATE_LIMIT_PER_MIN = parseInt(process.env.AGENT_RATE_LIMIT_PER_MIN || '300', 10);
 
+// Automatic retry-with-backoff for transient upstream failures (network
+// errors, 429, 5xx) — see forwardWithRetry in src/core/proxy. 3 total
+// attempts, ~300/600ms backoff by default: enough to ride out a brief blip
+// without making a synchronous caller wait too long for a service that's
+// genuinely down (the circuit breaker, not retry count, is what protects
+// against that case).
+const PROXY_RETRY_MAX_ATTEMPTS = parseInt(process.env.PROXY_RETRY_MAX_ATTEMPTS || '3', 10);
+const PROXY_RETRY_BASE_DELAY_MS = parseInt(process.env.PROXY_RETRY_BASE_DELAY_MS || '300', 10);
+
 // Separate, more generous limit for the dashboard's own API (a logged-in human
 // clicking around, or a compromised session script) — distinct from the
 // agent-traffic limiter above since the two have very different normal request
@@ -2621,6 +2630,7 @@ const proxy = createProxy({
   checkUsageLimit, incrementMonthlyUsage, getCredential,
   logAudit, extractUpstreamErrorMessage, AGENT_RATE_LIMIT_PER_MIN, ENTERPRISE_MODE,
   maintenanceQueue, notifyCircuitOpen, pg, encryptCredential,
+  PROXY_RETRY_MAX_ATTEMPTS, PROXY_RETRY_BASE_DELAY_MS,
 });
 const mcp = createMcp({
   fastify, proxy, SERVICE_CONFIG, SERVICE_ROUTES, validateFields, getEffectiveValidationRule,
