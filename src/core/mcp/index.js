@@ -32,9 +32,26 @@ function createMcp(deps) {
     releaseDedupSlot,
     getCircuitState,
     recordFailure,
-    forwardAction,
+    forwardWithRetry,
     broadcastFanout,
   } = proxy;
+
+  // MCP tool names are `${service}_${action.replace(/\./g,'_')}` (e.g.
+  // "mockpay_payment_create" for service "mockpay", action "payment.create")
+  // — but every configured action follows a dotted resource.verb pattern
+  // (payment.create, charge.create, ...) and several service names contain
+  // underscores of their own (e.g. "opn_payments"), so there's no way to
+  // losslessly reverse a tool name back into (service, action) by splitting
+  // on '_' at request time — trying to (as this used to) silently 404s every
+  // built-in tool. Build the reverse mapping once, from the same
+  // SERVICE_CONFIG the forward name is generated from below, so lookup at
+  // call time is exact instead of guessed.
+  const TOOL_NAME_TO_ROUTE = {};
+  for (const [svcName, svc] of Object.entries(SERVICE_CONFIG)) {
+    for (const actName of Object.keys(svc.actions)) {
+      TOOL_NAME_TO_ROUTE[`${svcName}_${actName.replace(/\./g, '_')}`] = { serviceName: svcName, actionName: actName };
+    }
+  }
 
   async function handleMCP(request, reply) {
     const { jsonrpc, method, params, id } = request.body || {};
@@ -43,7 +60,7 @@ function createMcp(deps) {
     if (method === 'tools/list') {
       const tools = Object.entries(SERVICE_CONFIG).flatMap(([svcName, svc]) =>
         Object.entries(svc.actions).map(([actName, act]) => ({
-          name: `${svcName}_${actName.replace('.', '_')}`,
+          name: `${svcName}_${actName.replace(/\./g, '_')}`,
           description: `AgentRaaS-protected ${svcName} ${actName}`,
           inputSchema: {
             type: 'object',
@@ -70,18 +87,15 @@ function createMcp(deps) {
         return reply.send({ jsonrpc: '2.0', id, error: { code: -32602, message: 'Invalid params: "name" is required and must be a string.' } });
       }
 
-      const parts = toolName.split('_');
-      const actionName = parts.pop().replace(/_/g, '.');
-      const serviceName = parts.join('_');
-      const routeKey = `${serviceName}.${actionName}`;
-
-      let resolvedRoute = SERVICE_ROUTES[routeKey];
-      let resolvedServiceName = serviceName;
-      let resolvedActionName = actionName;
+      let resolvedRoute, resolvedServiceName, resolvedActionName;
+      const mapped = TOOL_NAME_TO_ROUTE[toolName];
+      if (mapped) {
+        resolvedServiceName = mapped.serviceName;
+        resolvedActionName = mapped.actionName;
+        resolvedRoute = SERVICE_ROUTES[`${resolvedServiceName}.${resolvedActionName}`];
+      }
       if (!resolvedRoute) {
-        // Fall back: treat the whole tool name as a registered custom action name
-        // (custom action names may contain underscores, which breaks the
-        // split-on-last-underscore heuristic used for built-in service.action tools).
+        // Fall back: treat the whole tool name as a registered custom action name.
         resolvedRoute = await resolveCustomRoute(orgId, toolName);
         if (resolvedRoute) { resolvedServiceName = 'custom'; resolvedActionName = toolName; }
       }
@@ -140,7 +154,7 @@ function createMcp(deps) {
           return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ error: `Monthly usage limit reached (${usageCheck.count}/${usageCheck.limit} actions this month). Contact support@agentraas.io to upgrade.`, reqId }) }], isError: true } });
         }
 
-        const result = await forwardAction(resolvedRoute, resolvedServiceName, resolvedActionName, orgId, payload, reqId);
+        const result = await forwardWithRetry(resolvedRoute, resolvedServiceName, resolvedActionName, orgId, payload, reqId, circuitKey);
         broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
         await completeDedupSlot(dedupKey, result);
         await incrementMonthlyUsage(orgId);
@@ -148,7 +162,7 @@ function createMcp(deps) {
         return reply.send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ ...result, reqId }) }], isError: false } });
       } catch (err) {
         await releaseDedupSlot(dedupKey);
-        await recordFailure(resolvedRoute.credentialKey || resolvedServiceName);
+        if (!err.circuitAlreadyRecorded) await recordFailure(resolvedRoute.credentialKey || resolvedServiceName);
         const upstreamMessage = extractUpstreamErrorMessage(err.response?.data);
         await logAudit(reqId, apiKey, orgId, 'mcp-agent', resolvedServiceName, resolvedActionName, 'error', upstreamMessage || err.message, Date.now() - startTime, null);
         fastify.log.error({ err, reqId }, 'MCP request failed');

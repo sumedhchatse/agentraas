@@ -30,6 +30,8 @@ function createProxy(deps) {
     notifyCircuitOpen,
     pg,
     encryptCredential,
+    PROXY_RETRY_MAX_ATTEMPTS = 3,
+    PROXY_RETRY_BASE_DELAY_MS = 300,
   } = deps;
 
   function generateRequestId() { return 'req_' + require('crypto').randomBytes(8).toString('hex'); }
@@ -214,6 +216,50 @@ function createProxy(deps) {
     };
   }
 
+  // A 4xx (other than 429) means the request itself is the problem — bad
+  // input, bad auth, a card that was actually declined — and retrying an
+  // identical payload can't fix that, only waste time and attempts. A
+  // missing response (network error, timeout, DNS failure) or a 429/5xx is
+  // transient and worth retrying.
+  function isRetryableError(err) {
+    if (!err.response) return true;
+    const status = err.response.status;
+    return status === 429 || (status >= 500 && status <= 599);
+  }
+
+  function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+  // Wraps forwardAction with retry-with-backoff for transient upstream
+  // failures. Circuit-breaker-aware in both directions: every failed
+  // attempt records a real failure (recordFailure — same honest signal of
+  // upstream health as before retries existed, just now possibly firing
+  // more than once per logical request), and a retry is abandoned the
+  // moment the breaker itself trips open mid-sequence rather than
+  // continuing to hammer a service every other caller is now being
+  // shielded from. err.circuitAlreadyRecorded lets the caller's own catch
+  // block (handleRequest / handleMCP) know not to record the same failure
+  // a second time.
+  async function forwardWithRetry(route, serviceName, actionName, orgId, payload, reqId, circuitKey) {
+    let lastError;
+    for (let attempt = 1; attempt <= PROXY_RETRY_MAX_ATTEMPTS; attempt++) {
+      try {
+        const result = await forwardAction(route, serviceName, actionName, orgId, payload, reqId);
+        if (attempt > 1) result.retried = attempt - 1;
+        return result;
+      } catch (err) {
+        lastError = err;
+        err.circuitAlreadyRecorded = true;
+        await recordFailure(circuitKey);
+        if (attempt === PROXY_RETRY_MAX_ATTEMPTS || !isRetryableError(err)) throw err;
+        if ((await getCircuitState(circuitKey)) === 'open') throw err;
+        const delay = PROXY_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * 100);
+        fastify.log.warn({ reqId, service: serviceName, action: actionName, attempt, delay_ms: delay, err: err.message }, 'AgentRaaS: retrying transient upstream failure');
+        await sleep(delay);
+      }
+    }
+    throw lastError;
+  }
+
   // Multi-Destination Fan-Out (event broadcasting) — best-effort copies of
   // the same payload to every configured fanout_urls destination, after
   // the primary target_url call has already succeeded. Never awaited by
@@ -355,7 +401,7 @@ function createProxy(deps) {
         });
       }
 
-      const result = await forwardAction(resolvedRoute, service, action, orgId, payload, reqId);
+      const result = await forwardWithRetry(resolvedRoute, service, action, orgId, payload, reqId, circuitKey);
       broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
       await completeDedupSlot(dedupKey, result);
       await incrementMonthlyUsage(orgId);
@@ -366,7 +412,7 @@ function createProxy(deps) {
       const upstreamMessage = extractUpstreamErrorMessage(err.response?.data);
       errorType = upstreamMessage || err.message; // full detail still kept in the account's own audit log
       await releaseDedupSlot(dedupKey);
-      await recordFailure(resolvedRoute.credentialKey || service);
+      if (!err.circuitAlreadyRecorded) await recordFailure(resolvedRoute.credentialKey || service);
       await logAudit(reqId, apiKey, orgId, agentId, service, action, status, errorType, Date.now() - startTime, null);
       fastify.log.error({ err, reqId }, 'Request failed');
       // Upstream provider errors (Stripe, Twilio, etc.) are useful for the caller to debug
@@ -431,6 +477,7 @@ function createProxy(deps) {
     getCircuitStatesBatch,
     recordFailure,
     forwardAction,
+    forwardWithRetry,
     broadcastFanout,
     handleRequest,
     flushMaintenanceQueue,
