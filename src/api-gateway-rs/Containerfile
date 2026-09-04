@@ -1,0 +1,12 @@
+FROM docker.io/library/rust:1-slim-bookworm AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+COPY Cargo.toml ./
+COPY crates ./crates
+RUN cargo build --release -p api
+
+FROM docker.io/library/debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/ar-api-rs /usr/local/bin/ar-api-rs
+EXPOSE 3000
+CMD ["ar-api-rs"]

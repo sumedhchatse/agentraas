@@ -106,3 +106,33 @@ services:
       - .:/repo:ro,z
     command: npm run dev
     restart: unless-stopped
+
+  # Experimental Rust rewrite of ar-api (Community edition — see
+  # src/api-gateway-rs/Cargo.toml's `enterprise` feature, not enabled in
+  # this build). Opt-in: not started by a bare `podman-compose up -d` —
+  # needs `profiles: ["rust"]` opted into explicitly, or start it by name
+  # (`podman-compose up -d ar-api-rs`). Shares the same Postgres/Redis as
+  # ar-api so both can be pointed at side by side against identical data.
+  ar-api-rs:
+    profiles: ["rust"]
+    build:
+      context: ./src/api-gateway-rs
+      dockerfile: Containerfile
+    container_name: ar-api-rs
+    hostname: ar-api-rs
+    networks:
+      - agentraas-net
+    environment:
+      RUST_LOG: "info"
+      PORT: 3000
+      DATABASE_URL: "postgres://agentraas:${POSTGRES_PASSWORD}@ar-postgres:5432/agentraas"
+      REDIS_URL: redis://ar-redis:6379
+      JWT_SECRET: "${JWT_SECRET}"
+      CREDENTIALS_ENCRYPTION_KEY: "${CREDENTIALS_ENCRYPTION_KEY}"
+    ports:
+      - "127.0.0.1:13001:3000"
+    volumes:
+      - ./config:/config:ro,z
+      - ./src/api-gateway/public:/public:ro,z
+      - .:/repo:ro,z
+    restart: "no"
