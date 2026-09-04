@@ -45,6 +45,15 @@ function validateFields(payload, fields) {
       if (fieldRules.format === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         return `${fieldName} must be a valid email`;
       }
+      // E.164 phone format (WhatsApp/Twilio's expected shape): a leading
+      // "+", 8-15 digits total, no leading zero after the "+". A specific
+      // named format (like "email" above) rather than a generic user-
+      // supplied regex — arbitrary org-authored patterns run against
+      // caller-controlled payload data is a real ReDoS risk; a fixed,
+      // reviewed pattern isn't.
+      if (fieldRules.format === 'e164' && !/^\+[1-9]\d{7,14}$/.test(value)) {
+        return `${fieldName} must be a valid E.164 phone number (e.g. +14155552671)`;
+      }
       if (fieldRules.enum && !fieldRules.enum.includes(value)) {
         return `${fieldName} must be one of: ${fieldRules.enum.join(', ')}`;
       }
@@ -112,8 +121,8 @@ function isValidRuleDefinition(fields) {
     ) {
       return `Field "${fieldName}": minLength cannot be greater than maxLength.`;
     }
-    if (fieldRules.format !== undefined && fieldRules.format !== 'email') {
-      return `Field "${fieldName}": format only supports "email" currently.`;
+    if (fieldRules.format !== undefined && !['email', 'e164'].includes(fieldRules.format)) {
+      return `Field "${fieldName}": format only supports "email" or "e164" currently.`;
     }
     if (fieldRules.enum !== undefined) {
       if (!Array.isArray(fieldRules.enum) || fieldRules.enum.length === 0 || !fieldRules.enum.every((v) => typeof v === 'string')) {
