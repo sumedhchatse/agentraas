@@ -40,6 +40,29 @@ function createProxy(deps) {
     return require('crypto').createHash('sha256').update(JSON.stringify({ apiKey, service, action, payload })).digest('hex');
   }
 
+  // ─── CLIENT-SUPPLIED IDEMPOTENCY KEYS ───
+  // Default dedup hashes the whole payload — two calls only count as "the
+  // same request" if they're byte-identical. Same convention Stripe/PayPal-
+  // style APIs use: let the caller supply their own key so THEY control
+  // what counts as a retry of the same operation, instead of the system
+  // inferring it from exact payload bytes (fragile — e.g. two logically
+  // identical objects built by different code paths can serialize with a
+  // different key order and hash differently).
+  //
+  // This is NOT a way to tolerate a changing field (a timestamp, a trace
+  // id) across retries — reusing a key with a genuinely different payload
+  // is deliberately rejected (422, see the mismatch check below), matching
+  // Stripe's own behavior. The real win: without an idempotency key, a
+  // caller's retry with slightly different bytes silently fails to dedupe
+  // and double-executes; with one, that same mistake becomes a loud,
+  // catchable error instead of a silent double-charge.
+  function hashIdempotencyKey(apiKey, service, action, idempotencyKey) {
+    return require('crypto').createHash('sha256').update(JSON.stringify({ apiKey, service, action, idempotencyKey })).digest('hex');
+  }
+  function hashOnly(payload) {
+    return require('crypto').createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  }
+
   // Token-bucket rate limit for agent-facing traffic (webhook/SDK/MCP), keyed
   // by API key when present or by org+agent identity when anonymous.
   // Community-tier behavior: reject immediately over the cap (tryConsume).
@@ -340,6 +363,10 @@ function createProxy(deps) {
       orgId = request.headers['x-agentraas-org'] || 'sdk';
       agentId = request.headers['x-agentraas-agent'] || 'sdk-agent';
     }
+    // Optional client-supplied idempotency key — a header for SDK/webhook
+    // callers (X-AgentRaaS-Idempotency-Key), matching how every other
+    // per-call identity here (org/agent) is already passed as a header.
+    const idempotencyKey = request.headers['x-agentraas-idempotency-key'] || null;
 
     if (!service || !action) return reply.status(400).send({ error: 'Missing service or action', reqId });
     const routeKey = `${service}.${action}`;
@@ -383,7 +410,8 @@ function createProxy(deps) {
 
     const startTime = Date.now();
     let status = 'success', errorType = null;
-    const dedupHash = hashPayload(apiKey, service, action, payload);
+    const payloadDigest = hashOnly(payload);
+    const dedupHash = idempotencyKey ? hashIdempotencyKey(apiKey, service, action, idempotencyKey) : hashPayload(apiKey, service, action, payload);
     const { key: dedupKey, claimed } = await claimDedupSlot(dedupHash);
 
     if (!claimed) {
@@ -394,9 +422,20 @@ function createProxy(deps) {
         await logAudit(reqId, apiKey, orgId, agentId, service, action, status, errorType, Date.now() - startTime, dedupHash);
         return reply.status(409).send({ error: 'An identical request is already being processed. Retry shortly.', reqId });
       }
+      // Only reachable via an idempotency key (a plain payload-hash dedup
+      // key can't collide across different payloads in the first place) —
+      // the same key was reused for a request that isn't actually the same
+      // operation. Reject rather than silently returning the wrong cached
+      // result for a different logical request.
+      if (idempotencyKey && existing.__payloadDigest && existing.__payloadDigest !== payloadDigest) {
+        status = 'blocked'; errorType = 'idempotency_key_reused';
+        await logAudit(reqId, apiKey, orgId, agentId, service, action, status, errorType, Date.now() - startTime, dedupHash);
+        return reply.status(422).send({ error: 'This Idempotency-Key was already used with a different payload. Use a new key for a different request.', reqId });
+      }
       status = 'deduplicated';
       await logAudit(reqId, apiKey, orgId, agentId, service, action, status, errorType, Date.now() - startTime, dedupHash);
-      return reply.status(200).send({ ...existing, cached: true, reqId });
+      const { __payloadDigest, ...cached } = existing;
+      return reply.status(200).send({ ...cached, cached: true, reqId });
     }
 
     try {
@@ -440,7 +479,7 @@ function createProxy(deps) {
       const result = await forwardWithRetry(resolvedRoute, service, action, orgId, payload, reqId, circuitKey);
       recordSuccess(circuitKey).catch(() => {}); // fire-and-forget — closes a half-open circuit on recovery, never blocks the response
       broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
-      await completeDedupSlot(dedupKey, result);
+      await completeDedupSlot(dedupKey, idempotencyKey ? { ...result, __payloadDigest: payloadDigest } : result);
       await incrementMonthlyUsage(orgId);
       await logAudit(reqId, apiKey, orgId, agentId, service, action, status, errorType, Date.now() - startTime, dedupHash, payload);
       return reply.status(200).send({ ...result, reqId });
@@ -505,6 +544,8 @@ function createProxy(deps) {
   return {
     generateRequestId,
     hashPayload,
+    hashIdempotencyKey,
+    hashOnly,
     checkAgentRateLimit,
     claimDedupSlot,
     readDedupSlot,
