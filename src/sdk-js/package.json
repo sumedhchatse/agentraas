@@ -1,0 +1,36 @@
+{
+  "name": "agentraas",
+  "version": "0.1.0",
+  "description": "Exactly-once execution for AI agents — TypeScript/JavaScript SDK for AgentRaaS",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "ai-agents",
+    "idempotency",
+    "mcp",
+    "webhooks",
+    "n8n",
+    "reliability"
+  ],
+  "license": "MIT",
+  "author": "Sumedh Chatse",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sumedhchatse/agentraas.git",
+    "directory": "src/sdk-js"
+  },
+  "homepage": "https://github.com/sumedhchatse/agentraas",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
