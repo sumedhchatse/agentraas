@@ -512,6 +512,7 @@
       <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
       <button class="btn" id="dlq-btn">Failed requests</button>
       <button class="btn" id="reliability-btn">Reliability report</button>
+      <button class="btn" id="health-checks-btn">Active monitoring</button>
       <button class="btn" id="admin-btn" style="display:none;">Admin</button>
       <button class="btn" id="enterprise-btn">Enterprise</button>
       <button class="btn" id="seed-btn">Seed demo data</button>
@@ -773,6 +774,25 @@
     <p class="sub">Uses the same date range as the dashboard's own 24h/7d/30d/90d selector. Uptime is shared across every org calling a service (one circuit breaker per service, not per org); success rate and duplicates prevented are scoped to your own orgs.</p>
     <div id="reliability-list"></div>
     <button class="close-btn" id="reliability-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Active monitoring (proactive, opt-in health checks) -->
+<div class="modal-overlay" id="hc-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Active monitoring">
+    <h3>Active monitoring</h3>
+    <p class="sub">Opt-in only. Enabling this makes a real, read-only request to the service every 5 minutes using your own stored credentials, to catch a dead key or outage before an agent's real request does. Only available for services with a well-established safe check endpoint.</p>
+    <div class="modal-error" id="hc-error"></div>
+    <form id="hc-form">
+      <div class="field"><label for="hc-org">Org ID</label><input type="text" id="hc-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="hc-service">Service</label>
+        <select id="hc-service"></select>
+      </div>
+      <button type="submit" class="primary" id="hc-submit">Enable monitoring</button>
+    </form>
+    <h3 style="margin-top:26px;">Currently monitored</h3>
+    <div id="hc-list"></div>
+    <button class="close-btn" id="hc-modal-close">Close</button>
   </div>
 </div>
 
@@ -1975,6 +1995,67 @@
         div.innerHTML = `<div class="info"><div class="svc">${svc.service.charAt(0).toUpperCase() + svc.service.slice(1)}</div><div class="meta">${svc.total_actions} action${svc.total_actions === 1 ? '' : 's'}${svc.success_rate !== null ? ` · ${svc.success_rate}% success` : ''}${svc.duplicates_prevented > 0 ? ` · ${svc.duplicates_prevented} duplicate${svc.duplicates_prevented === 1 ? '' : 's'} prevented` : ''}</div></div><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:${uptimeColor};">${svc.uptime_pct}% uptime</div>`;
         list.appendChild(div);
       }
+    } catch (err) {}
+  }
+
+  // ─── Active monitoring (proactive, opt-in health checks) ───
+  const hcModalOverlay = document.getElementById('hc-modal-overlay');
+  const hcForm = document.getElementById('hc-form');
+  const hcError = document.getElementById('hc-error');
+  const hcSubmit = document.getElementById('hc-submit');
+  const hcServiceSelect = document.getElementById('hc-service');
+
+  document.getElementById('health-checks-btn').addEventListener('click', () => {
+    hcError.style.display = 'none'; hcForm.reset();
+    hcModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('hc-org').focus();
+    loadHealthChecksList();
+  });
+  document.getElementById('hc-modal-close').addEventListener('click', () => { hcModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  hcModalOverlay.addEventListener('click', (e) => { if (e.target === hcModalOverlay) { hcModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  hcForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); hcError.style.display = 'none'; hcSubmit.disabled = true;
+    const restoreText = withLoadingText(hcSubmit, 'Enabling…');
+    const org_id = document.getElementById('hc-org').value.trim();
+    const service = hcServiceSelect.value;
+    try {
+      const res = await fetch('/api/v1/health-checks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, service }),
+      });
+      const data = await res.json();
+      if (!res.ok) { hcError.textContent = data.error || 'Could not enable monitoring.'; hcError.style.display = 'block'; return; }
+      hcForm.reset(); loadHealthChecksList();
+    } catch (err) { hcError.textContent = 'Could not reach the server.'; hcError.style.display = 'block'; }
+    finally { hcSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadHealthChecksList() {
+    const list = document.getElementById('hc-list');
+    try {
+      const res = await fetch('/api/v1/health-checks', { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      if (!res.ok) return;
+      const data = await res.json();
+      hcServiceSelect.innerHTML = data.supported_services.map((s) => `<option value="${s}">${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');
+      if (!data.enabled.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">Nothing actively monitored yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of data.enabled) {
+        const statusText = row.last_checked_at
+          ? (row.last_ok ? `Passing (${row.last_latency_ms}ms) · ${new Date(row.last_checked_at).toLocaleString()}` : `Failing: ${escapeHtml(row.last_error || 'unknown error')} · ${new Date(row.last_checked_at).toLocaleString()}`)
+          : 'Waiting for first check…';
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc"><span class="heartbeat ${row.last_checked_at && !row.last_ok ? 'down' : ''}"></span> ${escapeHtml(row.service)} — ${escapeHtml(row.org_id)}</div><div class="meta">${statusText}</div></div><button class="revoke hc-disable" data-org="${row.org_id}" data-service="${row.service}">Disable</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.hc-disable').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await fetch(`/api/v1/health-checks/${encodeURIComponent(btn.dataset.org)}/${encodeURIComponent(btn.dataset.service)}`, { method: 'DELETE', credentials: 'include' });
+          loadHealthChecksList();
+        });
+      });
     } catch (err) {}
   }
 
