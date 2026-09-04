@@ -305,6 +305,73 @@ async function notifyCircuitOpen(orgId, service) {
   );
 }
 
+// ─── ACTIVE HEALTH CHECKS (proactive, opt-in, per-org) ───
+// Separate from the passive circuit breaker (src/core/proxy), which only
+// reacts to real agent traffic — this pings a service directly, on a timer,
+// using an org's own stored credentials, so a dead/revoked key or an
+// outage surfaces before an agent's real request ever hits it.
+//
+// Only a small, deliberately curated set of services: each entry below is
+// a genuinely read-only, side-effect-free, well-established endpoint
+// (Stripe's balance check, Slack's auth.test) — guessing wrong here would
+// mean firing an unverified request at a live production account,
+// automatically, on a schedule. Every other configured service simply
+// isn't eligible; the reliability report (traffic-observed, not active)
+// still covers them.
+//
+// Deliberately per-org and never fed into the shared circuit:<service>
+// state — see the comment on migration 031 for why: a failing check here
+// usually means THIS org's credential went bad, not a service-wide outage,
+// and tripping the shared breaker off one org's stale key would block
+// every other org's real traffic too.
+const HEALTH_CHECK_SPECS = {
+  stripe: { method: 'GET', url: 'https://api.stripe.com/v1/balance', authHeader: 'Authorization', contentType: 'application/x-www-form-urlencoded' },
+  slack: { method: 'POST', url: 'https://slack.com/api/auth.test', authHeader: 'Authorization', contentType: 'application/json' },
+  mockpay: { method: 'POST', url: 'http://localhost:3000/internal/mockpay', authType: 'none', internal: true, contentType: 'application/json' },
+};
+const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
+async function runHealthChecks() {
+  let settings;
+  try {
+    settings = await pg.query(`SELECT org_id, service FROM health_check_settings`);
+  } catch (err) {
+    fastify.log.error(`Health check run failed to load settings: ${err.message}`);
+    return;
+  }
+  await Promise.all(settings.rows.map(async ({ org_id, service }) => {
+    const spec = HEALTH_CHECK_SPECS[service];
+    if (!spec) return; // defensive — enabling is already gated to known specs
+    const start = Date.now();
+    let ok = true, error = null;
+    try {
+      await proxy.forwardAction(spec, service, 'health_check', org_id, service === 'mockpay' ? { amount: 1, fail: false } : {}, 'healthcheck_' + crypto.randomBytes(6).toString('hex'));
+    } catch (err) {
+      ok = false;
+      error = (extractUpstreamErrorMessage(err.response?.data) || err.message || '').slice(0, 500);
+    }
+    const latencyMs = Date.now() - start;
+    pg.query(
+      `INSERT INTO health_check_results (org_id, service, ok, latency_ms, error) VALUES ($1, $2, $3, $4, $5)`,
+      [org_id, service, ok, latencyMs, error]
+    ).catch((err) => fastify.log.warn({ err }, 'Health check result write failed'));
+
+    const notifiedKey = `healthcheck-notified:${org_id}:${service}`;
+    if (!ok) {
+      const claimed = await redis.set(notifiedKey, '1', 'EX', 1800, 'NX'); // at most one failure alert per org+service per 30min
+      if (claimed) {
+        sendOutageNotification(org_id, `🔴 AgentRaaS Active Monitoring: your ${service} credentials failed an automated health check (${error}). This checks your stored credentials directly — separate from live traffic.`).catch(() => {});
+      }
+    } else {
+      const wasNotified = await redis.get(notifiedKey);
+      if (wasNotified) {
+        await redis.del(notifiedKey);
+        sendOutageNotification(org_id, `✅ AgentRaaS Active Monitoring: your ${service} health check is passing again.`).catch(() => {});
+      }
+    }
+  }));
+}
+
 // Whether the Enterprise migrations (021+, org_members/orgs/sso_configs/
 // org_invites) have been applied — a pure Community/core-only checkout
 // never runs them, so anything referencing those tables (getUserOrgIds)
@@ -2427,6 +2494,59 @@ fastify.post('/api/v1/notification-webhooks/:id/test', { preHandler: requireAuth
   return { sent: true };
 });
 
+// ─── ACTIVE HEALTH CHECKS (proactive, opt-in monitoring) ───
+fastify.get('/api/v1/health-checks', { preHandler: requireAuthRateLimited }, async (request) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  const supportedServices = Object.keys(HEALTH_CHECK_SPECS);
+  if (orgIds.length === 0) return { supported_services: supportedServices, enabled: [] };
+  const r = await pg.query(
+    `SELECT hs.org_id, hs.service, hs.enabled_at,
+            lr.ok AS last_ok, lr.latency_ms AS last_latency_ms, lr.error AS last_error, lr.checked_at AS last_checked_at
+     FROM health_check_settings hs
+     LEFT JOIN LATERAL (
+       SELECT ok, latency_ms, error, checked_at FROM health_check_results
+       WHERE org_id = hs.org_id AND service = hs.service ORDER BY checked_at DESC LIMIT 1
+     ) lr ON true
+     WHERE hs.org_id = ANY($1) ORDER BY hs.enabled_at DESC`,
+    [orgIds]
+  );
+  return { supported_services: supportedServices, enabled: r.rows };
+});
+
+fastify.post('/api/v1/health-checks', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const { org_id, service } = request.body || {};
+  if (!isValidIdentifier(org_id)) return reply.status(422).send({ error: 'org_id must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
+  const spec = HEALTH_CHECK_SPECS[service];
+  if (!spec) return reply.status(422).send({ error: `Active health checks aren't available for "${service}" yet. Supported: ${Object.keys(HEALTH_CHECK_SPECS).join(', ')}.` });
+  if (!(await checkOrgWritePermission(request.user.sub, org_id))) {
+    return reply.status(403).send({ error: 'Auditors have read-only access to this org.' });
+  }
+  // This will make a real request to the live service every 5 minutes using
+  // this org's own stored credential — refuse to enable it for a service
+  // with nothing configured, which would just fail (and alert) forever.
+  if (!spec.internal) {
+    const credential = await getCredential(service, org_id);
+    if (!credential) return reply.status(422).send({ error: `No ${service} credentials configured for this org yet. Add them from the Credentials panel first.` });
+  }
+  await pg.query(
+    `INSERT INTO health_check_settings (org_id, service, enabled_by) VALUES ($1, $2, $3)
+     ON CONFLICT (org_id, service) DO NOTHING`,
+    [org_id, service, request.user.sub]
+  );
+  return { enabled: true, org_id, service, interval_minutes: HEALTH_CHECK_INTERVAL_MS / 60000 };
+});
+
+fastify.delete('/api/v1/health-checks/:org_id/:service', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return reply.status(404).send({ error: 'Health check not found.' });
+  const r = await pg.query(
+    `DELETE FROM health_check_settings WHERE org_id = $1 AND service = $2 AND org_id = ANY($3) RETURNING id`,
+    [request.params.org_id, request.params.service, orgIds]
+  );
+  if (r.rows.length === 0) return reply.status(404).send({ error: 'Health check not found.' });
+  return { disabled: true };
+});
+
 // ─── DEAD LETTER QUEUE (one-click payload replay) ───
 fastify.get('/api/v1/dead-letter-queue', { preHandler: requireAuthRateLimited }, async (request) => {
   const orgIds = await getUserOrgIds(request.user.sub);
@@ -2863,6 +2983,8 @@ async function start() {
     fastify.log.info(`Loaded ${Object.keys(SERVICE_ROUTES).length} routes from config`);
     setTimeout(cleanupAuditLogRetention, 60000); // once, a minute after boot
     setInterval(cleanupAuditLogRetention, 6 * 60 * 60 * 1000); // then every 6h
+    setTimeout(runHealthChecks, 30000); // once, 30s after boot (give proxy/pg time to settle)
+    setInterval(runHealthChecks, HEALTH_CHECK_INTERVAL_MS);
   } catch (err) { fastify.log.error(err); process.exit(1); }
 }
 start();
