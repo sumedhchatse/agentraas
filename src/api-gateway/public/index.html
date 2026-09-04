@@ -509,6 +509,7 @@
       <button class="btn" id="credentials-btn">Credentials</button>
       <button class="btn" id="custom-actions-btn">Custom actions</button>
       <button class="btn" id="validation-rules-btn">Validation rules</button>
+      <button class="btn" id="dedup-rules-btn">Dedup rules</button>
       <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
       <button class="btn" id="dlq-btn">Failed requests</button>
       <button class="btn" id="reliability-btn">Reliability report</button>
@@ -728,6 +729,27 @@
     <h3 style="margin-top:26px;">Saved rules</h3>
     <div id="vr-list"></div>
     <button class="close-btn" id="vr-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Dedup Rules modal -->
+<div class="modal-overlay" id="dr-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Dedup rules">
+    <h3>Dedup rules</h3>
+    <p class="sub">By default AgentRaaS dedupes on the whole request payload — two calls only count as the same request if they're byte-identical. Configure a rule here to instead dedupe on one or more specific fields (e.g. <code>customer_email</code>), so "same email = duplicate" regardless of what else differs in the payload. An explicit <code>X-AgentRaaS-Idempotency-Key</code> header on a call always takes precedence over any rule configured here.</p>
+    <div class="modal-error" id="dr-error"></div>
+    <form id="dr-form">
+      <div class="field"><label for="dr-org">Org ID</label><input type="text" id="dr-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="dr-service">Service</label><input type="text" id="dr-service" placeholder="stripe (or custom)" required></div>
+      <div class="field"><label for="dr-action">Action</label><input type="text" id="dr-action" placeholder="charge.create" required></div>
+      <div class="field"><label for="dr-fields">Fields to dedupe on</label><input type="text" id="dr-fields" placeholder="customer_email, order_id" required>
+        <div style="color:var(--muted);font-size:12px;margin-top:4px;">Comma-separated top-level payload field names. Up to 10.</div>
+      </div>
+      <button type="submit" class="primary" id="dr-submit">Save rule</button>
+    </form>
+    <h3 style="margin-top:26px;">Saved rules</h3>
+    <div id="dr-list"></div>
+    <button class="close-btn" id="dr-modal-close">Close</button>
   </div>
 </div>
 
@@ -1615,6 +1637,10 @@
   const vrError = document.getElementById('vr-error');
   const vrSubmit = document.getElementById('vr-submit');
   const vrFieldsContainer = document.getElementById('vr-fields-container');
+  const drModalOverlay = document.getElementById('dr-modal-overlay');
+  const drForm = document.getElementById('dr-form');
+  const drError = document.getElementById('dr-error');
+  const drSubmit = document.getElementById('dr-submit');
   let vrFieldRowId = 0;
 
   function createFieldRow(name, rules) {
@@ -1823,6 +1849,69 @@
       }
       list.querySelectorAll('.delete-rule').forEach((btn) => {
         btn.addEventListener('click', async () => { await fetch(`/api/v1/validation-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadValidationRulesList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Dedup Rules ───
+  function resetDrForm() { drForm.reset(); }
+
+  document.getElementById('dedup-rules-btn').addEventListener('click', () => {
+    drError.style.display = 'none'; resetDrForm();
+    drModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('dr-org').focus();
+    loadDedupRulesList();
+  });
+  document.getElementById('dr-modal-close').addEventListener('click', () => { drModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  drModalOverlay.addEventListener('click', (e) => { if (e.target === drModalOverlay) { drModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  drForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); drError.style.display = 'none'; drSubmit.disabled = true;
+    const restoreText = withLoadingText(drSubmit, 'Saving…');
+    const org_id = document.getElementById('dr-org').value.trim();
+    const service = document.getElementById('dr-service').value.trim();
+    const action = document.getElementById('dr-action').value.trim();
+    const fields = document.getElementById('dr-fields').value.split(',').map((f) => f.trim()).filter(Boolean);
+    if (fields.length === 0) {
+      drError.textContent = 'Add at least one field.'; drError.style.display = 'block';
+      drSubmit.disabled = false; restoreText(); return;
+    }
+    try {
+      const res = await fetch('/api/v1/dedup-rules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, service, action, fields }),
+      });
+      const data = await res.json();
+      if (!res.ok) { drError.textContent = data.error || 'Could not save rule.'; drError.style.display = 'block'; return; }
+      resetDrForm(); loadDedupRulesList();
+    } catch (err) { drError.textContent = 'Could not reach the server.'; drError.style.display = 'block'; }
+    finally { drSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadDedupRulesList() {
+    const list = document.getElementById('dr-list');
+    try {
+      const res = await fetch('/api/v1/dedup-rules', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No dedup rules yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const fieldNames = (row.fields || []).join(', ');
+        const div = document.createElement('div');
+        div.className = 'rule-summary-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.service)}.${escapeHtml(row.action)} — ${escapeHtml(row.org_id)}</div><div class="meta">dedupes on: ${escapeHtml(fieldNames)}</div></div><div style="display:flex;gap:6px;"><button class="btn edit-rule" data-id="${row.id}" style="padding:6px 12px;font-size:12px;">Edit</button><button class="revoke delete-rule" data-id="${row.id}">Delete</button></div>`;
+        list.appendChild(div);
+        div.querySelector('.edit-rule').addEventListener('click', () => {
+          document.getElementById('dr-org').value = row.org_id;
+          document.getElementById('dr-service').value = row.service;
+          document.getElementById('dr-action').value = row.action;
+          document.getElementById('dr-fields').value = fieldNames;
+          document.getElementById('dr-org').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+      list.querySelectorAll('.delete-rule').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/dedup-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadDedupRulesList(); });
       });
     } catch (err) {}
   }
