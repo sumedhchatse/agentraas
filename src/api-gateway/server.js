@@ -2166,7 +2166,61 @@ fastify.post('/api/v1/demo/seed', { preHandler: requireAdminRateLimited }, async
       Math.floor(Math.random()*200)+10, 'hash_'+i
     ]);
   }
-  return {seeded:30};
+
+  // Everything below gives the newer reliability panels (Reliability
+  // report, Failed requests, Active monitoring, Custom actions) something
+  // to show in a demo too, instead of showing up empty next to the
+  // populated activity feed above. Outage alerts (notification_webhooks)
+  // is deliberately NOT seeded here — it needs a real Slack/Discord/
+  // Telegram target to be worth showing, so that one's a 10-second live
+  // "add it" during the demo instead of fake data.
+  const demoOrg = orgIds[0];
+
+  // Circuit breaker history for one service — a realistic ~35min outage
+  // and recovery ending ~19h ago, so the reliability report shows a real
+  // (not flat 100%) uptime number for "stripe" alongside 100% for
+  // everything else that never tripped.
+  await pg.query(
+    `INSERT INTO circuit_breaker_events (service, from_state, to_state, occurred_at) VALUES
+     ('stripe', 'closed', 'open', NOW() - INTERVAL '20 hours'),
+     ('stripe', 'open', 'half-open', NOW() - INTERVAL '19 hours 30 minutes'),
+     ('stripe', 'half-open', 'closed', NOW() - INTERVAL '19 hours 25 minutes')`
+  );
+
+  // Dead-letter queue — two open (unreplayed) entries so "Failed requests"
+  // has something to Edit & Replay or Dismiss during a demo.
+  await pg.query(
+    `INSERT INTO dead_letter_queue (req_id, org_id, agent_id, service, action, encrypted_payload, error_message, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7, NOW() - INTERVAL '3 hours')`,
+    ['req_'+crypto.randomBytes(8).toString('hex'), demoOrg, 'agent_payment', 'stripe', 'charge.create',
+     encryptCredential(JSON.stringify({ amount: 4999, currency: 'usd', customer: 'cus_demo123' })),
+     'Upstream returned 503: Service temporarily unavailable']
+  );
+  await pg.query(
+    `INSERT INTO dead_letter_queue (req_id, org_id, agent_id, service, action, encrypted_payload, error_message, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7, NOW() - INTERVAL '1 hour')`,
+    ['req_'+crypto.randomBytes(8).toString('hex'), demoOrg, 'agent_whatsapp', 'whatsapp', 'message.send',
+     encryptCredential(JSON.stringify({ to: '+14155552671', body: 'Your order has shipped!' })),
+     'Upstream returned 500: Internal Server Error']
+  );
+
+  // One example Custom Action, pointed at a safe public echo endpoint
+  // (httpbin.org) so it actually works if clicked/tested during a demo —
+  // never a real customer-facing URL.
+  await pg.query(
+    `INSERT INTO custom_actions (user_id, org_id, name, method, target_url, auth_type, content_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (org_id, name) WHERE revoked_at IS NULL DO NOTHING`,
+    [request.user.sub, demoOrg, 'internal-order-webhook', 'POST', 'https://httpbin.org/post', 'none', 'application/json']
+  );
+
+  // Active monitoring on "mockpay" — the one service eligible that needs
+  // no real credentials, so this actually runs for real on the next 5-min
+  // scheduler tick and shows a genuine passing check, not fake data.
+  await pg.query(
+    `INSERT INTO health_check_settings (org_id, service, enabled_by) VALUES ($1,$2,$3) ON CONFLICT (org_id, service) DO NOTHING`,
+    [demoOrg, 'mockpay', request.user.sub]
+  );
+
+  return { seeded: 30, circuit_events: 3, dlq_entries: 2, custom_actions: 1, health_checks_enabled: 1 };
 });
 
 // ─── SELF-SERVE CREDENTIALS: users add their own Stripe/WhatsApp/etc. keys ───
