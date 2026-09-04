@@ -93,6 +93,18 @@ function createProxy(deps) {
   }
 
   // ─── CIRCUIT BREAKER ───
+  // Best-effort history of every real state transition, for the dashboard's
+  // reliability report (uptime %) — never lets a logging failure affect the
+  // circuit breaker's own (Redis) behavior, which stays the source of truth
+  // for whether traffic is actually blocked.
+  async function logCircuitTransition(service, fromState, toState) {
+    if (!pg || fromState === toState) return;
+    pg.query(
+      `INSERT INTO circuit_breaker_events (service, from_state, to_state) VALUES ($1, $2, $3)`,
+      [service, fromState, toState]
+    ).catch((err) => fastify.log.warn({ err, service, fromState, toState }, 'Circuit transition log failed'));
+  }
+
   async function getCircuitState(service) {
     const key = `circuit:${service}`;
     const state = await redis.get(key);
@@ -101,6 +113,7 @@ function createProxy(deps) {
     if (data.state === 'open') {
       if (Date.now() - data.openedAt > 30000) {
         await redis.setex(key, 3600, JSON.stringify({ state: 'half-open', failures: 0 }));
+        logCircuitTransition(service, 'open', 'half-open');
         return 'half-open';
       }
       return 'open';
@@ -130,6 +143,7 @@ function createProxy(deps) {
           results[svc] = 'half-open';
           pipeline.setex(keys[i], 3600, JSON.stringify({ state: 'half-open', failures: 0 }));
           hasWrites = true;
+          logCircuitTransition(svc, 'open', 'half-open');
         } else {
           results[svc] = 'open';
         }
@@ -145,10 +159,32 @@ function createProxy(deps) {
     const key = `circuit:${service}`;
     const state = await redis.get(key);
     let data = state ? JSON.parse(state) : { state: 'closed', failures: 0 };
+    const fromState = data.state;
     data.failures = (data.failures || 0) + 1;
     if (data.state === 'half-open') { data.state = 'open'; data.openedAt = Date.now(); }
     else if (data.failures >= 5) { data.state = 'open'; data.openedAt = Date.now(); }
     await redis.setex(key, 3600, JSON.stringify(data));
+    logCircuitTransition(service, fromState, data.state);
+  }
+
+  // A successful call is the only signal that a half-open probe actually
+  // worked — without this, nothing ever closed the circuit again after a
+  // trip: getCircuitState's lazy open->half-open transition happens after
+  // 30s regardless of real traffic, but no code path ever moved half-open
+  // back to closed, so a recovered service stayed reported as half-open
+  // forever (harmless for traffic, since half-open isn't blocked — but it
+  // meant "closed" never showed up again in circuit state/history after a
+  // single trip, undermining any uptime reporting built on it). No-ops (no
+  // Redis write at all) when already closed, so the steady-state hot path
+  // only pays for one extra GET per successful call.
+  async function recordSuccess(service) {
+    const key = `circuit:${service}`;
+    const state = await redis.get(key);
+    if (!state) return;
+    const data = JSON.parse(state);
+    if (data.state !== 'half-open') return;
+    await redis.setex(key, 3600, JSON.stringify({ state: 'closed', failures: 0 }));
+    logCircuitTransition(service, 'half-open', 'closed');
   }
 
   // ─── FORWARDER ───
@@ -402,6 +438,7 @@ function createProxy(deps) {
       }
 
       const result = await forwardWithRetry(resolvedRoute, service, action, orgId, payload, reqId, circuitKey);
+      recordSuccess(circuitKey).catch(() => {}); // fire-and-forget — closes a half-open circuit on recovery, never blocks the response
       broadcastFanout(resolvedRoute, payload, reqId).catch(() => {}); // fire-and-forget, see broadcastFanout's own error handling
       await completeDedupSlot(dedupKey, result);
       await incrementMonthlyUsage(orgId);
@@ -476,6 +513,7 @@ function createProxy(deps) {
     getCircuitState,
     getCircuitStatesBatch,
     recordFailure,
+    recordSuccess,
     forwardAction,
     forwardWithRetry,
     broadcastFanout,
