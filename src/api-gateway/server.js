@@ -601,6 +601,76 @@ async function validateTargetUrl(targetUrl) {
   return null; // valid
 }
 
+// ─── PUBLIC TOOL: "Is My Webhook Safe?" audit ─── unauthenticated lead-magnet
+// (see /webhook-audit page) — fires 3 identical POSTs at a URL the visitor
+// supplies and reports whether the responses look idempotent. Two things
+// this needs precisely because it's unauthenticated and takes a
+// caller-supplied URL: the same SSRF guard as custom-action registration
+// (validateTargetUrl, above — blocks localhost/private/link-local/metadata
+// IPs) and an IP rate limit (reusing the login limiter's 10-per-15-min
+// bucket) so this endpoint can't be turned into an open outbound-request
+// proxy or SSRF/DoS-scanning tool.
+fastify.post('/api/v1/tools/webhook-audit', async (request, reply) => {
+  const { url } = request.body || {};
+  if (typeof url !== 'string' || url.length === 0 || url.length > 2000) {
+    return reply.status(422).send({ error: 'A webhook URL is required.' });
+  }
+  const underLimit = await checkLoginRateLimit(redis, request.ip, 'webhook-audit');
+  if (!underLimit) {
+    return reply.status(429).send({ error: 'Too many audits from this IP. Try again in 15 minutes.' });
+  }
+  const urlError = await validateTargetUrl(url);
+  if (urlError) return reply.status(422).send({ error: urlError });
+
+  // Identical payload across all 3 calls (same test_id) — this is the
+  // "retry storm" the tool is simulating: an agent/workflow retrying the
+  // exact same action, not 3 different actions.
+  const testId = crypto.randomBytes(8).toString('hex');
+  const payload = {
+    agentraas_webhook_audit: true,
+    note: 'Free idempotency test from AgentRaaS (agentraas.io/webhook-audit) — 3 identical requests fired in parallel to check whether this endpoint deduplicates retries. Safe to ignore or discard.',
+    test_id: testId,
+    amount: 100,
+    currency: 'usd',
+  };
+
+  async function fireOne(attempt) {
+    const start = Date.now();
+    try {
+      const res = await axios.post(url, payload, { timeout: 8000, validateStatus: () => true, maxRedirects: 3 });
+      return { attempt, status: res.status, latency_ms: Date.now() - start, body_snippet: JSON.stringify(res.data ?? '').slice(0, 500) };
+    } catch (err) {
+      return { attempt, status: null, latency_ms: Date.now() - start, error: err.code || err.message };
+    }
+  }
+
+  const results = await Promise.all([fireOne(1), fireOne(2), fireOne(3)]);
+  const anyErrored = results.some((r) => r.status === null);
+  const allSucceeded = results.every((r) => typeof r.status === 'number' && r.status < 500);
+  const bodies = results.map((r) => (r.status === null ? `__error:${r.error}` : r.body_snippet));
+  const allIdentical = bodies.every((b) => b === bodies[0]);
+
+  let verdict, verdict_label;
+  if (anyErrored) {
+    verdict = 'inconclusive';
+    verdict_label = "One or more requests didn't complete (network error or timeout) — try again, or double-check the URL.";
+  } else if (!allSucceeded) {
+    verdict = 'inconclusive';
+    verdict_label = 'The endpoint returned a server error, so duplicate-processing risk could not be determined from this run.';
+  } else if (allIdentical) {
+    verdict = 'likely_safe';
+    verdict_label = 'All 3 identical requests got back the exact same response — consistent with idempotent handling.';
+  } else {
+    verdict = 'vulnerable';
+    verdict_label = 'The 3 identical requests got back 3 different responses — consistent with 3 separate records/charges being created.';
+  }
+
+  return {
+    url, test_id: testId, verdict, verdict_label, results,
+    disclaimer: 'This is an HTTP-level heuristic based only on the responses your endpoint sent back — we cannot see your database. "Likely safe" is not a guarantee; "vulnerable" is strong evidence, not certainty.',
+  };
+});
+
 // Agent-facing rate limit (webhook/SDK/MCP) — token-bucket implementation
 // now lives in src/core/proxy (checkAgentRateLimit), constructed below via
 // createProxy() once its other dependencies exist.
@@ -1005,6 +1075,13 @@ fastify.get('/dashboard/', async (request, reply) => {
 fastify.get('/guide', async (request, reply) => {
   const htmlPath = path.join(__dirname, 'public', 'guide.html');
   if (!fs.existsSync(htmlPath)) return reply.status(404).send({error:'Guide not found'});
+  reply.type('text/html').send(fs.readFileSync(htmlPath, 'utf8'));
+});
+
+// ─── STATIC WEBHOOK AUDIT TOOL (no login required — public lead magnet) ───
+fastify.get('/webhook-audit', async (request, reply) => {
+  const htmlPath = path.join(__dirname, 'public', 'webhook-audit.html');
+  if (!fs.existsSync(htmlPath)) return reply.status(404).send({error:'Webhook audit tool not found'});
   reply.type('text/html').send(fs.readFileSync(htmlPath, 'utf8'));
 });
 
