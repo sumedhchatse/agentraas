@@ -270,6 +270,41 @@ async function getEffectiveValidationRule(orgId, service, action) {
 const redis = new Redis(REDIS_URL);
 const pg = new Pool({ connectionString: DATABASE_URL });
 
+// ─── INSTANT OUTAGE NOTIFICATIONS (Slack / Discord / Telegram) ───
+// Fires when the circuit breaker blocks a request for a service this org
+// actually uses — not a global broadcast (the circuit itself is shared
+// across every org calling that service; see recordFailure/getCircuitState
+// in src/core/proxy), only orgs actually affected. Rate-limited to once
+// per org+service per 60s window (matching the circuit's own half-open
+// retry cadence) via Redis SETNX, so a burst of blocked requests during
+// one outage sends one notification, not one per request.
+async function sendOutageNotification(orgId, message) {
+  const rows = await pg.query('SELECT type, encrypted_target, extra FROM notification_webhooks WHERE org_id = $1', [orgId]);
+  for (const row of rows.rows) {
+    try {
+      const target = decryptCredential(row.encrypted_target);
+      if (row.type === 'slack') {
+        await axios.post(target, { text: message }, { timeout: 5000 });
+      } else if (row.type === 'discord') {
+        await axios.post(target, { content: message }, { timeout: 5000 });
+      } else if (row.type === 'telegram') {
+        await axios.post(`https://api.telegram.org/bot${target}/sendMessage`, { chat_id: row.extra, text: message }, { timeout: 5000 });
+      }
+    } catch (err) {
+      fastify.log.warn(`Outage notification failed (org=${orgId}, type=${row.type}): ${err.message}`);
+    }
+  }
+}
+
+async function notifyCircuitOpen(orgId, service) {
+  const claimed = await redis.set(`circuit-notified:${orgId}:${service}`, '1', 'EX', 60, 'NX');
+  if (!claimed) return; // already notified for this org+service within the last 60s
+  await sendOutageNotification(
+    orgId,
+    `⚠️ AgentRaaS Circuit Breaker Activated: ${service} is unresponsive. Requests to it are being shielded for your org until it recovers.`
+  );
+}
+
 // Whether the Enterprise migrations (021+, org_members/orgs/sso_configs/
 // org_invites) have been applied — a pure Community/core-only checkout
 // never runs them, so anything referencing those tables (getUserOrgIds)
@@ -2245,6 +2280,142 @@ fastify.post('/api/v1/validation-rules/test', { preHandler: requireAuthRateLimit
   return { valid: !validationError, error: validationError };
 });
 
+// ─── NOTIFICATION WEBHOOKS (instant outage notifications) ───
+fastify.post('/api/v1/notification-webhooks', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const { org_id, type, target, chat_id } = request.body || {};
+  if (!isValidIdentifier(org_id)) return reply.status(422).send({ error: 'org_id must be 1-100 characters, letters/numbers/underscore/hyphen only.' });
+  if (!['slack', 'discord', 'telegram'].includes(type)) return reply.status(422).send({ error: 'type must be one of: slack, discord, telegram.' });
+  if (!(await checkOrgWritePermission(request.user.sub, org_id))) {
+    return reply.status(403).send({ error: 'Auditors have read-only access to this org.' });
+  }
+  if (typeof target !== 'string' || target.length === 0 || target.length > 500) {
+    return reply.status(422).send({ error: type === 'telegram' ? 'target (bot token) is required.' : 'target (webhook URL) is required.' });
+  }
+  if ((type === 'slack' || type === 'discord') && (await validateTargetUrl(target))) {
+    return reply.status(422).send({ error: await validateTargetUrl(target) });
+  }
+  if (type === 'telegram' && (typeof chat_id !== 'string' || chat_id.length === 0)) {
+    return reply.status(422).send({ error: 'chat_id is required for type "telegram".' });
+  }
+
+  const encryptedTarget = encryptCredential(target);
+  const r = await pg.query(
+    `INSERT INTO notification_webhooks (org_id, type, encrypted_target, extra, created_by)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (org_id, type) DO UPDATE SET encrypted_target = EXCLUDED.encrypted_target, extra = EXCLUDED.extra
+     RETURNING id, org_id, type, created_at`,
+    [org_id, type, encryptedTarget, type === 'telegram' ? chat_id : null, request.user.sub]
+  );
+  return { saved: true, webhook: r.rows[0] };
+});
+
+fastify.get('/api/v1/notification-webhooks', { preHandler: requireAuthRateLimited }, async (request) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return [];
+  const r = await pg.query(
+    `SELECT id, org_id, type, created_at FROM notification_webhooks WHERE org_id = ANY($1) ORDER BY created_at DESC`,
+    [orgIds]
+  );
+  return r.rows;
+});
+
+fastify.delete('/api/v1/notification-webhooks/:id', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return reply.status(404).send({ error: 'Notification webhook not found.' });
+  const r = await pg.query(
+    `DELETE FROM notification_webhooks WHERE id = $1 AND org_id = ANY($2) RETURNING id`,
+    [request.params.id, orgIds]
+  );
+  if (r.rows.length === 0) return reply.status(404).send({ error: 'Notification webhook not found.' });
+  return { deleted: true };
+});
+
+fastify.post('/api/v1/notification-webhooks/:id/test', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  const row = (await pg.query(
+    `SELECT org_id FROM notification_webhooks WHERE id = $1 AND org_id = ANY($2)`,
+    [request.params.id, orgIds]
+  )).rows[0];
+  if (!row) return reply.status(404).send({ error: 'Notification webhook not found.' });
+  await sendOutageNotification(row.org_id, '🔔 AgentRaaS test notification — if you can see this, outage alerts are wired up correctly.');
+  return { sent: true };
+});
+
+// ─── DEAD LETTER QUEUE (one-click payload replay) ───
+fastify.get('/api/v1/dead-letter-queue', { preHandler: requireAuthRateLimited }, async (request) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return [];
+  const r = await pg.query(
+    `SELECT id, req_id, org_id, agent_id, service, action, encrypted_payload, error_message, created_at
+     FROM dead_letter_queue
+     WHERE org_id = ANY($1) AND replayed_at IS NULL AND dismissed_at IS NULL
+     ORDER BY created_at DESC LIMIT 100`,
+    [orgIds]
+  );
+  // The payload is exactly as sensitive as any stored credential — decrypted
+  // here (server-side, over the authenticated dashboard session) so the
+  // "Edit & Replay" UI has something to prefill, same trust boundary as
+  // GET /api/v1/credentials already crossing for masked previews.
+  return r.rows.map((row) => {
+    let payload = null;
+    try { payload = JSON.parse(decryptCredential(row.encrypted_payload)); } catch { /* leave null if corrupt */ }
+    const { encrypted_payload, ...rest } = row;
+    return { ...rest, payload };
+  });
+});
+
+fastify.post('/api/v1/dead-letter-queue/:id/replay', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  const row = (await pg.query(
+    `SELECT * FROM dead_letter_queue WHERE id = $1 AND org_id = ANY($2) AND replayed_at IS NULL AND dismissed_at IS NULL`,
+    [request.params.id, orgIds]
+  )).rows[0];
+  if (!row) return reply.status(404).send({ error: 'Dead-letter entry not found (already replayed, dismissed, or not yours).' });
+  if (!(await checkOrgWritePermission(request.user.sub, row.org_id))) {
+    return reply.status(403).send({ error: 'Auditors have read-only access to this org.' });
+  }
+
+  // The dashboard's "edit parameters" flow — replay the original payload
+  // as-is, or an edited one if the caller supplies { payload: {...} }.
+  let payload;
+  if (request.body?.payload !== undefined) {
+    payload = request.body.payload;
+  } else {
+    try { payload = JSON.parse(decryptCredential(row.encrypted_payload)); }
+    catch { return reply.status(500).send({ error: 'Stored payload could not be decrypted.' }); }
+  }
+
+  const resolvedRoute = row.service === 'custom'
+    ? await resolveCustomRoute(row.org_id, row.action)
+    : SERVICE_ROUTES[`${row.service}.${row.action}`];
+  if (!resolvedRoute) {
+    return reply.status(410).send({ error: 'This action no longer exists (the service or Custom Action was changed or removed since this failure).' });
+  }
+
+  const replayReqId = 'req_' + crypto.randomBytes(8).toString('hex');
+  try {
+    const result = await proxy.forwardAction(resolvedRoute, row.service, row.action, row.org_id, payload, replayReqId);
+    await pg.query('UPDATE dead_letter_queue SET replayed_at = NOW() WHERE id = $1', [row.id]);
+    await logAudit(replayReqId, `replay:user_${request.user.sub}`, row.org_id, row.agent_id, row.service, row.action, 'success', null, 0, null, payload);
+    return { replayed: true, result, reqId: replayReqId };
+  } catch (err) {
+    const upstreamMessage = extractUpstreamErrorMessage(err.response?.data);
+    await logAudit(replayReqId, `replay:user_${request.user.sub}`, row.org_id, row.agent_id, row.service, row.action, 'error', upstreamMessage || err.message, 0, null);
+    return reply.status(err.response?.status || 500).send({ replayed: false, error: upstreamMessage || 'Replay failed — the target API returned an error again.', reqId: replayReqId });
+  }
+});
+
+fastify.delete('/api/v1/dead-letter-queue/:id', { preHandler: requireAuthRateLimited }, async (request, reply) => {
+  const orgIds = await getUserOrgIds(request.user.sub);
+  if (orgIds.length === 0) return reply.status(404).send({ error: 'Dead-letter entry not found.' });
+  const r = await pg.query(
+    `UPDATE dead_letter_queue SET dismissed_at = NOW() WHERE id = $1 AND org_id = ANY($2) AND replayed_at IS NULL AND dismissed_at IS NULL RETURNING id`,
+    [request.params.id, orgIds]
+  );
+  if (r.rows.length === 0) return reply.status(404).send({ error: 'Dead-letter entry not found.' });
+  return { dismissed: true };
+});
+
 // Looks up a registered custom action and returns it shaped like a SERVICE_ROUTES
 // entry, so the rest of the pipeline (dedup, validation, circuit breaker, forwarding)
 // treats it identically to a curated service — no special-casing needed downstream.
@@ -2372,12 +2543,13 @@ const proxy = createProxy({
   resolveCustomRoute, verifyApiKey, getEffectiveRateLimit,
   checkUsageLimit, incrementMonthlyUsage, getCredential,
   logAudit, extractUpstreamErrorMessage, AGENT_RATE_LIMIT_PER_MIN, ENTERPRISE_MODE,
-  maintenanceQueue,
+  maintenanceQueue, notifyCircuitOpen, pg, encryptCredential,
 });
 const mcp = createMcp({
   fastify, proxy, SERVICE_CONFIG, SERVICE_ROUTES, validateFields, getEffectiveValidationRule,
   resolveCustomRoute, verifyApiKey, getEffectiveRateLimit,
-  checkUsageLimit, incrementMonthlyUsage, logAudit, extractUpstreamErrorMessage,
+  checkUsageLimit, incrementMonthlyUsage, logAudit, extractUpstreamErrorMessage, notifyCircuitOpen,
+  pg, encryptCredential,
 });
 
 fastify.post('/v1/webhook/:orgId/:agentId', async (request, reply) => proxy.handleRequest(request,reply,'webhook'));
