@@ -91,6 +91,7 @@ async fn main() -> anyhow::Result<()> {
                         "payload": { "type": "object", "description": "Request payload" },
                         "org_id": { "type": "string", "description": "Organization ID" },
                         "idempotency_key": { "type": "string", "description": "Optional — dedupe on this key instead of the exact payload bytes, so you control what counts as a retry of the same operation. Reusing the key with a genuinely different payload is rejected (not silently applied), matching Stripe-style idempotency keys." },
+                        "run_id": { "type": "string", "description": "Optional — a stable identifier for the current multi-step task. If the same run_id calls this same tool too many times in a row, the call is halted with a structured message instead of executing again, to catch an agent stuck in a loop." },
                     },
                     "required": ["payload"],
                 },
@@ -148,6 +149,14 @@ async fn main() -> anyhow::Result<()> {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(300),
+        agent_loop_max_repeats: std::env::var("AGENT_LOOP_MAX_REPEATS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(4),
+        agent_run_ttl_seconds: std::env::var("AGENT_RUN_TTL_SECONDS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(3600),
         mailer: Mailer::from_env(),
         token_bucket: agentraas_core::token_bucket::TokenBucket::new(),
         http_client: reqwest::Client::builder()
