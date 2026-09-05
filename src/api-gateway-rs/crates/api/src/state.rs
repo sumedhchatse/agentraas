@@ -38,6 +38,12 @@ pub struct AppState {
     pub proxy_retry_max_attempts: u32,
     pub proxy_retry_base_delay_ms: u64,
 
+    /// Agent Run Budgeting & Loop Detection — see `crate::agent::mod`'s use
+    /// of `agentraas_core::agent_run`. Only takes effect for a request that
+    /// supplies a run_id; unrelated to the per-service circuit breaker.
+    pub agent_loop_max_repeats: i64,
+    pub agent_run_ttl_seconds: i64,
+
     pub mailer: Mailer,
     pub token_bucket: agentraas_core::token_bucket::TokenBucket,
     pub http_client: reqwest::Client,

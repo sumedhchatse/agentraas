@@ -3,6 +3,7 @@
 //! carries the services-config loader; dedup/circuit-breaker/retry/MCP
 //! land in Phase 2.
 
+pub mod agent_run;
 pub mod circuit_breaker;
 pub mod config;
 pub mod crypto;

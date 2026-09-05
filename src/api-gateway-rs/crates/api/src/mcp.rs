@@ -84,6 +84,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     let org_id = arguments.get("org_id").and_then(Value::as_str).unwrap_or("mcp").to_string();
     let agent_id = arguments.get("agent_id").and_then(Value::as_str).unwrap_or("mcp-agent").to_string();
     let idempotency_key = arguments.get("idempotency_key").and_then(Value::as_str).map(String::from);
+    let run_id = arguments.get("run_id").and_then(Value::as_str).map(String::from);
     let api_key = headers
         .get("x-agentraas-key")
         .and_then(|v| v.to_str().ok())
@@ -158,6 +159,41 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         .unwrap_or(true);
     if !within_limit {
         return jsonrpc_result(id, json!({ "error": "Rate limit exceeded for this agent.", "reqId": req_id }), true);
+    }
+
+    // Agent Run Budgeting & Loop Detection — see agent::mod's identical
+    // wiring for the webhook/SDK path; only engages when the MCP caller
+    // supplies a run_id argument tagging a multi-step task.
+    if let Some(run_id) = &run_id {
+        match agentraas_core::agent_run::record_call_and_check(
+            &mut conn,
+            &org_id,
+            &agent_id,
+            run_id,
+            &resolved_service_name,
+            &resolved_action_name,
+            state.agent_loop_max_repeats,
+            state.agent_run_ttl_seconds,
+        )
+        .await
+        {
+            Ok(check) if check.tripped => {
+                return jsonrpc_result(
+                    id,
+                    json!({
+                        "error": "agent_circuit_open",
+                        "message": format!(
+                            "Tool execution halted: You have called {resolved_service_name}.{resolved_action_name} {count} times with no state change. Re-evaluate your strategy.",
+                            count = check.count
+                        ),
+                        "reqId": req_id,
+                    }),
+                    true,
+                );
+            }
+            Ok(_) => {}
+            Err(err) => tracing::error!(?err, "agent loop-detection check failed"),
+        }
     }
 
     let start = std::time::Instant::now();
