@@ -89,6 +89,9 @@ struct RequestIdentity {
     action: String,
     payload: Value,
     idempotency_key: Option<String>,
+    /// Agent Run Budgeting & Loop Detection — optional, additive. A caller
+    /// that never sends this sees no behavior change.
+    run_id: Option<String>,
 }
 
 async fn webhook_handler(
@@ -104,6 +107,7 @@ async fn webhook_handler(
         .unwrap_or("anonymous")
         .to_string();
     let idempotency_key = header_value(&headers, "x-agentraas-idempotency-key");
+    let run_id = header_value(&headers, "x-agentraas-run-id");
 
     let service = body.get("service").and_then(Value::as_str).unwrap_or_default().to_string();
     let action = body.get("action").and_then(Value::as_str).unwrap_or_default().to_string();
@@ -120,6 +124,7 @@ async fn webhook_handler(
             action,
             payload,
             idempotency_key,
+            run_id,
         },
     )
     .await
@@ -135,6 +140,7 @@ async fn sdk_handler(
     let org_id = header_value(&headers, "x-agentraas-org").unwrap_or_else(|| "sdk".to_string());
     let agent_id = header_value(&headers, "x-agentraas-agent").unwrap_or_else(|| "sdk-agent".to_string());
     let idempotency_key = header_value(&headers, "x-agentraas-idempotency-key");
+    let run_id = header_value(&headers, "x-agentraas-run-id");
 
     handle_request(
         &state,
@@ -147,6 +153,7 @@ async fn sdk_handler(
             action,
             payload,
             idempotency_key,
+            run_id,
         },
     )
     .await
@@ -180,7 +187,7 @@ pub async fn replay_webhook(
     handle_request(
         state,
         Source::Webhook,
-        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None },
+        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None },
     )
     .await
 }
@@ -199,6 +206,7 @@ async fn handle_request(
         action,
         payload,
         idempotency_key,
+        run_id,
     } = identity;
 
     if service.is_empty() || action.is_empty() {
@@ -310,6 +318,44 @@ async fn handle_request(
             &req_id,
             "Rate limit exceeded for this agent. Slow down and try again shortly.",
         );
+    }
+
+    // Agent Run Budgeting & Loop Detection — only engages when the caller
+    // supplies a run_id tagging a multi-step task. Every call to this
+    // service.action within that run counts, including ones that end up
+    // dedup-cached below: this is about the agent's own repeated-invocation
+    // pattern, not how AgentRaaS happened to answer it.
+    if let Some(run_id) = &run_id {
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+            match agentraas_core::agent_run::record_call_and_check(
+                &mut conn,
+                &org_id,
+                &agent_id,
+                run_id,
+                &service,
+                &action,
+                state.agent_loop_max_repeats,
+                state.agent_run_ttl_seconds,
+            )
+            .await
+            {
+                Ok(check) if check.tripped => {
+                    return (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        Json(json!({
+                            "error": "agent_circuit_open",
+                            "message": format!(
+                                "Tool execution halted: You have called {service}.{action} {count} times with no state change. Re-evaluate your strategy.",
+                                count = check.count
+                            ),
+                            "reqId": req_id,
+                        })),
+                    );
+                }
+                Ok(_) => {}
+                Err(err) => tracing::error!(?err, "agent loop-detection check failed"),
+            }
+        }
     }
 
     let start = std::time::Instant::now();
