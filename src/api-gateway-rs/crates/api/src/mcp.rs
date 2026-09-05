@@ -85,6 +85,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     let agent_id = arguments.get("agent_id").and_then(Value::as_str).unwrap_or("mcp-agent").to_string();
     let idempotency_key = arguments.get("idempotency_key").and_then(Value::as_str).map(String::from);
     let run_id = arguments.get("run_id").and_then(Value::as_str).map(String::from);
+    let step_id = arguments.get("step_id").and_then(Value::as_str).map(String::from);
     let api_key = headers
         .get("x-agentraas-key")
         .and_then(|v| v.to_str().ok())
@@ -159,6 +160,20 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         .unwrap_or(true);
     if !within_limit {
         return jsonrpc_result(id, json!({ "error": "Rate limit exceeded for this agent.", "reqId": req_id }), true);
+    }
+
+    // State Checkpointing — see agent::mod's identical wiring (checked
+    // first, before loop-detection: a checkpoint hit is a known-already-
+    // done step, not a new attempt to count toward the loop budget).
+    if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
+        let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
+        if let Ok(Some(mut cached)) = agentraas_core::checkpoint::read_checkpoint(&mut conn, &checkpoint_key).await {
+            if let Value::Object(ref mut map) = cached {
+                map.insert("checkpointed".to_string(), Value::Bool(true));
+                map.insert("reqId".to_string(), Value::String(req_id.clone()));
+            }
+            return jsonrpc_result(id, cached, false);
+        }
     }
 
     // Agent Run Budgeting & Loop Detection — see agent::mod's identical
@@ -301,6 +316,10 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
                 map.insert("__payloadDigest".to_string(), Value::String(payload_digest.clone()));
             }
             let _ = dedup::complete_dedup_slot(&mut conn, &claim.key, &stored).await;
+            if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
+                let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
+                let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored).await;
+            }
             let _ = increment_monthly_usage(state, &org_id).await;
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload)).await;
 

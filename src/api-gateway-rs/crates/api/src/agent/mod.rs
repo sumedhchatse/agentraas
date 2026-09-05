@@ -92,6 +92,9 @@ struct RequestIdentity {
     /// Agent Run Budgeting & Loop Detection — optional, additive. A caller
     /// that never sends this sees no behavior change.
     run_id: Option<String>,
+    /// State Checkpointing — a stable identifier for this specific step
+    /// within `run_id`'s task. Only takes effect when both are present.
+    step_id: Option<String>,
 }
 
 async fn webhook_handler(
@@ -108,6 +111,7 @@ async fn webhook_handler(
         .to_string();
     let idempotency_key = header_value(&headers, "x-agentraas-idempotency-key");
     let run_id = header_value(&headers, "x-agentraas-run-id");
+    let step_id = header_value(&headers, "x-agentraas-step-id");
 
     let service = body.get("service").and_then(Value::as_str).unwrap_or_default().to_string();
     let action = body.get("action").and_then(Value::as_str).unwrap_or_default().to_string();
@@ -125,6 +129,7 @@ async fn webhook_handler(
             payload,
             idempotency_key,
             run_id,
+            step_id,
         },
     )
     .await
@@ -141,6 +146,7 @@ async fn sdk_handler(
     let agent_id = header_value(&headers, "x-agentraas-agent").unwrap_or_else(|| "sdk-agent".to_string());
     let idempotency_key = header_value(&headers, "x-agentraas-idempotency-key");
     let run_id = header_value(&headers, "x-agentraas-run-id");
+    let step_id = header_value(&headers, "x-agentraas-step-id");
 
     handle_request(
         &state,
@@ -154,6 +160,7 @@ async fn sdk_handler(
             payload,
             idempotency_key,
             run_id,
+            step_id,
         },
     )
     .await
@@ -187,7 +194,7 @@ pub async fn replay_webhook(
     handle_request(
         state,
         Source::Webhook,
-        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None },
+        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None },
     )
     .await
 }
@@ -207,6 +214,7 @@ async fn handle_request(
         payload,
         idempotency_key,
         run_id,
+        step_id,
     } = identity;
 
     if service.is_empty() || action.is_empty() {
@@ -320,11 +328,34 @@ async fn handle_request(
         );
     }
 
+    // State Checkpointing — only engages when the caller supplies BOTH a
+    // run_id (the task) and a step_id (a stable identifier for this
+    // specific step, caller-assigned — see checkpoint.rs for why a
+    // derived call-count ordinal can't do this safely). If this exact
+    // run_id+step_id pair already has a completed result, serve it
+    // immediately — this is checked first, before loop-detection, since a
+    // checkpoint hit is a known-already-done step, not a new attempt to
+    // count toward the loop budget. Unlike payload-hash dedup, this
+    // doesn't require the retried payload to match.
+    if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
+        let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+            if let Ok(Some(mut cached)) = agentraas_core::checkpoint::read_checkpoint(&mut conn, &checkpoint_key).await {
+                if let Value::Object(ref mut map) = cached {
+                    map.insert("checkpointed".to_string(), Value::Bool(true));
+                    map.insert("reqId".to_string(), Value::String(req_id.clone()));
+                }
+                return (StatusCode::OK, Json(cached));
+            }
+        }
+    }
+
     // Agent Run Budgeting & Loop Detection — only engages when the caller
     // supplies a run_id tagging a multi-step task. Every call to this
     // service.action within that run counts, including ones that end up
     // dedup-cached below: this is about the agent's own repeated-invocation
-    // pattern, not how AgentRaaS happened to answer it.
+    // pattern, not how AgentRaaS happened to answer it. A checkpoint hit
+    // above already returned, so this only runs for genuinely new attempts.
     if let Some(run_id) = &run_id {
         if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
             match agentraas_core::agent_run::record_call_and_check(
@@ -494,6 +525,10 @@ async fn handle_request(
                 map.insert("__payloadDigest".to_string(), Value::String(payload_digest.clone()));
             }
             let _ = dedup::complete_dedup_slot(&mut conn, &claim.key, &stored).await;
+            if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
+                let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
+                let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored).await;
+            }
             let _ = increment_monthly_usage(state, &org_id).await;
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload)).await;
 

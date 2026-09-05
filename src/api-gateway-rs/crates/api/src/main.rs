@@ -92,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
                         "org_id": { "type": "string", "description": "Organization ID" },
                         "idempotency_key": { "type": "string", "description": "Optional — dedupe on this key instead of the exact payload bytes, so you control what counts as a retry of the same operation. Reusing the key with a genuinely different payload is rejected (not silently applied), matching Stripe-style idempotency keys." },
                         "run_id": { "type": "string", "description": "Optional — a stable identifier for the current multi-step task. If the same run_id calls this same tool too many times in a row, the call is halted with a structured message instead of executing again, to catch an agent stuck in a loop." },
+                        "step_id": { "type": "string", "description": "Optional, used with run_id — a stable identifier for this specific step (e.g. \"fetch-invoice\"). If this exact run_id+step_id already completed, the saved result is returned immediately instead of executing again — lets a retried task automatically resume past whatever steps already succeeded." },
                     },
                     "required": ["payload"],
                 },

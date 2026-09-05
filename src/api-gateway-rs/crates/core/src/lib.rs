@@ -4,6 +4,7 @@
 //! land in Phase 2.
 
 pub mod agent_run;
+pub mod checkpoint;
 pub mod circuit_breaker;
 pub mod config;
 pub mod crypto;
