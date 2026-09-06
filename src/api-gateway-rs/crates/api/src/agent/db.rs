@@ -91,6 +91,19 @@ pub async fn get_effective_dedup_rule(
     }))
 }
 
+/// Tool Output Sanitization (Enterprise, opt-in per org) — default false, no
+/// row means never toggled. Checked once per forwarded call in
+/// `forward_action`; see `crates/api/src/ee/output_sanitization.rs` for the
+/// GET/PUT dashboard pair that writes this table.
+#[cfg(feature = "enterprise")]
+pub async fn is_output_sanitization_enabled(pg: &PgPool, org_id: &str) -> Result<bool, sqlx::Error> {
+    let enabled: Option<bool> = sqlx::query_scalar("SELECT enabled FROM org_output_sanitization WHERE org_id = $1")
+        .bind(org_id)
+        .fetch_optional(pg)
+        .await?;
+    Ok(enabled.unwrap_or(false))
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Credential {
     pub api_key: Option<String>,
