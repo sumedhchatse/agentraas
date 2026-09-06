@@ -114,6 +114,24 @@ real API keys are needed to run them.
 
 ---
 
+## Experimental: Rust rewrite of the API gateway
+
+`src/api-gateway-rs` is a from-scratch Rust port of the same reliability
+engine (Axum/Tokio/sqlx), built to be a drop-in replacement — it shares
+this same Postgres/Redis, so you can run it side by side against
+identical data. It's opt-in and off by default:
+
+```bash
+podman-compose --profile rust up -d ar-api-rs
+curl http://localhost:13001/health
+```
+
+Not started by a bare `podman-compose up -d`. Treat it as experimental —
+it isn't what a fresh `install.sh` gives you, and the Node service
+(`ar-api`, port 13000) remains the default/primary path.
+
+---
+
 ## MCP (Model Context Protocol)
 
 AgentRaaS exposes an MCP gateway for Claude Desktop, Cursor, and other MCP clients:
@@ -188,8 +206,10 @@ flowchart TB
 Open-core, three tiers. Community is self-hosted only, with a limited
 feature set — it's the free on-ramp. Agency and Enterprise both run
 either cloud-hosted (on AgentRaaS Cloud) or self-hosted, and unlock
-everything above Community. `src/ee/*` (SSO, RBAC, HMAC, DLP, HA, SIEM
-export) is source-available under a separate commercial license — see
+everything above Community. The Agency/Enterprise-only pieces (SSO,
+RBAC, inbound HMAC verification, PII/DLP redaction, distributed rate
+limiting, tool output sanitization) live behind a separate commercial
+license and simply aren't in this repo's source tree — see
 [LICENSE.md](./LICENSE.md).
 
 | | Community | Agency | Enterprise |
@@ -225,19 +245,24 @@ started or self-host from `/dashboard`, or contact
 - [x] Custom Actions — call any endpoint, not just curated services
 - [x] Dashboard auth (register/login, session management, change password)
 - [x] Hosted AgentRaaS Cloud offering
-- [x] Enterprise SSO (OIDC) + per-org RBAC (`src/ee/auth`)
-- [x] Inbound webhook HMAC verification — 10+ providers (`src/ee/hmac`)
-- [x] PII/DLP redaction engine (`src/ee/dlp`)
-- [x] Distributed token-bucket rate limiter (`src/ee/rate_limiter`)
-- [x] Tamper-evident audit logs + SIEM export
+- [x] Enterprise SSO (OIDC) + per-org RBAC — **Agency/Enterprise only, not in this repo**
+- [x] Inbound webhook HMAC verification — 10+ providers — **Agency/Enterprise only, not in this repo**
+- [x] PII/DLP redaction engine — **Agency/Enterprise only, not in this repo**
+- [x] Distributed token-bucket rate limiter — **Agency/Enterprise only, not in this repo**
+- [x] Tool Output Sanitization — redacts leaked PII and heuristic prompt-injection markers from a tool's response before your agent sees it — **Agency/Enterprise only, not in this repo**
+- [x] Tamper-evident audit logs + SIEM export — **Agency/Enterprise only, not in this repo**
 - [x] Agency tier — multi-tenant, white-label dashboard branding
-- [x] Official Python SDK package (`src/sdk` — built, tested end-to-end against a live instance, not yet published to PyPI)
+- [x] Official Python SDK package (`src/sdk` — published to PyPI as `agentraas`)
 - [x] Custom validation rule builder (UI) — per-org, per-service.action rules, including Custom Actions (which previously had no validation at all)
 - [x] n8n/Flowise/Langflow integrations (`integrations/`) — n8n community node (compiles against real `n8n-workflow` types; full live-registration unverified, see `integrations/templates/README.md`), Flowise custom tool, Langflow custom component
-- [x] "Pause & Buffer" maintenance mode (Enterprise) — safely queues incoming webhooks during planned downtime or a downstream outage, auto-flushes on resume
+- [x] "Pause & Buffer" maintenance mode — safely queues incoming webhooks during planned downtime or a downstream outage, auto-flushes on resume — **Agency/Enterprise only, not in this repo**
 - [x] Multi-Destination Fan-Out (event broadcasting) — a Custom Action can broadcast the same payload to up to 5 extra `fanout_urls` as a best-effort copy, without affecting the primary response
 - [x] Dynamic Header & Secret Injection — a Custom Action can set up to 10 custom outbound headers, each optionally encrypted at rest as a secret (e.g. a signing key)
-- [ ] Publish the Python SDK to PyPI
+- [x] Agent Run Budgeting & Loop Detection — an optional `X-AgentRaaS-Run-Id` header halts a tool call that's been repeated too many times with no state change, so a misbehaving agent stops itself instead of hammering a downstream API
+- [x] State Checkpointing — an optional `X-AgentRaaS-Step-Id` (alongside Run-Id) replays a completed step's exact result instead of re-executing it, so a retried multi-step task resumes past what already succeeded
+- [x] Semantic/entity-level idempotency keys — a dedup rule can set its own dedup window (instead of the 24h default) and normalize field values (trim/case-fold/numeric-coerce) so trivially different-looking duplicates still count as one
+- [x] Experimental Rust rewrite of the API gateway (`src/api-gateway-rs`) — opt-in, same Postgres/Redis as the Node service, start it with `podman-compose --profile rust up -d ar-api-rs` (port 13001); not started by a bare `podman-compose up -d`
+- [ ] Publish the JS SDK and n8n community node to npm
 - [ ] Resolve n8n community-node live-registration issue and get it listed in the n8n community nodes directory
 - [ ] CLI local tunneling / local dev relay (ngrok-style) — scoped but not started; this is a separate hosted relay service, not an addition to the existing proxy, see the discussion in this repo's history for what it'd need
 
@@ -256,11 +281,12 @@ AgentRaaS uses a custom **fair-code / source-available license** — see
 This is not an OSI-approved open-source license — it's modeled on n8n's
 Sustainable Use License.
 
-`src/core/*` (the code above the line) is MIT/Apache-2.0 — genuinely open.
-`src/ee/*` (Enterprise: SSO, RBAC, HMAC, DLP, distributed rate limiting) is
-source-available under a separate commercial license, required for
-production use beyond a trial. See [RESTRUCTURE_PLAN.md](./RESTRUCTURE_PLAN.md)
-for the full core/ee split and how pricing tiers map onto it.
+Everything in this repo is MIT/Apache-2.0 — genuinely open. The
+Agency/Enterprise-only pieces (SSO, RBAC, HMAC, DLP, distributed rate
+limiting, tool output sanitization) aren't a flag or a config toggle —
+their source simply isn't included here, and lives under a separate
+commercial license in the private edition. See [LICENSE.md](./LICENSE.md)
+for the full terms.
 
 ---
 
