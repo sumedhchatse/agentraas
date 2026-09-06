@@ -129,6 +129,17 @@ services:
       REDIS_URL: redis://ar-redis:6379
       JWT_SECRET: "${JWT_SECRET}"
       CREDENTIALS_ENCRYPTION_KEY: "${CREDENTIALS_ENCRYPTION_KEY}"
+      # Was missing entirely until 2026-09-06: with no SMTP_HOST, `Mailer::
+      # is_configured()` is always false, so every registration/password-
+      # reset response unconditionally included a working dev_verify_url —
+      # on production this meant real verification emails were silently
+      # never sent via this service, mirroring ar-api's own SMTP_* block above.
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      EXPOSE_DEV_VERIFY_URL: "${EXPOSE_DEV_VERIFY_URL:-false}"
     ports:
       - "127.0.0.1:13001:3000"
     volumes:
