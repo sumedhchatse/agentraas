@@ -49,6 +49,13 @@ pub async fn get_effective_validation_rule(
 
 pub struct EffectiveDedupRule {
     pub fields: Vec<String>,
+    /// Semantic/Entity-Level Idempotency Keys: an optional rule-specific
+    /// dedup window (e.g. 15 minutes) instead of the 24h system default.
+    pub ttl_seconds: Option<i64>,
+    /// Whether to normalize each key field's value (trim/lowercase/
+    /// numeric-coerce) before hashing, so trivially different-looking
+    /// values for the same field still count as a duplicate.
+    pub normalize: bool,
 }
 
 /// No static fallback — every action defaults to whole-payload-hash dedup
@@ -59,16 +66,25 @@ pub async fn get_effective_dedup_rule(
     service: &str,
     action: &str,
 ) -> Result<Option<EffectiveDedupRule>, sqlx::Error> {
-    let fields: Option<Value> = sqlx::query_scalar(
-        "SELECT fields FROM custom_dedup_rules WHERE org_id = $1 AND service = $2 AND action = $3",
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        fields: Value,
+        ttl_seconds: Option<i32>,
+        normalize: bool,
+    }
+    let row: Option<Row> = sqlx::query_as(
+        "SELECT fields, ttl_seconds, normalize FROM custom_dedup_rules WHERE org_id = $1 AND service = $2 AND action = $3",
     )
     .bind(org_id)
     .bind(service)
     .bind(action)
     .fetch_optional(pg)
     .await?;
-    Ok(fields.map(|f| EffectiveDedupRule {
-        fields: f
+    Ok(row.map(|row| EffectiveDedupRule {
+        ttl_seconds: row.ttl_seconds.map(i64::from),
+        normalize: row.normalize,
+        fields: row
+            .fields
             .as_array()
             .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
             .unwrap_or_default(),

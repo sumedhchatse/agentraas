@@ -69,17 +69,45 @@ pub fn hash_only(payload: &Value) -> String {
     sha256_hex(&serde_json::to_string(payload).expect("serializing a hash input never fails"))
 }
 
+/// Collapses trivial formatting/type differences in a single field's value
+/// so e.g. `"amount": 100`, `100.0`, and `"100"` all hash identically, and
+/// `" Jane "`/`"jane"`/`"Jane"` do too — the "ignoring trivial LLM
+/// parameter variations" half of Semantic/Entity-Level Idempotency Keys.
+/// Opt-in per rule (see `normalize` below); composite types are left as-is
+/// rather than guessed at.
+fn normalize_value(v: &Value) -> Value {
+    match v {
+        Value::String(s) => Value::String(s.trim().to_lowercase()),
+        Value::Number(n) => {
+            let canonical = if let Some(i) = n.as_i64() {
+                i.to_string()
+            } else if let Some(u) = n.as_u64() {
+                u.to_string()
+            } else if let Some(f) = n.as_f64() {
+                if f.fract() == 0.0 { (f as i64).to_string() } else { f.to_string() }
+            } else {
+                return v.clone();
+            };
+            Value::String(canonical)
+        }
+        other => other.clone(),
+    }
+}
+
 /// Per-field dedup mode (the Dedup Rules feature): dedupe on a configured
 /// subset of the payload's own fields instead of the whole payload or a
 /// client-supplied key. Field names are sorted before hashing so the key is
 /// stable regardless of the order the rule's fields were configured in;
-/// missing fields hash as `null` rather than being skipped.
+/// missing fields hash as `null` rather than being skipped. `normalize`
+/// applies `normalize_value` to each field's value first (opt-in per rule —
+/// off preserves the original byte-exact-match behavior).
 pub fn hash_field_values(
     api_key: &str,
     service: &str,
     action: &str,
     payload: &Value,
     fields: &[String],
+    normalize: bool,
 ) -> String {
     let mut sorted_fields = fields.to_vec();
     sorted_fields.sort();
@@ -89,10 +117,11 @@ pub fn hash_field_values(
     // sorted order in both implementations, so a plain sorted map is fine
     // here (unlike `payload` above, this one doesn't need to preserve an
     // externally-supplied order).
-    let mut values: BTreeMap<&str, &Value> = BTreeMap::new();
+    let mut values: BTreeMap<&str, Value> = BTreeMap::new();
     static NULL: Value = Value::Null;
     for f in &sorted_fields {
-        values.insert(f.as_str(), payload.get(f).unwrap_or(&NULL));
+        let raw = payload.get(f).unwrap_or(&NULL);
+        values.insert(f.as_str(), if normalize { normalize_value(raw) } else { raw.clone() });
     }
 
     #[derive(Serialize)]
@@ -101,7 +130,7 @@ pub fn hash_field_values(
         api_key: &'a str,
         service: &'a str,
         action: &'a str,
-        fields: &'a BTreeMap<&'a str, &'a Value>,
+        fields: &'a BTreeMap<&'a str, Value>,
     }
     let input = Input {
         api_key,
@@ -126,12 +155,23 @@ pub async fn claim_dedup_slot(
     conn: &mut redis::aio::MultiplexedConnection,
     dedup_hash: &str,
 ) -> redis::RedisResult<ClaimResult> {
+    claim_dedup_slot_with_ttl(conn, dedup_hash, None).await
+}
+
+/// Same as `claim_dedup_slot`, but honors a dedup rule's own configured
+/// window (Semantic/Entity-Level Idempotency Keys' rolling-window
+/// setting) instead of always using the 24h system default.
+pub async fn claim_dedup_slot_with_ttl(
+    conn: &mut redis::aio::MultiplexedConnection,
+    dedup_hash: &str,
+    ttl_seconds: Option<i64>,
+) -> redis::RedisResult<ClaimResult> {
     let key = format!("dedup:{dedup_hash}");
     let claimed: Option<String> = redis::cmd("SET")
         .arg(&key)
         .arg(r#"{"pending":true}"#)
         .arg("EX")
-        .arg(DEDUP_TTL_SECONDS)
+        .arg(ttl_seconds.unwrap_or(DEDUP_TTL_SECONDS))
         .arg("NX")
         .query_async(conn)
         .await?;
@@ -154,12 +194,25 @@ pub async fn complete_dedup_slot(
     key: &str,
     result: &Value,
 ) -> redis::RedisResult<()> {
+    complete_dedup_slot_with_ttl(conn, key, result, None).await
+}
+
+/// Same as `complete_dedup_slot`, but honors a dedup rule's own configured
+/// window — must match whatever TTL `claim_dedup_slot_with_ttl` used for
+/// this same key, so the slot doesn't outlive (or undershoot) the rule's
+/// intended dedup window.
+pub async fn complete_dedup_slot_with_ttl(
+    conn: &mut redis::aio::MultiplexedConnection,
+    key: &str,
+    result: &Value,
+    ttl_seconds: Option<i64>,
+) -> redis::RedisResult<()> {
     let serialized = serde_json::to_string(result).expect("result is always valid JSON");
     let _: () = redis::cmd("SET")
         .arg(key)
         .arg(serialized)
         .arg("EX")
-        .arg(DEDUP_TTL_SECONDS)
+        .arg(ttl_seconds.unwrap_or(DEDUP_TTL_SECONDS))
         .query_async(conn)
         .await?;
     Ok(())

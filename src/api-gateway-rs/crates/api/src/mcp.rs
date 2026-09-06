@@ -223,12 +223,13 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     let dedup_hash = if let Some(idem) = &idempotency_key {
         dedup::hash_idempotency_key(&api_key, &resolved_service_name, &resolved_action_name, idem)
     } else if let Some(rule) = &dedup_field_rule {
-        dedup::hash_field_values(&api_key, &resolved_service_name, &resolved_action_name, &payload, &rule.fields)
+        dedup::hash_field_values(&api_key, &resolved_service_name, &resolved_action_name, &payload, &rule.fields, rule.normalize)
     } else {
         dedup::hash_payload(&api_key, &resolved_service_name, &resolved_action_name, &payload)
     };
+    let dedup_ttl_seconds = dedup_field_rule.as_ref().and_then(|r| r.ttl_seconds);
 
-    let Ok(claim) = dedup::claim_dedup_slot(&mut conn, &dedup_hash).await else {
+    let Ok(claim) = dedup::claim_dedup_slot_with_ttl(&mut conn, &dedup_hash, dedup_ttl_seconds).await else {
         return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
     };
 
@@ -315,7 +316,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             if let (Some(_), Value::Object(ref mut map)) = (&idempotency_key, &mut stored) {
                 map.insert("__payloadDigest".to_string(), Value::String(payload_digest.clone()));
             }
-            let _ = dedup::complete_dedup_slot(&mut conn, &claim.key, &stored).await;
+            let _ = dedup::complete_dedup_slot_with_ttl(&mut conn, &claim.key, &stored, dedup_ttl_seconds).await;
             if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
                 let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
                 let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored).await;
