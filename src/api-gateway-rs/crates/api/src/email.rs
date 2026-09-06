@@ -23,12 +23,18 @@ impl Mailer {
         let from = std::env::var("SMTP_FROM")
             .unwrap_or_else(|_| "AgentRaaS <no-reply@agentraas.local>".to_string());
 
-        let Ok(host) = std::env::var("SMTP_HOST") else {
+        // `unwrap_or_default` + `is_empty` (not just `Ok(_)`) because compose's
+        // `${SMTP_HOST:-}` interpolation sets the var to an empty string rather
+        // than leaving it unset when `.env` doesn't define it — matching
+        // Node's `SMTP_HOST ? ... : undefined` falsy-string check in server.js,
+        // which a plain `Ok(host)` match here does not.
+        let host = std::env::var("SMTP_HOST").unwrap_or_default();
+        if host.is_empty() {
             return Self {
                 transport: None,
                 from,
             };
-        };
+        }
 
         let port: u16 = std::env::var("SMTP_PORT")
             .ok()
