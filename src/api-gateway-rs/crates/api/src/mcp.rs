@@ -14,14 +14,90 @@ use serde_json::{json, Value};
 
 use crate::agent::db::{
     check_usage_limit, get_effective_dedup_rule, get_effective_rate_limit,
-    get_effective_validation_rule, increment_monthly_usage, log_audit, resolve_custom_route,
-    verify_api_key, ResolvedRoute,
+    get_effective_validation_rule, get_org_validation_overrides, increment_monthly_usage, log_audit,
+    resolve_custom_route, resolve_org_from_api_key, verify_api_key, ResolvedRoute,
 };
 use crate::agent::forward::{forward_with_retry, log_circuit_transition};
 use crate::state::SharedState;
 
 pub fn router() -> Router<SharedState> {
     Router::new().route("/mcp", post(handle_mcp))
+}
+
+/// Translates a validation-rule-definition object (the shared shape used by
+/// both `config/services.json`'s static `validation` blocks and
+/// `custom_validation_rules.fields` — `{field: {type, required, min, max,
+/// minLength, maxLength, format, enum}}`, see `validator::validate_fields`
+/// for the enforced semantics this must stay in sync with) into a real JSON
+/// Schema `payload` property, instead of the generic `{type: "object"}`
+/// placeholder every tool previously advertised regardless of what it
+/// actually accepts.
+fn build_payload_schema(fields: &Value) -> Value {
+    let Some(obj) = fields.as_object() else {
+        return json!({ "type": "object", "description": "Request payload" });
+    };
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    for (name, rules) in obj {
+        let is_array = rules.get("type").and_then(Value::as_str) == Some("array");
+        let mut prop = serde_json::Map::new();
+        for key in ["type", "format", "enum"] {
+            if let Some(v) = rules.get(key) {
+                prop.insert(key.to_string(), v.clone());
+            }
+        }
+        if let Some(v) = rules.get("min") {
+            prop.insert("minimum".to_string(), v.clone());
+        }
+        if let Some(v) = rules.get("max") {
+            prop.insert("maximum".to_string(), v.clone());
+        }
+        // `minLength` means item count on an array rule, character count on
+        // a string one (see validate_fields) — JSON Schema has separate
+        // keywords for each, `maxLength` is string-only in practice today.
+        if let Some(v) = rules.get("minLength") {
+            prop.insert(if is_array { "minItems" } else { "minLength" }.to_string(), v.clone());
+        }
+        if let Some(v) = rules.get("maxLength") {
+            prop.insert("maxLength".to_string(), v.clone());
+        }
+        properties.insert(name.clone(), Value::Object(prop));
+        if rules.get("required").and_then(Value::as_bool).unwrap_or(false) {
+            required.push(json!(name));
+        }
+    }
+    let mut schema = json!({
+        "type": "object",
+        "description": "Request payload",
+        "properties": properties,
+    });
+    if !required.is_empty() {
+        schema["required"] = json!(required);
+    }
+    schema
+}
+
+/// Builds one MCP tool's advertised definition — shared by the curated
+/// startup baseline (`main.rs`, using `config/services.json`'s static
+/// validation) and `tools/list`'s per-org path above (using that org's
+/// `custom_validation_rules` override where one exists), so both stay in
+/// sync via the same code rather than two hand-maintained schema shapes.
+pub fn build_tool_entry(tool_name: &str, svc_name: &str, act_name: &str, validation_fields: &Value) -> Value {
+    json!({
+        "name": tool_name,
+        "description": format!("AgentRaaS-protected {svc_name} {act_name}"),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "payload": build_payload_schema(validation_fields),
+                "org_id": { "type": "string", "description": "Organization ID" },
+                "idempotency_key": { "type": "string", "description": "Optional — dedupe on this key instead of the exact payload bytes, so you control what counts as a retry of the same operation. Reusing the key with a genuinely different payload is rejected (not silently applied), matching Stripe-style idempotency keys." },
+                "run_id": { "type": "string", "description": "Optional — a stable identifier for the current multi-step task. If the same run_id calls this same tool too many times in a row, the call is halted with a structured message instead of executing again, to catch an agent stuck in a loop." },
+                "step_id": { "type": "string", "description": "Optional, used with run_id — a stable identifier for this specific step (e.g. \"fetch-invoice\"). If this exact run_id+step_id already completed, the saved result is returned immediately instead of executing again — lets a retried task automatically resume past whatever steps already succeeded." },
+            },
+            "required": ["payload"],
+        },
+    })
 }
 
 fn generate_request_id() -> String {
@@ -67,7 +143,40 @@ async fn handle_mcp(
     }
 
     if method == "tools/list" {
-        return (StatusCode::OK, Json(json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": state.mcp_tools_list } })));
+        let api_key = headers.get("x-agentraas-key").and_then(|v| v.to_str().ok()).unwrap_or("");
+        let org_id = match resolve_org_from_api_key(&state.pg, api_key).await {
+            Ok(org_id) => org_id,
+            Err(err) => {
+                tracing::error!(?err, "resolve_org_from_api_key failed, falling back to curated tools/list");
+                None
+            }
+        };
+        let Some(org_id) = org_id else {
+            // No key, an invalid key, or a lookup error — same curated,
+            // precomputed list every MCP client got before this feature,
+            // zero extra DB work.
+            return (StatusCode::OK, Json(json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": state.mcp_tools_list } })));
+        };
+        let overrides = match get_org_validation_overrides(&state.pg, &org_id).await {
+            Ok(overrides) => overrides,
+            Err(err) => {
+                tracing::error!(?err, org_id, "get_org_validation_overrides failed, falling back to curated tools/list");
+                return (StatusCode::OK, Json(json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": state.mcp_tools_list } })));
+            }
+        };
+        let empty = Value::Object(Default::default());
+        let tools: Vec<Value> = state
+            .tool_name_to_route
+            .iter()
+            .map(|(tool_name, (svc_name, act_name))| {
+                let fields = overrides
+                    .get(&(svc_name.clone(), act_name.clone()))
+                    .or_else(|| state.service_routes.get(&format!("{svc_name}.{act_name}")).map(|r| &r.validation))
+                    .unwrap_or(&empty);
+                build_tool_entry(tool_name, svc_name, act_name, fields)
+            })
+            .collect();
+        return (StatusCode::OK, Json(json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": tools } })));
     }
 
     if method == "tools/call" {

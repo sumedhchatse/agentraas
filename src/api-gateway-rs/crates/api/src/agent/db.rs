@@ -157,6 +157,46 @@ pub struct ApiKeyVerification {
 /// for this org_id/agent_id, there's nothing to enforce against and the
 /// request passes. Once at least one key exists for the pair, a valid
 /// matching key becomes required.
+/// Resolves the owning org from a raw API key alone, with no org_id/agent_id
+/// supplied up front — unlike `verify_api_key` (used by webhook/SDK/MCP
+/// `tools/call`, where the caller already states which org they're acting
+/// as). Needed for MCP `tools/list`: it has no per-call arguments at all
+/// (it's not a tool invocation), so the only signal available is whatever
+/// key the client sends on every request to `/mcp`, same header
+/// `tools/call` reads. Same hash+prefix scheme as `verify_api_key`.
+pub async fn resolve_org_from_api_key(pg: &PgPool, provided_key: &str) -> Result<Option<String>, sqlx::Error> {
+    if provided_key.is_empty() || provided_key == "anonymous" {
+        return Ok(None);
+    }
+    let prefix: String = provided_key.chars().take(16).collect();
+    let hash = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(provided_key.as_bytes());
+        hex::encode(hasher.finalize())
+    };
+    sqlx::query_scalar("SELECT org_id FROM api_keys WHERE key_prefix=$1 AND key_hash=$2 AND revoked_at IS NULL")
+        .bind(&prefix)
+        .bind(&hash)
+        .fetch_optional(pg)
+        .await
+}
+
+/// Every org-specific validation-rule override in one query, keyed by
+/// (service, action) — used by MCP `tools/list` to build a per-org schema
+/// without one DB round trip per tool (there are ~29 curated tools).
+pub async fn get_org_validation_overrides(
+    pg: &PgPool,
+    org_id: &str,
+) -> Result<std::collections::HashMap<(String, String), Value>, sqlx::Error> {
+    let rows: Vec<(String, String, Value)> =
+        sqlx::query_as("SELECT service, action, fields FROM custom_validation_rules WHERE org_id = $1")
+            .bind(org_id)
+            .fetch_all(pg)
+            .await?;
+    Ok(rows.into_iter().map(|(service, action, fields)| ((service, action), fields)).collect())
+}
+
 pub async fn verify_api_key(
     pg: &PgPool,
     provided_key: &str,
