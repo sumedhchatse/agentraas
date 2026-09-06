@@ -82,21 +82,13 @@ async fn main() -> anyhow::Result<()> {
         for act_name in svc.actions.keys() {
             let tool_name = format!("{svc_name}_{}", act_name.replace('.', "_"));
             tool_name_to_route.insert(tool_name.clone(), (svc_name.clone(), act_name.clone()));
-            tools.push(serde_json::json!({
-                "name": tool_name,
-                "description": format!("AgentRaaS-protected {svc_name} {act_name}"),
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "payload": { "type": "object", "description": "Request payload" },
-                        "org_id": { "type": "string", "description": "Organization ID" },
-                        "idempotency_key": { "type": "string", "description": "Optional — dedupe on this key instead of the exact payload bytes, so you control what counts as a retry of the same operation. Reusing the key with a genuinely different payload is rejected (not silently applied), matching Stripe-style idempotency keys." },
-                        "run_id": { "type": "string", "description": "Optional — a stable identifier for the current multi-step task. If the same run_id calls this same tool too many times in a row, the call is halted with a structured message instead of executing again, to catch an agent stuck in a loop." },
-                        "step_id": { "type": "string", "description": "Optional, used with run_id — a stable identifier for this specific step (e.g. \"fetch-invoice\"). If this exact run_id+step_id already completed, the saved result is returned immediately instead of executing again — lets a retried task automatically resume past whatever steps already succeeded." },
-                    },
-                    "required": ["payload"],
-                },
-            }));
+            // Curated baseline: config/services.json's own validation block
+            // for this action, or an empty schema if it doesn't declare one
+            // (mirrors get_effective_validation_rule's fallback). tools/list
+            // layers an org's custom_validation_rules override on top of
+            // this same builder at request time — see mcp.rs.
+            let validation = &svc.actions[act_name].validation;
+            tools.push(mcp::build_tool_entry(&tool_name, svc_name, act_name, validation));
         }
     }
     let mcp_tools_list = serde_json::json!(tools);
