@@ -29,6 +29,16 @@ struct RuleBody {
     service: Option<String>,
     action: Option<String>,
     fields: Value,
+    /// Dedup rules only (Semantic/Entity-Level Idempotency Keys) — an
+    /// optional rule-specific dedup window in seconds, e.g. 900 for a
+    /// rolling 15-minute window, instead of the 24h system default.
+    /// Ignored by validation rules.
+    ttl_seconds: Option<i64>,
+    /// Dedup rules only — normalize each key field's value (trim/
+    /// lowercase/numeric-coerce) before hashing, so trivially
+    /// different-looking values still count as the same entity. Ignored
+    /// by validation rules.
+    normalize: Option<bool>,
 }
 
 fn validate_identity(org_id: &Option<String>, service: &Option<String>, action: &Option<String>) -> Result<(String, String, String), ApiError> {
@@ -169,6 +179,16 @@ async fn create_dedup_rule(
     if let Some(err) = is_valid_dedup_rule_definition(&body.fields) {
         return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, err));
     }
+    // Semantic/Entity-Level Idempotency Keys: an explicit window overrides the
+    // 24h system default (`DEDUP_TTL_SECONDS` in `dedup.rs`) — bounded to
+    // [1 second, 7 days] so a typo can't wedge a rule open indefinitely or
+    // make it dedupe nothing at all.
+    if let Some(ttl) = body.ttl_seconds {
+        if !(1..=604_800).contains(&ttl) {
+            return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "ttl_seconds must be between 1 and 604800 (7 days)."));
+        }
+    }
+    let normalize = body.normalize.unwrap_or(false);
 
     #[derive(sqlx::FromRow)]
     struct Row {
@@ -177,25 +197,33 @@ async fn create_dedup_rule(
         service: String,
         action: String,
         fields: Value,
+        ttl_seconds: Option<i32>,
+        normalize: bool,
         updated_at: chrono::DateTime<chrono::Utc>,
     }
     let row = sqlx::query_as::<_, Row>(
-        "INSERT INTO custom_dedup_rules (org_id, service, action, fields, created_by)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (org_id, service, action) DO UPDATE SET fields = EXCLUDED.fields, updated_at = NOW()
-         RETURNING id, org_id, service, action, fields, updated_at",
+        "INSERT INTO custom_dedup_rules (org_id, service, action, fields, ttl_seconds, normalize, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (org_id, service, action) DO UPDATE SET
+             fields = EXCLUDED.fields, ttl_seconds = EXCLUDED.ttl_seconds, normalize = EXCLUDED.normalize, updated_at = NOW()
+         RETURNING id, org_id, service, action, fields, ttl_seconds, normalize, updated_at",
     )
     .bind(&org_id)
     .bind(&service)
     .bind(&action)
     .bind(&body.fields)
+    .bind(body.ttl_seconds.map(|t| t as i32))
+    .bind(normalize)
     .bind(user.sub)
     .fetch_one(&state.pg)
     .await?;
 
     Ok(Json(json!({
         "saved": true,
-        "rule": { "id": row.id, "org_id": row.org_id, "service": row.service, "action": row.action, "fields": row.fields, "updated_at": row.updated_at }
+        "rule": {
+            "id": row.id, "org_id": row.org_id, "service": row.service, "action": row.action,
+            "fields": row.fields, "ttl_seconds": row.ttl_seconds, "normalize": row.normalize, "updated_at": row.updated_at
+        }
     })))
 }
 
@@ -212,11 +240,13 @@ async fn list_dedup_rules(State(state): State<SharedState>, user: AuthUser) -> R
         service: String,
         action: String,
         fields: Value,
+        ttl_seconds: Option<i32>,
+        normalize: bool,
         created_at: chrono::DateTime<chrono::Utc>,
         updated_at: chrono::DateTime<chrono::Utc>,
     }
     let rows = sqlx::query_as::<_, Row>(
-        "SELECT id, org_id, service, action, fields, created_at, updated_at
+        "SELECT id, org_id, service, action, fields, ttl_seconds, normalize, created_at, updated_at
          FROM custom_dedup_rules WHERE org_id = ANY($1) ORDER BY updated_at DESC",
     )
     .bind(&org_ids)
@@ -224,7 +254,10 @@ async fn list_dedup_rules(State(state): State<SharedState>, user: AuthUser) -> R
     .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|r| json!({ "id": r.id, "org_id": r.org_id, "service": r.service, "action": r.action, "fields": r.fields, "created_at": r.created_at, "updated_at": r.updated_at }))
+            .map(|r| json!({
+                "id": r.id, "org_id": r.org_id, "service": r.service, "action": r.action, "fields": r.fields,
+                "ttl_seconds": r.ttl_seconds, "normalize": r.normalize, "created_at": r.created_at, "updated_at": r.updated_at
+            }))
             .collect(),
     ))
 }

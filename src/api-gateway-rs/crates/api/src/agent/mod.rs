@@ -400,15 +400,16 @@ async fn handle_request(
     let dedup_hash = if let Some(idem) = &idempotency_key {
         dedup::hash_idempotency_key(&api_key, &service, &action, idem)
     } else if let Some(rule) = &dedup_field_rule {
-        dedup::hash_field_values(&api_key, &service, &action, &payload, &rule.fields)
+        dedup::hash_field_values(&api_key, &service, &action, &payload, &rule.fields, rule.normalize)
     } else {
         dedup::hash_payload(&api_key, &service, &action, &payload)
     };
+    let dedup_ttl_seconds = dedup_field_rule.as_ref().and_then(|r| r.ttl_seconds);
 
     let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await else {
         return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
     };
-    let claim = match dedup::claim_dedup_slot(&mut conn, &dedup_hash).await {
+    let claim = match dedup::claim_dedup_slot_with_ttl(&mut conn, &dedup_hash, dedup_ttl_seconds).await {
         Ok(c) => c,
         Err(err) => {
             tracing::error!(?err, "claim_dedup_slot failed");
@@ -524,7 +525,7 @@ async fn handle_request(
                 let _ = idem;
                 map.insert("__payloadDigest".to_string(), Value::String(payload_digest.clone()));
             }
-            let _ = dedup::complete_dedup_slot(&mut conn, &claim.key, &stored).await;
+            let _ = dedup::complete_dedup_slot_with_ttl(&mut conn, &claim.key, &stored, dedup_ttl_seconds).await;
             if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
                 let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
                 let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored).await;
