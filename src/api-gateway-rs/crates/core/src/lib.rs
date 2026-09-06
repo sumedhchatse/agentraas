@@ -19,6 +19,8 @@ pub mod validator;
 pub mod dlp;
 #[cfg(feature = "enterprise")]
 pub mod hmac_verify;
+#[cfg(feature = "enterprise")]
+pub mod output_sanitize;
 
 /// Constant-time string comparison — used both by Enterprise inbound-
 /// webhook HMAC verification (`hmac_verify`) and by Paddle billing's

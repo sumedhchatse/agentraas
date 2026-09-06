@@ -164,6 +164,20 @@ pub async fn forward_action(
         .cloned()
         .unwrap_or(Value::Null);
 
+    // Tool Output Sanitization (Enterprise, opt-in per org): applied only to
+    // what's actually surfaced to the calling agent below, never to
+    // `upstream_id` above — that's extracted from the real response for
+    // internal tracking/audit and must stay accurate regardless of this
+    // per-org toggle.
+    #[cfg(feature = "enterprise")]
+    let body = if state.enterprise_mode
+        && super::db::is_output_sanitization_enabled(&state.pg, org_id).await.unwrap_or(false)
+    {
+        agentraas_core::output_sanitize::sanitize_output(&body)
+    } else {
+        body
+    };
+
     Ok(json!({
         "service": service_name,
         "action": action_name,
