@@ -16,19 +16,29 @@ pub fn is_valid_header_name(name: &str) -> bool {
         })
 }
 
+fn is_private_or_reserved_v4(v4: &std::net::Ipv4Addr) -> bool {
+    let o = v4.octets();
+    o[0] == 0
+        || o[0] == 127
+        || o[0] == 10
+        || (o[0] == 192 && o[1] == 168)
+        || (o[0] == 169 && o[1] == 254)
+        || (o[0] == 172 && (16..=31).contains(&o[1]))
+        || (o[0] == 100 && (64..=127).contains(&o[1])) // 100.64.0.0/10, carrier-grade NAT
+}
+
 fn is_private_or_reserved_ip(ip: &std::net::IpAddr) -> bool {
     use std::net::IpAddr;
     match ip {
-        IpAddr::V4(v4) => {
-            let o = v4.octets();
-            o[0] == 127
-                || o[0] == 10
-                || (o[0] == 192 && o[1] == 168)
-                || (o[0] == 169 && o[1] == 254)
-                || (o[0] == 172 && (16..=31).contains(&o[1]))
-        }
+        IpAddr::V4(v4) => is_private_or_reserved_v4(v4),
+        // `to_ipv4_mapped()` unwraps `::ffff:a.b.c.d` so an IPv4-mapped
+        // loopback/link-local address (e.g. `::ffff:169.254.169.254`)
+        // can't slip past the IPv6-only loopback/ULA/link-local checks.
         IpAddr::V6(v6) => {
-            v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00 || (v6.segments()[0] & 0xffc0) == 0xfe80
+            v6.is_loopback()
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+                || v6.to_ipv4_mapped().is_some_and(|v4| is_private_or_reserved_v4(&v4))
         }
     }
 }

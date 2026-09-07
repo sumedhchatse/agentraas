@@ -153,7 +153,13 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or(3600),
         mailer: Mailer::from_env(),
         token_bucket: agentraas_core::token_bucket::TokenBucket::new(),
+        // No automatic redirect-following: `validate_target_url` only
+        // checks a custom action / webhook destination once, at
+        // registration time. A destination that later 302s to an internal
+        // address or the cloud metadata service must not have that
+        // response silently fetched and reflected back to the caller.
         http_client: reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("building the shared HTTP client should never fail"),
         cipher,

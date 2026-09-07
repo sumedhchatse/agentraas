@@ -17,8 +17,8 @@ const RUN_ID = Date.now();
 // configured (the state these tests run in), the verify link comes back
 // directly in the register response instead of only being emailed — the
 // same fallback a self-hoster without email set up would get.
-async function registerAndVerify(email, password) {
-  const registerRes = await client.post('/api/v1/auth/register', { email, password });
+async function registerAndVerify(email, password, orgId) {
+  const registerRes = await client.post('/api/v1/auth/register', { email, password, org_id: orgId });
   assert.equal(registerRes.status, 200, `Expected registration to succeed: ${JSON.stringify(registerRes.data)}`);
   assert.ok(registerRes.data.dev_verify_url, 'Expected a dev_verify_url since SMTP is not configured in this test environment');
 
@@ -117,10 +117,10 @@ test('reset-password rejects an invalid/unknown token', async () => {
 // ─── Credentials: encryption round-trip and masking ───
 test('saved credentials are masked in listings, never returned in plaintext', async () => {
   const email = `creds-${RUN_ID}@internal.test`;
-  const sessionCookie = await registerAndVerify(email, 'validpassword123');
+  const orgId = `org_creds_test_${RUN_ID}`;
+  const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
   const authHeaders = { headers: { Cookie: sessionCookie } };
 
-  const orgId = `org_creds_test_${RUN_ID}`;
   const secretValue = 'sk_live_this_is_a_real_secret_value_123456';
 
   const saveRes = await client.post('/api/v1/credentials', {
@@ -139,7 +139,8 @@ test('saved credentials are masked in listings, never returned in plaintext', as
 // ─── Custom Actions: SSRF guard ───
 test('custom action registration rejects a private/internal target URL', async () => {
   const email = `ssrf-${RUN_ID}@internal.test`;
-  const sessionCookie = await registerAndVerify(email, 'validpassword123');
+  const orgId = `org_ssrf_test_${RUN_ID}`;
+  const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
   const authHeaders = { headers: { Cookie: sessionCookie } };
 
   const attempts = [
@@ -151,7 +152,7 @@ test('custom action registration rejects a private/internal target URL', async (
 
   for (const target_url of attempts) {
     const res = await client.post('/api/v1/custom-actions', {
-      org_id: `org_ssrf_test_${RUN_ID}`,
+      org_id: orgId,
       name: `ssrf_probe_${RUN_ID}`,
       method: 'POST',
       target_url,
