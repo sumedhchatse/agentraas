@@ -5,10 +5,11 @@
 //! checkAgencyTenantCap, checkOrgWritePermission, resolveCustomRoute,
 //! logAudit).
 
+use axum::http::StatusCode;
 use serde_json::Value;
 use sqlx::PgPool;
 
-use crate::state::SharedState;
+use crate::state::{ApiError, SharedState};
 
 pub struct EffectiveValidationRule {
     pub fields: Value,
@@ -464,6 +465,57 @@ pub async fn check_org_write_permission(pg: &PgPool, user_id: i32, org_id: &str)
         .fetch_optional(pg)
         .await?;
     Ok(is_owner.is_some())
+}
+
+/// Tier resolution — cloud reads `users.plan` for the org's owning user
+/// directly (same "owner" model as `check_org_write_permission` above).
+/// Self-host has no billing DB to query, so it reads the cached,
+/// already-verified license tier instead (`state.license_tier`, kept
+/// current by a background task started in `main.rs` — see
+/// `agentraas_core::license`). Never errors: an org with no matching
+/// row, or a stale/unrecognized plan string, resolves to
+/// `Tier::Community` rather than blocking the caller, and so does a
+/// self-host deployment with no (or an invalid/expired) license.
+///
+/// Not called from the Community binary yet — its callers today are all
+/// inside `ee/`-gated code (still Cargo-feature-gated exactly as before;
+/// only the *runtime* check moved from a single on/off switch to a
+/// graduated tier). Phase 7's dashboard UI (showing an org's own tier)
+/// will be its first Community-reachable caller.
+#[allow(dead_code)]
+pub async fn effective_tier(state: &SharedState, org_id: &str) -> agentraas_core::tier::Tier {
+    if state.deployment_mode != "cloud" {
+        return *state.license_tier.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    }
+    let plan: Option<String> = sqlx::query_scalar("SELECT plan FROM users WHERE org_id = $1")
+        .bind(org_id)
+        .fetch_optional(&state.pg)
+        .await
+        .ok()
+        .flatten();
+    plan.as_deref().map(agentraas_core::tier::Tier::from_plan_str).unwrap_or(agentraas_core::tier::Tier::Community)
+}
+
+/// Runtime replacement for `require_enterprise_mode` on features that
+/// moved from pure Enterprise gating to a graduated tier (HITL → Pro+,
+/// Inbound Webhooks → Agency+). These stay exactly as `ee/`-gated as
+/// before — Community self-hosters (the public repo) never compile them
+/// in either way, so nothing here needs to be reachable from the
+/// Community binary. What changed is only the runtime check *within*
+/// that already-gated code: the whole server's single `enterprise_mode`
+/// switch can't express "Pro can, Community can't," so this checks the
+/// calling org's actual tier instead (cloud: from the billing DB;
+/// self-host: from the cached license). No license, or an invalid/
+/// expired one, correctly gets 403 here — never a silent bypass.
+#[allow(dead_code)]
+pub async fn require_tier(state: &SharedState, org_id: &str, minimum: agentraas_core::tier::Tier) -> Result<(), ApiError> {
+    if effective_tier(state, org_id).await < minimum {
+        return Err(ApiError::new(
+            StatusCode::FORBIDDEN,
+            format!("This feature requires the {minimum:?} plan or higher. Upgrade from the dashboard's Billing panel."),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Clone)]

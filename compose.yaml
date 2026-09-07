@@ -140,6 +140,30 @@ services:
       SMTP_PASS: "${SMTP_PASS:-}"
       SMTP_FROM: "${SMTP_FROM:-}"
       EXPOSE_DEV_VERIFY_URL: "${EXPOSE_DEV_VERIFY_URL:-false}"
+      # Paddle billing is a cloud (agentraas.io) concept, not something a
+      # self-hosted Community deployment normally uses — left wired but
+      # unset by default so billing_checkout_info/paddle_webhook cleanly
+      # 503 "not configured" rather than needing to be compiled out.
+      PADDLE_API_KEY: "${PADDLE_API_KEY:-}"
+      PADDLE_WEBHOOK_SECRET: "${PADDLE_WEBHOOK_SECRET:-}"
+      PADDLE_CLIENT_TOKEN: "${PADDLE_CLIENT_TOKEN:-}"
+      PADDLE_PRO_PRICE_ID: "${PADDLE_PRO_PRICE_ID:-}"
+      PADDLE_AGENCY_PRICE_ID: "${PADDLE_AGENCY_PRICE_ID:-}"
+      PADDLE_ENVIRONMENT: "${PADDLE_ENVIRONMENT:-sandbox}"
+      # Only ever set on agentraas.io itself, never on a self-hosted
+      # image's own .env — this is what signs license tokens for OTHER
+      # deployments. A self-hoster only ever needs LICENSE_TOKEN below
+      # (verification), never this (issuance).
+      LICENSE_SIGNING_PRIVATE_KEY: "${LICENSE_SIGNING_PRIVATE_KEY:-}"
+      # DEPLOYMENT_MODE drives the dashboard's cloud-vs-self-hosted UI
+      # (e.g. the 24h history limit on the free self-host tier).
+      # LICENSE_TOKEN is what a paying self-hoster pastes in from the
+      # dashboard's license panel — this Community build has no
+      # Pro/Agency/Enterprise code to unlock either way (see the private
+      # `agentraas-enterprise` repo for that), but the same env var is
+      # wired here so switching to a paid-tier binary later is a drop-in.
+      DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
+      LICENSE_TOKEN: "${LICENSE_TOKEN:-}"
     ports:
       - "127.0.0.1:13001:3000"
     volumes:

@@ -8,6 +8,7 @@ mod dlq;
 mod ee;
 mod email;
 mod health_checks;
+mod licensing;
 mod long_tail;
 mod mcp;
 mod notifications;
@@ -163,8 +164,10 @@ async fn main() -> anyhow::Result<()> {
             .build()
             .expect("building the shared HTTP client should never fail"),
         cipher,
+        license_tier: std::sync::RwLock::new(licensing::initial_tier()),
     });
 
+    licensing::spawn_license_refresh_loop(state.clone());
     health_checks::spawn_health_check_loop(state.clone());
     tokio::task::spawn_blocking(self_host::build_snapshot);
 
@@ -183,9 +186,15 @@ async fn main() -> anyhow::Result<()> {
         .merge(pages::router())
         .merge(self_host::router())
         .merge(pruning_settings::router())
+        .merge(licensing::router())
         .merge(long_tail::router());
     #[cfg(feature = "enterprise")]
-    let app = app.merge(ee::sso::router()).merge(ee::maintenance::router()).merge(ee::inbound_webhooks::router());
+    let app = app
+        .merge(ee::sso::router())
+        .merge(ee::maintenance::router())
+        .merge(ee::inbound_webhooks::router())
+        .merge(ee::output_sanitization::router())
+        .merge(ee::hitl::router());
     let app = app.with_state(state);
 
     let port: u16 = std::env::var("PORT")

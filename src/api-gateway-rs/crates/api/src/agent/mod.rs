@@ -170,10 +170,46 @@ fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
     headers.get(name).and_then(|v| v.to_str().ok()).map(String::from)
 }
 
-type Response = (StatusCode, Json<Value>);
+pub(crate) type Response = (StatusCode, Json<Value>);
 
 fn err_response(status: StatusCode, req_id: &str, message: impl Into<String>) -> Response {
     (status, Json(json!({ "error": message.into(), "reqId": req_id })))
+}
+
+/// Shared by `handle_request` and (once approved) the HITL Gateway's
+/// resume path — both need to turn a service/action into the same
+/// `ResolvedRoute` the exact same way.
+pub(crate) async fn resolve_route(state: &SharedState, org_id: &str, service: &str, action: &str, req_id: &str) -> Result<ResolvedRoute, Response> {
+    let route_key = format!("{service}.{action}");
+    if service == "custom" {
+        match resolve_custom_route(state, org_id, action).await {
+            Ok(Some(r)) => Ok(r),
+            Ok(None) => Err(err_response(
+                StatusCode::BAD_REQUEST,
+                req_id,
+                format!("No custom action named \"{action}\" registered for this org. Register it from the dashboard's Custom Actions panel."),
+            )),
+            Err(err) => {
+                tracing::error!(?err, "resolve_custom_route failed");
+                Err(err_response(StatusCode::INTERNAL_SERVER_ERROR, req_id, "An internal error occurred."))
+            }
+        }
+    } else {
+        match state.service_routes.get(&route_key) {
+            Some(r) => Ok(ResolvedRoute {
+                method: r.method.clone(),
+                url: r.url.clone(),
+                internal: r.internal,
+                auth_type: r.auth_type.clone(),
+                auth_header: r.auth_header.clone(),
+                content_type: r.content_type.clone(),
+                extra_headers: r.extra_headers.clone(),
+                fanout_urls: Vec::new(),
+                credential_key: service.to_string(),
+            }),
+            None => Err(err_response(StatusCode::BAD_REQUEST, req_id, format!("Unknown service.action: {route_key}"))),
+        }
+    }
 }
 
 /// Replays a Pause & Buffer (Enterprise maintenance mode) queued webhook
@@ -227,40 +263,9 @@ async fn handle_request(
     if !is_valid_identifier(&org_id) || !is_valid_identifier(&agent_id) {
         return err_response(StatusCode::BAD_REQUEST, &req_id, "org_id and agent_id must be 1-100 characters, letters/numbers/underscore/hyphen only.");
     }
-    let route_key = format!("{service}.{action}");
-
-    let resolved_route = if service == "custom" {
-        match resolve_custom_route(state, &org_id, &action).await {
-            Ok(Some(r)) => r,
-            Ok(None) => {
-                return err_response(
-                    StatusCode::BAD_REQUEST,
-                    &req_id,
-                    format!("No custom action named \"{action}\" registered for this org. Register it from the dashboard's Custom Actions panel."),
-                )
-            }
-            Err(err) => {
-                tracing::error!(?err, "resolve_custom_route failed");
-                return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
-            }
-        }
-    } else {
-        match state.service_routes.get(&route_key) {
-            Some(r) => ResolvedRoute {
-                method: r.method.clone(),
-                url: r.url.clone(),
-                internal: r.internal,
-                auth_type: r.auth_type.clone(),
-                auth_header: r.auth_header.clone(),
-                content_type: r.content_type.clone(),
-                extra_headers: r.extra_headers.clone(),
-                fanout_urls: Vec::new(),
-                credential_key: service.clone(),
-            },
-            None => {
-                return err_response(StatusCode::BAD_REQUEST, &req_id, format!("Unknown service.action: {route_key}"))
-            }
-        }
+    let resolved_route = match resolve_route(state, &org_id, &service, &action, &req_id).await {
+        Ok(r) => r,
+        Err(resp) => return resp,
     };
 
     match verify_api_key(&state.pg, &api_key, &org_id, &agent_id).await {
@@ -516,6 +521,32 @@ async fn handle_request(
             &req_id,
             format!("Monthly usage limit reached ({}/{} actions this month). Contact support@agentraas.io to upgrade.", usage.count, usage.limit),
         );
+    }
+
+    // Stateful Human-in-the-Loop (HITL) Gateway — the last gate before an
+    // action that actually costs money/does something irreversible
+    // fires. Webhook-only (an SDK/MCP caller is waiting synchronously and
+    // has no notion of "come back later"), same scope limit as Pause &
+    // Buffer above. The dedup slot claimed above is deliberately left
+    // pending on freeze — see `ee::hitl` module doc.
+    //
+    // Pro+ (not "enterprise_mode on", which was the old server-wide
+    // switch, independent of any org's actual plan) — checked here, not
+    // just at rule-creation time, so a rule created while on Pro stops
+    // firing the moment the org drops back to Community, without needing
+    // to delete the rule itself.
+    #[cfg(feature = "enterprise")]
+    if matches!(source, Source::Webhook) && db::effective_tier(state, &org_id).await >= agentraas_core::tier::Tier::Pro {
+        match crate::ee::hitl::match_rule(&state.pg, &org_id, &service, &action, &payload).await {
+            Ok(Some(rule)) => {
+                return crate::ee::hitl::freeze_and_notify(
+                    state, &req_id, &org_id, &agent_id, &api_key, &service, &action, &payload, &dedup_hash, dedup_ttl_seconds, rule,
+                )
+                .await;
+            }
+            Ok(None) => {}
+            Err(err) => tracing::error!(?err, "hitl match_rule failed"),
+        }
     }
 
     match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key).await {

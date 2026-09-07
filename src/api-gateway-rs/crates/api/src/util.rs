@@ -6,6 +6,17 @@ pub fn iso_now() -> String {
     chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
 
+/// `std::env::var` treats a present-but-empty variable as `Ok("")`, not
+/// absent — compose.yaml declares every optional secret/config var with
+/// a `${VAR:-}` default, so an unset one still arrives as an empty
+/// string inside the container, not genuinely missing. Both must read as
+/// "not configured" everywhere a "is this deployment set up for X" check
+/// happens (Paddle billing in `long_tail.rs`, license signing in
+/// `licensing.rs`, and anywhere else this pattern shows up next).
+pub fn configured_env(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.is_empty())
+}
+
 /// Header names, per RFC 7230 token chars (no spaces/colons) — mirrors
 /// `isValidHeaderName` in `server.js`.
 pub fn is_valid_header_name(name: &str) -> bool {
