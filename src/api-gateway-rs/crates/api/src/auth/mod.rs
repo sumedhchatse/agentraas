@@ -88,6 +88,35 @@ pub fn is_valid_action_name(value: &str) -> bool {
 const LOGIN_ATTEMPT_LIMIT: i64 = 10;
 const LOGIN_ATTEMPT_WINDOW_SECONDS: i64 = 15 * 60;
 
+// Registration had no rate limit at all until this was added — unlike
+// login, there's no known email to key on (a bot generates a fresh one
+// every attempt, which is the actual threat this defends against), so
+// this is IP-only and can't use login's per-(ip,email) bucketing. That
+// makes it much easier to hit accidentally from a shared IP: this
+// project's own regression suite alone registers 20+ accounts per full
+// run (sso.test.js's registerAndVerify() helper is called ~10 times by
+// itself) from one local IP, and a real office/VPN NAT sees the same
+// shared-IP pattern from real distinct users. Sized to comfortably
+// absorb a couple of full local suite runs per hour while still being a
+// real throttle against bulk signup (still gated by required email
+// verification before an account is useful either way).
+const REGISTER_ATTEMPT_LIMIT: i64 = 40;
+const REGISTER_ATTEMPT_WINDOW_SECONDS: i64 = 60 * 60;
+
+pub async fn check_register_rate_limit(redis: &redis::Client, ip: &str) -> Result<bool, ApiError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let key = format!("registerlimit:{ip}");
+    let attempts: i64 = redis::cmd("INCR").arg(&key).query_async(&mut conn).await?;
+    if attempts == 1 {
+        let _: () = redis::cmd("EXPIRE")
+            .arg(&key)
+            .arg(REGISTER_ATTEMPT_WINDOW_SECONDS)
+            .query_async(&mut conn)
+            .await?;
+    }
+    Ok(attempts <= REGISTER_ATTEMPT_LIMIT)
+}
+
 /// Same non-atomic INCR-then-EXPIRE-on-first pattern as the Node original —
 /// a deliberate compatibility choice (see auth.js's own comment on the
 /// narrow race), not an oversight.
