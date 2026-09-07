@@ -178,6 +178,15 @@ pub async fn forward_action(
         body
     };
 
+    // Tool Result & Context Pruner — Community + Enterprise both get this,
+    // applied after sanitization (order doesn't matter for correctness,
+    // just picking one) and only to what's surfaced to the agent below.
+    let body = if super::db::is_pruning_enabled(&state.pg, org_id).await.unwrap_or(false) {
+        agentraas_core::pruner::prune_output(&body)
+    } else {
+        body
+    };
+
     Ok(json!({
         "service": service_name,
         "action": action_name,
