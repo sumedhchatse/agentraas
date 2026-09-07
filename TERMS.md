@@ -1,6 +1,6 @@
 # AgentRaaS Terms of Service
 
-**Last updated: August 31, 2026**
+**Last updated: September 7, 2026**
 
 These terms apply to your use of AgentRaaS — whether self-hosted or on a
 deployment we operate. Using AgentRaaS means you agree to these terms and
@@ -34,6 +34,13 @@ breaking.
 - **Compliance with the license.** Usage beyond the free tiers described in
   [LICENSE.md](./LICENSE.md), or offering AgentRaaS as a competing hosted
   service, requires a separate commercial agreement.
+- **Paid subscriptions (Pro/Agency).** Billing is handled by Paddle, our
+  payment processor and merchant of record; subscribing means you also
+  agree to [Paddle's terms](https://www.paddle.com/legal/checkout-buyer-terms).
+  A subscription renews automatically each period until you cancel.
+  On a self-hosted deployment, a paid tier's features require applying
+  the license token issued to you — if it lapses or expires without
+  renewal, your deployment falls back to Community automatically.
 
 ## 3. Service availability
 
