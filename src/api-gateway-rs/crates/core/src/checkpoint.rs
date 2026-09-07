@@ -15,7 +15,7 @@
 
 use serde_json::Value;
 
-use crate::dedup::{complete_dedup_slot, read_dedup_slot};
+use crate::dedup::{complete_dedup_slot_with_ttl, read_dedup_slot};
 
 pub fn step_key(run_id: &str, step_id: &str) -> String {
     format!("checkpoint:{run_id}:{step_id}")
@@ -25,6 +25,9 @@ pub async fn read_checkpoint(conn: &mut redis::aio::MultiplexedConnection, key: 
     read_dedup_slot(conn, key).await
 }
 
-pub async fn write_checkpoint(conn: &mut redis::aio::MultiplexedConnection, key: &str, result: &Value) -> redis::RedisResult<()> {
-    complete_dedup_slot(conn, key, result).await
+/// `ttl_seconds` is caller-configurable (`SharedState::checkpoint_ttl_seconds`)
+/// rather than dedup's fixed default — a long-running, HITL-gated run can
+/// easily sit longer than a single-call dedup window ever needs to.
+pub async fn write_checkpoint(conn: &mut redis::aio::MultiplexedConnection, key: &str, result: &Value, ttl_seconds: i64) -> redis::RedisResult<()> {
+    complete_dedup_slot_with_ttl(conn, key, result, Some(ttl_seconds)).await
 }

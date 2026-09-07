@@ -43,6 +43,12 @@ pub struct AppState {
     /// supplies a run_id; unrelated to the per-service circuit breaker.
     pub agent_loop_max_repeats: i64,
     pub agent_run_ttl_seconds: i64,
+    /// How long a completed step's checkpoint survives before a late
+    /// retry would re-execute it instead of getting the cached result —
+    /// see `agentraas_core::checkpoint`. Defaulted to 24h (matching
+    /// dedup's own default) rather than tied to it, since a long-running
+    /// HITL-gated run can easily outlive that window otherwise.
+    pub checkpoint_ttl_seconds: i64,
 
     pub mailer: Mailer,
     pub token_bucket: agentraas_core::token_bucket::TokenBucket,

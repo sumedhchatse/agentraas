@@ -671,11 +671,13 @@ pub async fn log_audit(
     payload_hash: Option<&str>,
     enterprise_mode: bool,
     raw_payload: Option<&Value>,
+    run_id: Option<&str>,
+    step_id: Option<&str>,
 ) {
     let masked_key = mask_api_key_for_audit(api_key);
     let redacted_preview = redact_preview(enterprise_mode, raw_payload);
     if let Err(err) = sqlx::query(
-        "INSERT INTO audit_log (req_id,api_key,org_id,agent_id,service,action,status,error_type,duration_ms,payload_hash,redacted_payload_preview,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())",
+        "INSERT INTO audit_log (req_id,api_key,org_id,agent_id,service,action,status,error_type,duration_ms,payload_hash,redacted_payload_preview,run_id,step_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())",
     )
     .bind(req_id)
     .bind(&masked_key)
@@ -688,6 +690,8 @@ pub async fn log_audit(
     .bind(duration_ms)
     .bind(payload_hash)
     .bind(redacted_preview)
+    .bind(run_id)
+    .bind(step_id)
     .execute(pg)
     .await
     {

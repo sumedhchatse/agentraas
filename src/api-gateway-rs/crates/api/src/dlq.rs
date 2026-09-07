@@ -140,7 +140,7 @@ async fn replay_dlq(
             sqlx::query("UPDATE dead_letter_queue SET replayed_at = NOW() WHERE id = $1").bind(row.id).execute(&state.pg).await?;
             log_audit(
                 &state.pg, &replay_req_id, &format!("replay:user_{}", user.sub), &row.org_id, &row.agent_id,
-                &row.service, &row.action, "success", None, 0, None, state.enterprise_mode, Some(&payload),
+                &row.service, &row.action, "success", None, 0, None, state.enterprise_mode, Some(&payload), None, None,
             )
             .await;
             Ok(Json(json!({ "replayed": true, "result": result, "reqId": replay_req_id })))
@@ -153,7 +153,7 @@ async fn replay_dlq(
                 .unwrap_or_else(|| err.message.clone());
             log_audit(
                 &state.pg, &replay_req_id, &format!("replay:user_{}", user.sub), &row.org_id, &row.agent_id,
-                &row.service, &row.action, "error", Some(&upstream_message), 0, None, false, None,
+                &row.service, &row.action, "error", Some(&upstream_message), 0, None, false, None, None, None,
             )
             .await;
             let status = err.upstream_status.and_then(|s| StatusCode::from_u16(s).ok()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);

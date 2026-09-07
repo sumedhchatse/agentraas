@@ -204,9 +204,11 @@ async fn recent(State(state): State<SharedState>, user: AuthUser, Query(q): Quer
         error_type: Option<String>,
         duration_ms: i64,
         created_at: chrono::DateTime<chrono::Utc>,
+        run_id: Option<String>,
+        step_id: Option<String>,
     }
     let rows = sqlx::query_as::<_, Row>(
-        "SELECT req_id, api_key, org_id, agent_id, service, action, status, error_type, duration_ms::bigint as duration_ms, (created_at AT TIME ZONE 'UTC') as created_at
+        "SELECT req_id, api_key, org_id, agent_id, service, action, status, error_type, duration_ms::bigint as duration_ms, (created_at AT TIME ZONE 'UTC') as created_at, run_id, step_id
          FROM audit_log WHERE org_id = ANY($1) ORDER BY created_at DESC LIMIT $2",
     )
     .bind(&org_ids)
@@ -220,6 +222,7 @@ async fn recent(State(state): State<SharedState>, user: AuthUser, Query(q): Quer
                     "req_id": r.req_id, "api_key": r.api_key, "org_id": r.org_id, "agent_id": r.agent_id,
                     "service": r.service, "action": r.action, "status": r.status, "error_type": r.error_type,
                     "duration_ms": r.duration_ms, "created_at": r.created_at,
+                    "run_id": r.run_id, "step_id": r.step_id,
                 })
             })
             .collect(),
