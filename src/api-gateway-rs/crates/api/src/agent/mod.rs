@@ -16,7 +16,8 @@ use crate::state::{ApiError, SharedState};
 use db::{
     check_agency_tenant_cap, check_org_write_permission, check_usage_limit,
     get_effective_dedup_rule, get_effective_rate_limit, get_effective_validation_rule,
-    increment_monthly_usage, log_audit, resolve_custom_route, verify_api_key, ResolvedRoute,
+    increment_monthly_usage, log_audit, resolve_custom_route, resolve_org_from_api_key,
+    verify_api_key, ResolvedRoute,
 };
 
 pub fn router() -> Router<SharedState> {
@@ -27,6 +28,7 @@ pub fn router() -> Router<SharedState> {
         .route("/api/v1/agents/keys", get(list_keys))
         .route("/api/v1/agents/keys/:id", delete(revoke_key))
         .route("/api/v1/agents/keys/:id/regenerate", post(regenerate_key))
+        .route("/api/v1/runs/:run_id", get(get_run_status))
         .route("/internal/mockpay", post(internal_mockpay))
 }
 
@@ -437,11 +439,11 @@ async fn handle_request(
             .and_then(Value::as_bool)
             .unwrap_or(false);
         let Some(existing) = existing else {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
         };
         if is_pending {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
         }
 
@@ -450,13 +452,13 @@ async fn handle_request(
             if let Some(existing_digest) = existing_digest {
                 if existing_digest != payload_digest {
                     let _ = idem;
-                    log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("idempotency_key_reused"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None).await;
+                    log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("idempotency_key_reused"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
                     return err_response(StatusCode::UNPROCESSABLE_ENTITY, &req_id, "This Idempotency-Key was already used with a different payload. Use a new key for a different request.");
                 }
             }
         }
 
-        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "deduplicated", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None).await;
+        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "deduplicated", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
         let mut cached = existing;
         if let Value::Object(ref mut map) = cached {
             map.remove("__payloadDigest");
@@ -471,7 +473,7 @@ async fn handle_request(
     if let Ok(Some(rule)) = get_effective_validation_rule(state, &org_id, &service, &action).await {
         if let Some(validation_error) = agentraas_core::validator::validate_fields(&payload, &rule.fields) {
             let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("validation_failed"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("validation_failed"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
             return err_response(StatusCode::UNPROCESSABLE_ENTITY, &req_id, validation_error);
         }
     }
@@ -488,7 +490,7 @@ async fn handle_request(
             }
             if state_str == "open" {
                 let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("circuit_open"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None).await;
+                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("circuit_open"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
                 {
                     let state = state.clone();
                     let org_id = org_id.clone();
@@ -515,7 +517,7 @@ async fn handle_request(
     };
     if !usage.ok {
         let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("usage_limit_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None).await;
+        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("usage_limit_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
         return err_response(
             StatusCode::PAYMENT_REQUIRED,
             &req_id,
@@ -541,6 +543,7 @@ async fn handle_request(
             Ok(Some(rule)) => {
                 return crate::ee::hitl::freeze_and_notify(
                     state, &req_id, &org_id, &agent_id, &api_key, &service, &action, &payload, &dedup_hash, dedup_ttl_seconds, rule,
+                    run_id.as_deref(), step_id.as_deref(),
                 )
                 .await;
             }
@@ -566,10 +569,10 @@ async fn handle_request(
             let _ = dedup::complete_dedup_slot_with_ttl(&mut conn, &claim.key, &stored, dedup_ttl_seconds).await;
             if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
                 let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
-                let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored).await;
+                let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored, state.checkpoint_ttl_seconds).await;
             }
             let _ = increment_monthly_usage(state, &org_id).await;
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload)).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref()).await;
 
             if let Value::Object(ref mut map) = result {
                 map.insert("reqId".to_string(), Value::String(req_id.clone()));
@@ -585,7 +588,7 @@ async fn handle_request(
                     }
                 }
             }
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id.as_deref(), step_id.as_deref()).await;
             tracing::error!(req_id, error = %err.message, "request failed");
 
             let response_message = if err.upstream_status.is_some() {
@@ -772,5 +775,49 @@ async fn regenerate_key(
         "mcp_url": format!("{}/mcp", state.public_url),
         "org_id": org_id,
         "agent_id": agent_id,
+    })))
+}
+
+/// Lets an agent (or a human debugging one) ask "what have I already
+/// completed in this run" instead of blindly replaying every step and
+/// relying on dedup/checkpoint hits alone — useful once a run has more
+/// steps than fit comfortably in the agent's own retry logic. Scoped by
+/// the same `x-agentraas-key` org resolution `tools/list` already uses;
+/// a run_id from another org is invisible, not just unauthorized, since
+/// the query itself is org-scoped rather than checked-then-rejected.
+async fn get_run_status(State(state): State<SharedState>, headers: HeaderMap, Path(run_id): Path<String>) -> Result<Json<Value>, ApiError> {
+    let api_key = headers.get("x-agentraas-key").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let Some(org_id) = resolve_org_from_api_key(&state.pg, api_key).await.ok().flatten() else {
+        return Err(ApiError::new(StatusCode::UNAUTHORIZED, "A valid x-agentraas-key header is required."));
+    };
+
+    #[derive(sqlx::FromRow)]
+    struct StepRow {
+        step_id: Option<String>,
+        service: String,
+        action: String,
+        status: String,
+        error_type: Option<String>,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+    let rows = sqlx::query_as::<_, StepRow>(
+        "SELECT step_id, service, action, status, error_type, (created_at AT TIME ZONE 'UTC') as created_at
+         FROM audit_log WHERE run_id = $1 AND org_id = $2 ORDER BY created_at ASC",
+    )
+    .bind(&run_id)
+    .bind(&org_id)
+    .fetch_all(&state.pg)
+    .await?;
+
+    if rows.is_empty() {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "No steps found for this run_id."));
+    }
+
+    Ok(Json(json!({
+        "run_id": run_id,
+        "steps": rows.into_iter().map(|r| json!({
+            "step_id": r.step_id, "service": r.service, "action": r.action,
+            "status": r.status, "error_type": r.error_type, "created_at": r.created_at,
+        })).collect::<Vec<_>>(),
     })))
 }
