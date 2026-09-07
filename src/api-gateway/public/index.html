@@ -510,6 +510,8 @@
       <button class="btn" id="custom-actions-btn">Custom actions</button>
       <button class="btn" id="validation-rules-btn">Validation rules</button>
       <button class="btn" id="dedup-rules-btn">Dedup rules</button>
+      <button class="btn" id="pruning-btn">Output pruning</button>
+      <button class="btn" id="hitl-rules-btn">HITL rules</button>
       <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
       <button class="btn" id="dlq-btn">Failed requests</button>
       <button class="btn" id="reliability-btn">Reliability report</button>
@@ -750,6 +752,52 @@
     <h3 style="margin-top:26px;">Saved rules</h3>
     <div id="dr-list"></div>
     <button class="close-btn" id="dr-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Output Pruning modal -->
+<div class="modal-overlay" id="pruning-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Output pruning">
+    <h3>Tool output pruning</h3>
+    <p class="sub">Strips HTML tags, drops null/empty fields, truncates strings over 2000 characters, and caps arrays at 50 items on every tool response before it reaches the model — cuts token costs on verbose upstream JSON/HTML. Off by default.</p>
+    <div class="modal-error" id="pruning-error"></div>
+    <div class="field"><label for="pruning-org">Org ID</label><input type="text" id="pruning-org" placeholder="org_acme"></div>
+    <button type="button" class="btn" id="pruning-load-btn">Load</button>
+    <div id="pruning-status" style="margin-top:16px;display:none;">
+      Status: <span class="badge" id="pruning-status-badge"></span>
+      <button type="button" class="btn" id="pruning-toggle-btn" style="margin-left:10px;"></button>
+    </div>
+    <button class="close-btn" id="pruning-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- HITL Rules modal -->
+<div class="modal-overlay" id="hitl-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="HITL rules">
+    <h3>Human-in-the-loop approval rules</h3>
+    <p class="sub">Enterprise-tier. A request matching a rule below is frozen and sent to Slack for Approve/Deny before it forwards. Leave field/operator/threshold blank to always require approval for that service.action, or set them to only freeze when a payload field crosses a threshold (e.g. <code>amount</code> greater than <code>10000</code>). Webhook calls only. Configure the Slack destination with your AgentRaaS contact.</p>
+    <div class="modal-error" id="hitl-error"></div>
+    <form id="hitl-form">
+      <div class="field"><label for="hitl-org">Org ID</label><input type="text" id="hitl-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="hitl-service">Service</label><input type="text" id="hitl-service" placeholder="stripe (or custom)" required></div>
+      <div class="field"><label for="hitl-action">Action</label><input type="text" id="hitl-action" placeholder="charge.create" required></div>
+      <div class="field"><label for="hitl-field">Payload field (optional)</label><input type="text" id="hitl-field" placeholder="amount"></div>
+      <div class="field"><label for="hitl-operator">Operator</label>
+        <select id="hitl-operator">
+          <option value="">— always require approval —</option>
+          <option value="gt">greater than</option>
+          <option value="gte">greater than or equal to</option>
+          <option value="lt">less than</option>
+          <option value="lte">less than or equal to</option>
+          <option value="eq">equal to</option>
+        </select>
+      </div>
+      <div class="field"><label for="hitl-threshold">Threshold</label><input type="number" step="any" id="hitl-threshold" placeholder="10000"></div>
+      <button type="submit" class="primary" id="hitl-submit">Save rule</button>
+    </form>
+    <h3 style="margin-top:26px;">Saved rules</h3>
+    <div id="hitl-list"></div>
+    <button class="close-btn" id="hitl-modal-close">Close</button>
   </div>
 </div>
 
@@ -1912,6 +1960,121 @@
       }
       list.querySelectorAll('.delete-rule').forEach((btn) => {
         btn.addEventListener('click', async () => { await fetch(`/api/v1/dedup-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadDedupRulesList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Output Pruning modal ───
+  const pruningModalOverlay = document.getElementById('pruning-modal-overlay');
+  const pruningError = document.getElementById('pruning-error');
+  let pruningCurrentOrg = '';
+  let pruningCurrentEnabled = false;
+
+  document.getElementById('pruning-btn').addEventListener('click', () => {
+    pruningError.style.display = 'none';
+    document.getElementById('pruning-status').style.display = 'none';
+    document.getElementById('pruning-org').value = '';
+    pruningModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('pruning-org').focus();
+  });
+  document.getElementById('pruning-modal-close').addEventListener('click', () => { pruningModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  pruningModalOverlay.addEventListener('click', (e) => { if (e.target === pruningModalOverlay) { pruningModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  function renderPruningStatus() {
+    document.getElementById('pruning-status').style.display = 'block';
+    const badge = document.getElementById('pruning-status-badge');
+    badge.textContent = pruningCurrentEnabled ? 'Enabled' : 'Disabled';
+    badge.className = 'badge ' + (pruningCurrentEnabled ? 'verified' : 'unverified');
+    document.getElementById('pruning-toggle-btn').textContent = pruningCurrentEnabled ? 'Disable' : 'Enable';
+  }
+
+  async function loadPruningStatus() {
+    const orgId = document.getElementById('pruning-org').value.trim();
+    if (!orgId) { pruningError.textContent = 'Enter an org ID first.'; pruningError.style.display = 'block'; return; }
+    pruningError.style.display = 'none';
+    try {
+      const res = await fetch(`/api/v1/output-pruning?org_id=${encodeURIComponent(orgId)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { pruningError.textContent = data.error || 'Could not load status.'; pruningError.style.display = 'block'; return; }
+      pruningCurrentOrg = orgId; pruningCurrentEnabled = !!data.enabled;
+      renderPruningStatus();
+    } catch (err) { pruningError.textContent = 'Could not reach the server.'; pruningError.style.display = 'block'; }
+  }
+  document.getElementById('pruning-load-btn').addEventListener('click', loadPruningStatus);
+  document.getElementById('pruning-org').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); loadPruningStatus(); } });
+
+  document.getElementById('pruning-toggle-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('pruning-toggle-btn');
+    btn.disabled = true;
+    const restoreText = withLoadingText(btn, 'Saving…');
+    try {
+      const res = await fetch('/api/v1/output-pruning', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id: pruningCurrentOrg, enabled: !pruningCurrentEnabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) { pruningError.textContent = data.error || 'Could not save.'; pruningError.style.display = 'block'; return; }
+      pruningCurrentEnabled = !pruningCurrentEnabled;
+      renderPruningStatus();
+    } catch (err) { pruningError.textContent = 'Could not reach the server.'; pruningError.style.display = 'block'; }
+    finally { btn.disabled = false; restoreText(); }
+  });
+
+  // ─── HITL Rules modal ───
+  const hitlModalOverlay = document.getElementById('hitl-modal-overlay');
+  const hitlForm = document.getElementById('hitl-form');
+  const hitlError = document.getElementById('hitl-error');
+  const hitlSubmit = document.getElementById('hitl-submit');
+
+  document.getElementById('hitl-rules-btn').addEventListener('click', () => {
+    hitlError.style.display = 'none'; hitlForm.reset();
+    hitlModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('hitl-org').focus();
+    loadHitlRulesList();
+  });
+  document.getElementById('hitl-modal-close').addEventListener('click', () => { hitlModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  hitlModalOverlay.addEventListener('click', (e) => { if (e.target === hitlModalOverlay) { hitlModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  hitlForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); hitlError.style.display = 'none'; hitlSubmit.disabled = true;
+    const restoreText = withLoadingText(hitlSubmit, 'Saving…');
+    const org_id = document.getElementById('hitl-org').value.trim();
+    const service = document.getElementById('hitl-service').value.trim();
+    const action = document.getElementById('hitl-action').value.trim();
+    const field = document.getElementById('hitl-field').value.trim() || null;
+    const operator = document.getElementById('hitl-operator').value || null;
+    const thresholdRaw = document.getElementById('hitl-threshold').value.trim();
+    const threshold = thresholdRaw === '' ? null : Number(thresholdRaw);
+    try {
+      const res = await fetch('/api/v1/hitl-rules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, service, action, field, operator, threshold }),
+      });
+      const data = await res.json();
+      if (!res.ok) { hitlError.textContent = data.error || 'Could not save rule.'; hitlError.style.display = 'block'; return; }
+      hitlForm.reset(); loadHitlRulesList();
+    } catch (err) { hitlError.textContent = 'Could not reach the server.'; hitlError.style.display = 'block'; }
+    finally { hitlSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadHitlRulesList() {
+    const list = document.getElementById('hitl-list');
+    try {
+      const res = await fetch('/api/v1/hitl-rules', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const rows = data.rules || [];
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No HITL rules yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const condition = row.field ? `when ${escapeHtml(row.field)} ${escapeHtml(row.operator)} ${row.threshold}` : 'always';
+        const div = document.createElement('div');
+        div.className = 'rule-summary-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.service)}.${escapeHtml(row.action)} — ${escapeHtml(row.org_id)}</div><div class="meta">requires approval ${condition}</div></div><button class="revoke delete-hitl-rule" data-id="${row.id}">Delete</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.delete-hitl-rule').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/hitl-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadHitlRulesList(); });
       });
     } catch (err) {}
   }
