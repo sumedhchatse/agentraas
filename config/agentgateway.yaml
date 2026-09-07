@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://agentgateway.dev/schema/config
+#
+# Optional: puts agentgateway (github.com/agentgateway/agentgateway, a
+# Linux Foundation / Agentic AI Foundation project) in front of AgentRaaS's
+# own MCP endpoint. Available on every tier — this is a deployment-topology
+# choice, not one of AgentRaaS's own feature gates.
+#
+# What this buys you: agentgateway handles routing, JWT/OAuth/API-key auth,
+# RBAC, rate limiting, and observability at the edge, and can front MULTIPLE
+# MCP/A2A/LLM backends behind one endpoint — not just AgentRaaS. AgentRaaS
+# still does its own job behind it unchanged: exactly-once execution,
+# HITL approval, audit logging, DLP redaction. Point agents at agentgateway
+# instead of AgentRaaS's /mcp directly once this is running.
+#
+# AgentRaaS's per-org auth header (x-agentraas-key) passes through
+# untouched by default — agentgateway only strips standard hop-by-hop
+# headers (Connection, Transfer-Encoding, etc.), never application headers
+# — so each agent's own key keeps working exactly as it does today. Add an
+# `mcpAuthentication` (JWT/OAuth) policy here if you want agentgateway
+# itself to also gate who can reach this endpoint at all.
+binds:
+- port: 3005
+  listeners:
+  - routes:
+    - backends:
+      - mcp:
+          targets:
+          - name: agentraas
+            mcp:
+              # ar-api-rs's in-network hostname/port (see compose.yaml) —
+              # not the host-mapped 13001 port, since this runs as another
+              # container on the same agentraas-net.
+              host: http://ar-api-rs:3000/mcp
+      matches:
+      - path:
+          pathPrefix: /

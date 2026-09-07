@@ -171,3 +171,22 @@ services:
       - ./src/api-gateway/public:/public:ro,z
       - .:/repo:ro,z
     restart: "no"
+
+  # Optional: agentgateway (github.com/agentgateway/agentgateway) in front
+  # of ar-api-rs's MCP endpoint — see config/agentgateway.yaml for what
+  # this buys you and why it needs no code changes on AgentRaaS's side.
+  # Available on every tier, not gated — opt-in via its own profile since
+  # most deployments don't need a second proxy layer in front of AgentRaaS.
+  agentgateway:
+    profiles: ["agentgateway"]
+    image: ghcr.io/agentgateway/agentgateway:v1.5.0
+    container_name: agentgateway
+    hostname: agentgateway
+    command: ["-f", "/config/agentgateway.yaml"]
+    networks:
+      - agentraas-net
+    ports:
+      - "127.0.0.1:13005:3005"
+    volumes:
+      - ./config/agentgateway.yaml:/config/agentgateway.yaml:ro,z
+    restart: "no"
