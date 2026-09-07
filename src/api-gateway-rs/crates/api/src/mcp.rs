@@ -17,6 +17,7 @@ use crate::agent::db::{
     get_effective_validation_rule, get_org_validation_overrides, increment_monthly_usage, log_audit,
     resolve_custom_route, resolve_org_from_api_key, verify_api_key, ResolvedRoute,
 };
+use crate::auth::is_valid_identifier;
 use crate::agent::forward::{forward_with_retry, log_circuit_transition};
 use crate::state::SharedState;
 
@@ -205,6 +206,13 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     let Some(tool_name) = tool_name else {
         return jsonrpc_error(id, -32602, "Invalid params: \"name\" is required and must be a string.");
     };
+    // org_id/agent_id land in audit_log and get rendered in the dashboard —
+    // same charset every other org_id-accepting route in this app already
+    // enforces (see agent/mod.rs's handle_request), rather than letting
+    // arbitrary strings (HTML, oversized values) reach it from here too.
+    if !is_valid_identifier(&org_id) || !is_valid_identifier(&agent_id) {
+        return jsonrpc_error(id, -32602, "Invalid params: org_id and agent_id must be 1-100 characters, letters/numbers/underscore/hyphen only.");
+    }
 
     let mut resolved_service_name = String::new();
     let mut resolved_action_name = String::new();

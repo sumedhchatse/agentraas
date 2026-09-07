@@ -38,6 +38,25 @@ pub async fn forward_action(
     payload: &Value,
     req_id: &str,
 ) -> Result<Value, ForwardError> {
+    // Custom actions and inbound-webhook destinations are validated for
+    // SSRF (`validate_target_url`) once, at registration time — a
+    // destination's DNS record can change afterward (a low-TTL rebind to
+    // an internal/metadata IP), and a stored destination gets called
+    // indefinitely, not just once. Re-checking here closes that standing
+    // window instead of only protecting the moment of registration. Not
+    // applied to curated services, whose URLs come from this app's own
+    // static config, not user input.
+    if service_name == "custom" {
+        if let Some(err) = crate::util::validate_target_url(&route.url).await {
+            return Err(ForwardError {
+                message: format!("Target URL failed a safety re-check: {err}"),
+                upstream_status: None,
+                upstream_body: None,
+                circuit_already_recorded: false,
+            });
+        }
+    }
+
     let credential = get_credential(state, &route.credential_key, org_id).await;
 
     if !route.internal && route.auth_type != "none" && credential.is_none() {
