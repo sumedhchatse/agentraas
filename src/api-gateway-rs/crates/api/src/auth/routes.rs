@@ -14,8 +14,8 @@ use crate::state::{ApiError, SharedState};
 
 use super::{
     check_dashboard_rate_limit, check_login_rate_limit, clear_login_rate_limit,
-    clear_session_cookie, hash_password, is_valid_email, is_valid_password, session_cookie,
-    sign_session, verify_password, AuthUser,
+    clear_session_cookie, hash_password, is_valid_email, is_valid_identifier, is_valid_password,
+    session_cookie, sign_session, verify_password, AuthUser,
 };
 
 pub fn router() -> Router<SharedState> {
@@ -87,10 +87,30 @@ async fn register(
         ));
     }
 
+    // Most users never hand-type an org_id, so auto-generate a working
+    // default one. A caller-supplied org_id must still be well-formed and
+    // unclaimed — register() has no invite token proving the right to
+    // join an existing org (unlike accept_invite, which is gated on one),
+    // so joining someone else's org_id here would be a bare, unauthorized
+    // claim on their data.
+    let default_org_id = match body.org_id {
+        Some(org_id) => {
+            if !is_valid_identifier(&org_id) {
+                return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "org_id must be 1-100 characters, letters/numbers/underscore/hyphen only."));
+            }
+            let taken: Option<i32> = sqlx::query_scalar("SELECT id FROM users WHERE org_id = $1")
+                .bind(&org_id)
+                .fetch_optional(&state.pg)
+                .await?;
+            if taken.is_some() {
+                return Err(ApiError::new(StatusCode::CONFLICT, "That org_id is already in use. Ask an admin of that org for an invite instead."));
+            }
+            org_id
+        }
+        None => format!("org_{}", random_hex(6)),
+    };
+
     let password_hash = hash_password(&password).await?;
-    // Same convention as register(): most users never hand-type an org_id,
-    // so auto-generate a working default one.
-    let default_org_id = body.org_id.unwrap_or_else(|| format!("org_{}", random_hex(6)));
 
     let user_id: i32 = sqlx::query_scalar(
         "INSERT INTO users (email, password_hash, org_id) VALUES ($1, $2, $3) RETURNING id",

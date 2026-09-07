@@ -36,8 +36,8 @@ let apiKey;
 // same fallback a self-hoster without email set up would get. This walks
 // the real flow end-to-end rather than bypassing it, and is robust to
 // re-running the suite against an account left in any state by a prior run.
-async function registerAndVerify(email, password) {
-  const registerRes = await client.post('/api/v1/auth/register', { email, password });
+async function registerAndVerify(email, password, orgId) {
+  const registerRes = await client.post('/api/v1/auth/register', { email, password, org_id: orgId });
   if (registerRes.status === 200 && registerRes.data.dev_verify_url) {
     const token = new URL(registerRes.data.dev_verify_url).searchParams.get('verify_token');
     const verifyRes = await client.get(`/api/v1/auth/verify-email?token=${token}`);
@@ -76,7 +76,7 @@ test('setup: register or log in, then connect a test agent', async () => {
   // triggers failures.
   await redis.del('circuit:mockpay');
 
-  sessionCookie = await registerAndVerify(TEST_EMAIL, TEST_PASSWORD);
+  sessionCookie = await registerAndVerify(TEST_EMAIL, TEST_PASSWORD, TEST_ORG);
 
   const connectRes = await client.post(
     '/api/v1/agents/connect',

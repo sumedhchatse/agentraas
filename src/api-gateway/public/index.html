@@ -1399,7 +1399,7 @@
       for (const row of rows) {
         const div = document.createElement('div');
         div.className = 'agent-item';
-        div.innerHTML = `<div><div class="id">${row.org_id} / ${row.agent_id}</div><div class="meta">${row.total_actions} actions · last ${new Date(row.last_seen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+        div.innerHTML = `<div><div class="id">${escapeHtml(row.org_id)} / ${escapeHtml(row.agent_id)}</div><div class="meta">${row.total_actions} actions · last ${new Date(row.last_seen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
         list.appendChild(div);
       }
     } catch (err) {

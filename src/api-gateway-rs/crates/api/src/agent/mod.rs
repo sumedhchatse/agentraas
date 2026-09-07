@@ -220,6 +220,13 @@ async fn handle_request(
     if service.is_empty() || action.is_empty() {
         return err_response(StatusCode::BAD_REQUEST, &req_id, "Missing service or action");
     }
+    // org_id/agent_id land in audit_log and get rendered in the dashboard's
+    // Active Agents panel — reject anything outside the same charset every
+    // other org_id-accepting route in this app already enforces, rather
+    // than letting arbitrary strings (HTML, oversized values) reach it.
+    if !is_valid_identifier(&org_id) || !is_valid_identifier(&agent_id) {
+        return err_response(StatusCode::BAD_REQUEST, &req_id, "org_id and agent_id must be 1-100 characters, letters/numbers/underscore/hyphen only.");
+    }
     let route_key = format!("{service}.{action}");
 
     let resolved_route = if service == "custom" {
