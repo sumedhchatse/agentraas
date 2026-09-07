@@ -163,6 +163,11 @@
     <li>Save. It's encrypted at rest — nobody, including AgentRaaS staff, can read it back out; it's only ever used server-side to make the call on your agent's behalf.</li>
   </ol>
 
+  <h2 id="agentgateway">Optional: putting agentgateway in front (self-hosted)</h2>
+  <p>If you're self-hosting and already run — or want to run — multiple AI agents/tools behind a shared edge (auth, RBAC, rate limiting, observability across more than just AgentRaaS), you can put <a href="https://agentgateway.dev/" target="_blank" rel="noopener">agentgateway</a> (a Linux Foundation project) in front of AgentRaaS's MCP endpoint instead of pointing agents at it directly. This is available on every tier — it's a deployment choice, not one of AgentRaaS's own paid features.</p>
+  <pre><code>podman-compose --profile agentgateway up -d agentgateway</code></pre>
+  <p>See <code>config/agentgateway.yaml</code> in the repo for the config and what it does — AgentRaaS needs zero code changes for this; your agents' existing <code>x-agentraas-key</code> header passes straight through. Most self-hosters don't need this — it's useful once you have more than one MCP/tool server you want to manage behind a single gateway, not a requirement for using AgentRaaS.</p>
+
   <h2 id="custom">Something not on the list?</h2>
   <p>If the service you need isn't one of the built-in connectors, use <b>Custom Actions</b> to register any endpoint yourself — same dedup protection, same SSRF guarding, same audit trail. Open the <b>Custom actions</b> panel and follow the form; it walks you through the same service/action/payload shape as the built-in connectors.</p>
 
