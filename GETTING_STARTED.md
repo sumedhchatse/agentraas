@@ -163,6 +163,26 @@ need to give AgentRaaS your API key for that service:
    read it back out; it's only ever used server-side to make the call on
    your agent's behalf.
 
+## Optional: putting agentgateway in front (self-hosted)
+
+If you're self-hosting and already run — or want to run — multiple AI
+agents/tools behind a shared edge (auth, RBAC, rate limiting, observability
+across more than just AgentRaaS), you can put
+[agentgateway](https://agentgateway.dev/) (a Linux Foundation project) in
+front of AgentRaaS's MCP endpoint instead of pointing agents at it
+directly. This is available on every tier — it's a deployment choice, not
+one of AgentRaaS's own paid features.
+
+```bash
+podman-compose --profile agentgateway up -d agentgateway
+```
+
+See `config/agentgateway.yaml` for the config and what it does — AgentRaaS
+needs zero code changes for this; your agents' existing `x-agentraas-key`
+header passes straight through. Most self-hosters don't need this — it's
+useful once you have more than one MCP/tool server you want to manage
+behind a single gateway, not a requirement for using AgentRaaS.
+
 ## Something not on the list?
 
 If the service you need isn't one of the built-in connectors, use
