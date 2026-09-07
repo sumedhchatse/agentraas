@@ -21,7 +21,7 @@ below.
 2. USAGE LIMIT
 ──────────────────────────────────────────────────────────────────────────
 Self-hosted deployments (running on infrastructure you control) have NO
-usage limit under this license, on any tier — Community, Agency, or
+usage limit under this license, on any tier — Community, Pro, Agency, or
 Enterprise. Run as many forwarded agent actions per month as you want, on
 as many self-hosted deployments as you want, for free, regardless of plan.
 
@@ -30,8 +30,16 @@ hosted by the Licensor (i.e. the official AgentRaaS Cloud offering):
 500 forwarded agent actions (as counted by AgentRaaS's own audit log —
 i.e. requests that reach `forwarded: true`) per calendar month, per
 account, on the free Cloud tier. Any use exceeding that limit requires
-a paid Cloud plan (Agency or Enterprise) or a commercial license from
-the Licensor. Contact support@agentraas.io.
+a paid Cloud plan (Pro, Agency, or Enterprise) or a commercial license
+from the Licensor. Contact support@agentraas.io.
+
+Paid tiers also carry a team-seat limit (Pro: 3, Agency: 10, Enterprise:
+unlimited) — this governs how many members can belong to your org, not
+the action-forwarding limit above. On a self-hosted deployment, a paid
+tier's features are unlocked by a signed license token issued by the
+Licensor after subscribing; without a valid token, a self-hosted
+deployment runs as Community regardless of what you've paid for
+elsewhere, so keep your token current.
 
 That 500/month Cloud limit is enforced technically on any instance of
 AgentRaaS operated by the Licensor. No limit — technical or contractual —
@@ -73,7 +81,9 @@ FROM THE SOFTWARE OR ITS USE.
 ──────────────────────────────────────────────────────────────────────────
 For use beyond the Usage Limit in Section 2, or for any use restricted
 under Section 3, contact support@agentraas.io to discuss a commercial
-license.
+license. Pro and Agency are available as self-serve subscriptions
+without contacting anyone — see the pricing page. Enterprise is
+sales-assisted with custom pricing.
 
 ──────────────────────────────────────────────────────────────────────────
 7. TERMINATION
