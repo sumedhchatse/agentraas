@@ -25,9 +25,24 @@ pub fn router() -> Router<SharedState> {
         .route("/api/v1/download/self-host", get(download))
 }
 
+/// Enterprise-only source files/directories that must never leave this
+/// server via the self-host download, regardless of who's asking — same
+/// exclusion the public `agentraas` repo already enforces by simply never
+/// containing this code (see the "mirroring any commit that touches ee/"
+/// convention). `/repo` here is a production checkout of the *private*
+/// repo, so unlike a `git clone` of the public one, nothing else filters
+/// this out before it would otherwise reach the zip.
+const ENTERPRISE_ONLY_FILES: &[&str] = &["dlp.rs", "hmac_verify.rs", "output_sanitize.rs"];
+
 fn should_skip(path: &std::path::Path) -> bool {
     let s = path.to_string_lossy();
-    s.contains("node_modules") || s.ends_with(".env") || s.ends_with(".log")
+    if s.contains("node_modules") || s.ends_with(".env") || s.ends_with(".log") {
+        return true;
+    }
+    if path.components().any(|c| c.as_os_str() == "ee") {
+        return true;
+    }
+    path.file_name().is_some_and(|f| ENTERPRISE_ONLY_FILES.contains(&f.to_string_lossy().as_ref()))
 }
 
 /// Copies `src`/`infra`/`config` (filtered) plus a handful of top-level
