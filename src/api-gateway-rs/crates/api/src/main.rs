@@ -152,6 +152,10 @@ async fn main() -> anyhow::Result<()> {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(3600),
+        checkpoint_ttl_seconds: std::env::var("CHECKPOINT_TTL_SECONDS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(86400),
         mailer: Mailer::from_env(),
         token_bucket: agentraas_core::token_bucket::TokenBucket::new(),
         // No automatic redirect-following: `validate_target_url` only
