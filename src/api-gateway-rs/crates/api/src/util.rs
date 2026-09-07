@@ -22,23 +22,50 @@ fn is_private_or_reserved_v4(v4: &std::net::Ipv4Addr) -> bool {
         || o[0] == 127
         || o[0] == 10
         || (o[0] == 192 && o[1] == 168)
+        || (o[0] == 192 && o[1] == 0 && o[2] == 0) // 192.0.0.0/24, IETF protocol assignments
+        || (o[0] == 192 && o[1] == 88 && o[2] == 99) // 192.88.99.0/24, 6to4 relay anycast
         || (o[0] == 169 && o[1] == 254)
         || (o[0] == 172 && (16..=31).contains(&o[1]))
         || (o[0] == 100 && (64..=127).contains(&o[1])) // 100.64.0.0/10, carrier-grade NAT
+        || o[0] >= 224 // 224.0.0.0/4 multicast, 240.0.0.0/4 reserved, 255.255.255.255 broadcast
+}
+
+/// Extracts the IPv4 address embedded in an IPv6 transition-mechanism
+/// address, if `v6` is one of the well-known forms that carries one:
+/// 6to4 (`2002::/16`), Teredo (`2001:0000::/32`, embedded octets
+/// obfuscated by XOR-0xff per RFC 4380), or NAT64 (`64:ff9b::/96`). Each
+/// of these can otherwise be used to smuggle an arbitrary IPv4 address
+/// (including a private/reserved one) past IPv6-only reserved-range
+/// checks.
+fn embedded_ipv4(v6: &std::net::Ipv6Addr) -> Option<std::net::Ipv4Addr> {
+    let s = v6.segments();
+    if s[0] == 0x2002 {
+        return Some(std::net::Ipv4Addr::new((s[1] >> 8) as u8, s[1] as u8, (s[2] >> 8) as u8, s[2] as u8));
+    }
+    if s[0] == 0x2001 && s[1] == 0x0000 {
+        return Some(std::net::Ipv4Addr::new((s[6] >> 8) as u8 ^ 0xff, s[6] as u8 ^ 0xff, (s[7] >> 8) as u8 ^ 0xff, s[7] as u8 ^ 0xff));
+    }
+    if s[0] == 0x0064 && s[1] == 0xff9b && s[2] == 0 && s[3] == 0 && s[4] == 0 && s[5] == 0 {
+        return Some(std::net::Ipv4Addr::new((s[6] >> 8) as u8, s[6] as u8, (s[7] >> 8) as u8, s[7] as u8));
+    }
+    None
 }
 
 fn is_private_or_reserved_ip(ip: &std::net::IpAddr) -> bool {
     use std::net::IpAddr;
     match ip {
         IpAddr::V4(v4) => is_private_or_reserved_v4(v4),
-        // `to_ipv4_mapped()` unwraps `::ffff:a.b.c.d` so an IPv4-mapped
-        // loopback/link-local address (e.g. `::ffff:169.254.169.254`)
-        // can't slip past the IPv6-only loopback/ULA/link-local checks.
         IpAddr::V6(v6) => {
             v6.is_loopback()
+                || v6.is_multicast()
                 || (v6.segments()[0] & 0xfe00) == 0xfc00
                 || (v6.segments()[0] & 0xffc0) == 0xfe80
+                // Unwraps IPv4-mapped (`::ffff:a.b.c.d`) and the
+                // transition-mechanism forms above so an embedded
+                // loopback/link-local/metadata IPv4 address can't slip
+                // past the IPv6-only checks.
                 || v6.to_ipv4_mapped().is_some_and(|v4| is_private_or_reserved_v4(&v4))
+                || embedded_ipv4(v6).is_some_and(|v4| is_private_or_reserved_v4(&v4))
         }
     }
 }

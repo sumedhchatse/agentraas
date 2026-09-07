@@ -93,24 +93,31 @@ async fn register(
     // join an existing org (unlike accept_invite, which is gated on one),
     // so joining someone else's org_id here would be a bare, unauthorized
     // claim on their data.
-    let default_org_id = match body.org_id {
-        Some(org_id) => {
-            if !is_valid_identifier(&org_id) {
-                return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "org_id must be 1-100 characters, letters/numbers/underscore/hyphen only."));
-            }
-            let taken: Option<i32> = sqlx::query_scalar("SELECT id FROM users WHERE org_id = $1")
-                .bind(&org_id)
-                .fetch_optional(&state.pg)
-                .await?;
-            if taken.is_some() {
-                return Err(ApiError::new(StatusCode::CONFLICT, "That org_id is already in use. Ask an admin of that org for an invite instead."));
-            }
-            org_id
+    if let Some(org_id) = &body.org_id {
+        if !is_valid_identifier(org_id) {
+            return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "org_id must be 1-100 characters, letters/numbers/underscore/hyphen only."));
         }
-        None => format!("org_{}", random_hex(6)),
-    };
+    }
+    let default_org_id = body.org_id.unwrap_or_else(|| format!("org_{}", random_hex(6)));
 
     let password_hash = hash_password(&password).await?;
+
+    // The uniqueness check and the insert must be atomic — two concurrent
+    // registrations for the same org_id could otherwise both pass a
+    // plain SELECT-then-INSERT before either commits. `users.org_id` has
+    // no DB-level unique constraint (it's legitimately shared across
+    // multiple users via accept_invite's separate, invite-token-gated
+    // path), so the lock is taken explicitly here instead, scoped to this
+    // transaction and released automatically on commit/rollback.
+    let mut tx = state.pg.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))").bind(&default_org_id).execute(&mut *tx).await?;
+    let taken: Option<i32> = sqlx::query_scalar("SELECT id FROM users WHERE org_id = $1")
+        .bind(&default_org_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    if taken.is_some() {
+        return Err(ApiError::new(StatusCode::CONFLICT, "That org_id is already in use. Ask an admin of that org for an invite instead."));
+    }
 
     let user_id: i32 = sqlx::query_scalar(
         "INSERT INTO users (email, password_hash, org_id) VALUES ($1, $2, $3) RETURNING id",
@@ -118,8 +125,9 @@ async fn register(
     .bind(&email)
     .bind(&password_hash)
     .bind(&default_org_id)
-    .fetch_one(&state.pg)
+    .fetch_one(&mut *tx)
     .await?;
+    tx.commit().await?;
 
     let raw_token = random_hex(32);
     let token_hash = sha256_hex(&raw_token);

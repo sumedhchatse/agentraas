@@ -1372,7 +1372,7 @@
       div.className = `log-row ${row.status}`;
       div.innerHTML = `
         <span class="time">${timeOnly(row.created_at)}</span>
-        <span class="desc">${row.service}.${row.action} <span class="agent">— ${row.org_id}/${row.agent_id}</span></span>
+        <span class="desc">${escapeHtml(row.service)}.${escapeHtml(row.action)} <span class="agent">— ${escapeHtml(row.org_id)}/${escapeHtml(row.agent_id)}</span></span>
         <span class="dur">${formatDuration(row.duration_ms)}</span>
         <span class="status-word">${row.status}</span>`;
       body.appendChild(div);
