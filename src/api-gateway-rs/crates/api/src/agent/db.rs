@@ -104,6 +104,19 @@ pub async fn is_output_sanitization_enabled(pg: &PgPool, org_id: &str) -> Result
     Ok(enabled.unwrap_or(false))
 }
 
+/// Tool Result & Context Pruner — default false, no row means never
+/// toggled. Community + Enterprise both get this (not cfg-gated), unlike
+/// `is_output_sanitization_enabled`. Checked once per forwarded call in
+/// `forward_action`; see `crates/api/src/pruning_settings.rs` for the
+/// GET/PUT dashboard pair that writes this table.
+pub async fn is_pruning_enabled(pg: &PgPool, org_id: &str) -> Result<bool, sqlx::Error> {
+    let enabled: Option<bool> = sqlx::query_scalar("SELECT enabled FROM org_output_pruning WHERE org_id = $1")
+        .bind(org_id)
+        .fetch_optional(pg)
+        .await?;
+    Ok(enabled.unwrap_or(false))
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Credential {
     pub api_key: Option<String>,

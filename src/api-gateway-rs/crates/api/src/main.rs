@@ -12,6 +12,7 @@ mod long_tail;
 mod mcp;
 mod notifications;
 mod pages;
+mod pruning_settings;
 mod rules;
 mod self_host;
 mod state;
@@ -175,6 +176,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(dashboard::router())
         .merge(pages::router())
         .merge(self_host::router())
+        .merge(pruning_settings::router())
         .merge(long_tail::router());
     #[cfg(feature = "enterprise")]
     let app = app.merge(ee::sso::router()).merge(ee::maintenance::router()).merge(ee::inbound_webhooks::router());

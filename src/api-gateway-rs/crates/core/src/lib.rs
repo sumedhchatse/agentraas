@@ -9,6 +9,7 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod crypto;
 pub mod dedup;
+pub mod pruner;
 pub mod token_bucket;
 pub mod validator;
 
