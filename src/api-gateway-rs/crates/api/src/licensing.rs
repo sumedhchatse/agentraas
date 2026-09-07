@@ -132,6 +132,12 @@ async fn get_license_token(State(state): State<SharedState>, user: AuthUser, Que
     let Some(private_key_pem) = crate::util::configured_env("LICENSE_SIGNING_PRIVATE_KEY") else {
         return Err(ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Licensing is not configured on this deployment."));
     };
+    // PEM keys don't fit on one line, but most .env-file parsers (this
+    // deployment's included) only support single-line values — so this
+    // secret is stored with real newlines escaped as literal `\n` and
+    // unescaped here, the same convention several cloud platforms use
+    // for shipping PEM/JSON service-account keys through env vars.
+    let private_key_pem = private_key_pem.replace("\\n", "\n");
     let token = agentraas_core::license::sign(&q.org_id, tier, ttl_seconds, &private_key_pem)
         .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "An internal error occurred."))?;
 
