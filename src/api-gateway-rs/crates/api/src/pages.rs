@@ -22,6 +22,7 @@ pub fn router() -> Router<SharedState> {
         .route("/webhook-audit", get(webhook_audit_page))
         .route("/status", get(status_page))
         .route("/vendor/chart.umd.min.js", get(vendor_chart_js))
+        .route("/og-image.png", get(og_image))
         .route("/robots.txt", get(robots_txt))
         .route("/sitemap.xml", get(sitemap_xml))
         .route("/api/v1/public/status", get(public_status))
@@ -68,6 +69,56 @@ async fn vendor_chart_js() -> axum::response::Response {
     match tokio::fs::read_to_string(&path).await {
         Ok(contents) => ([(header::CONTENT_TYPE, "application/javascript")], contents).into_response(),
         Err(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "chart.umd.min.js not found on this deployment." }))).into_response(),
+    }
+}
+
+/// Fallback for any unmatched route. API paths get the same uniform
+/// JSON shape as every other error response (`ApiError`); everything
+/// else — a mistyped or stale link to a page — gets a styled page
+/// instead of a bare blank 404, matching the site's own dark theme.
+pub async fn not_found(uri: axum::http::Uri) -> axum::response::Response {
+    if uri.path().starts_with("/api/") {
+        return (StatusCode::NOT_FOUND, Json(json!({ "error": "Not found." }))).into_response();
+    }
+    (StatusCode::NOT_FOUND, Html(NOT_FOUND_HTML)).into_response()
+}
+
+const NOT_FOUND_HTML: &str = r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page not found — AgentRaaS</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z' fill='%2306231C' stroke='%2300E0A8' stroke-width='0.8'/%3E%3Ccircle cx='12' cy='11.5' r='2.4' fill='%2300E0A8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #0A0D14; --text: #F5F6F9; --muted: #8B93A6; --signal: #00E0A8; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--ink); color: var(--text); font-family: 'Manrope', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .wrap { padding: 32px; }
+  h1 { font-family: 'Space Grotesk', sans-serif; font-size: 88px; color: var(--signal); line-height: 1; }
+  p { color: var(--muted); font-size: 17px; margin: 16px 0 28px; }
+  a.btn { display: inline-block; background: var(--signal); color: #06231C; font-weight: 600; padding: 12px 24px; border-radius: 8px; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>404</h1>
+    <p>That page doesn't exist — it may have moved or the link is out of date.</p>
+    <a class="btn" href="/">Back to AgentRaaS</a>
+  </div>
+</body>
+</html>
+"##;
+
+async fn og_image() -> axum::response::Response {
+    let path = public_file("og-image.png");
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => ([(header::CONTENT_TYPE, "image/png")], bytes).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "og-image.png not found on this deployment." }))).into_response(),
     }
 }
 
