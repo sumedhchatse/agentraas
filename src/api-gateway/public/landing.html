@@ -446,6 +446,7 @@
       <span class="stack-badge">🇪🇺 GDPR / EU AI Act friendly</span>
       <span class="stack-badge">🐳 One Docker Compose service</span>
       <span class="stack-badge">💸 No per-seat SaaS fees</span>
+      <span class="stack-badge">🔌 agentgateway-compatible</span>
     </div>
     <div class="marquee">
       <div class="marquee-track">
@@ -768,6 +769,10 @@
       <details class="faq-item">
         <summary>Is this open source?</summary>
         <p>The core engine (<code>src/core/</code> — payload dedup, MCP gateway, dashboard) is MIT/Apache-2.0. Enterprise features (<code>src/ee/</code> — SSO, HMAC, DLP, distributed rate limiting) are source-available under a separate commercial license. See <a href="/license">LICENSE.md</a> for the exact terms.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What does "agentgateway-compatible" mean?</summary>
+        <p><a href="https://agentgateway.dev/" target="_blank" rel="noopener">agentgateway</a> (a Linux Foundation project) is an edge proxy for AI traffic — auth, RBAC, rate limiting, and observability across all your MCP/tool servers, not just AgentRaaS. If you already run it (or want to), AgentRaaS drops in as a backend behind it with zero code changes on either side — see <a href="/guide">Getting started</a> for the one-command setup. Most self-hosters don't need this; it matters once you're managing more than one MCP server behind a shared gateway.</p>
       </details>
     </div>
   </div>
