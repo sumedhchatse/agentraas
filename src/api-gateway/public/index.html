@@ -891,6 +891,7 @@
     </form>
 
     <div class="sso-subhead">Members</div>
+    <div id="enterprise-seat-usage" class="sub" style="margin-bottom:8px;"></div>
     <div id="enterprise-members-list"></div>
 
     <div class="sso-subhead">Invite by email</div>
@@ -914,11 +915,22 @@
     <h3 style="margin-top:8px;font-size:14px;">Plan</h3>
     <div id="billing-current-plan" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:12px;">Loading…</div>
     <div id="billing-error" class="modal-error"></div>
+    <div id="billing-pro-section" style="display:none;margin-bottom:12px;">
+      <p class="sub">Pro: $20/month — HITL approval rules, up to 3 seats.</p>
+      <button type="button" class="btn filled" id="billing-pro-btn" style="width:100%;justify-content:center;">Upgrade to Pro</button>
+    </div>
     <div id="billing-agency-section" style="display:none;margin-bottom:24px;">
-      <p class="sub">Agency: $149/month — up to 10 client tenants, white-label branding, 50,000 actions/month.</p>
+      <p class="sub">Agency: $100/month — up to 10 client tenants, white-label branding, 50,000 actions/month.</p>
       <button type="button" class="btn filled" id="billing-agency-btn" style="width:100%;justify-content:center;">Upgrade to Agency</button>
     </div>
     <p class="sub" style="margin-bottom:24px;">Need HA clustering, SSO, or DLP? <a href="mailto:support@agentraas.io">Contact sales about Enterprise</a>.</p>
+
+    <div id="license-section" style="display:none;margin-bottom:24px;">
+      <h3 style="margin-top:8px;font-size:14px;">Your license</h3>
+      <p class="sub">Paste this token as <code>LICENSE_TOKEN</code> in your self-hosted deployment to unlock paid-tier features.</p>
+      <div id="license-error" class="modal-error"></div>
+      <div id="license-panel" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);"></div>
+    </div>
 
     <div id="branding-section" style="display:none;margin-bottom:24px;">
       <h3 style="margin-top:8px;font-size:14px;">White-label branding</h3>
@@ -1020,6 +1032,8 @@
   let volumeChart, statusChart, serviceChart;
   let hasEverAuthenticated = false;
   let currentUserEmail = '';
+  let currentUserOrgId = '';
+  let currentDeploymentMode = 'cloud';
   let refreshTimer = null;
   let anyModalOpen = false;
   let activityLimit = 50;
@@ -1123,6 +1137,8 @@
   function showDashboard(user) {
     authScreen.style.display = 'none'; dashboard.style.display = 'block'; userInfo.style.display = 'flex';
     currentUserEmail = user.email;
+    currentUserOrgId = user.org_id;
+    currentDeploymentMode = user.deployment_mode;
     accountBtn.textContent = user.email;
     const planBadgeEl = document.getElementById('header-plan-badge');
     planBadgeEl.textContent = 'Agency';
@@ -2316,6 +2332,8 @@
   const enterpriseError = document.getElementById('enterprise-error');
   const enterpriseOrgInput = document.getElementById('enterprise-org-input');
   let enterpriseCurrentOrg = '';
+  let enterpriseMemberCount = 0;
+  let enterpriseInviteCount = 0;
 
   function enterpriseShowError(msg) { enterpriseError.textContent = msg; enterpriseError.style.display = 'block'; }
   function roleBadge(role) {
@@ -2343,6 +2361,25 @@
     enterpriseCurrentOrg = orgId;
     enterpriseError.style.display = 'none';
     await Promise.all([loadEnterpriseConfigs(), loadEnterpriseMembers(), loadEnterpriseInvites()]);
+    await updateSeatUsage();
+  }
+
+  // Seat usage is member + pending-invite count against the org's tier
+  // limit (Community=1, Pro=3, Agency=10, Enterprise=unlimited) — mirrors
+  // agentraas_core::tier::Tier::seat_limit, the same limit require_tier
+  // enforces server-side on invite creation.
+  async function updateSeatUsage() {
+    const el = document.getElementById('enterprise-seat-usage');
+    el.textContent = '';
+    if (!enterpriseCurrentOrg) return;
+    try {
+      const res = await fetch(`/api/v1/licensing/token?org_id=${encodeURIComponent(enterpriseCurrentOrg)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) return;
+      const used = enterpriseMemberCount + enterpriseInviteCount;
+      const limit = SEAT_LIMITS[data.tier];
+      el.textContent = (limit == null) ? `${used} seats used (unlimited).` : `${used} of ${limit} seats used.`;
+    } catch (err) {}
   }
 
   async function loadEnterpriseConfigs() {
@@ -2399,8 +2436,9 @@
     try {
       const res = await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/members`, { credentials: 'include' });
       const data = await res.json();
-      if (!res.ok) { list.innerHTML = ''; return; } // 403 here is normal for a non-admin viewer; the configs call above already surfaced the error
+      if (!res.ok) { list.innerHTML = ''; enterpriseMemberCount = 0; return; } // 403 here is normal for a non-admin viewer; the configs call above already surfaced the error
       const members = data.members || [];
+      enterpriseMemberCount = members.length;
       if (!members.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No members yet.</div>'; return; }
       list.innerHTML = '';
       for (const m of members) {
@@ -2428,7 +2466,7 @@
       list.querySelectorAll('.revoke').forEach((btn) => {
         btn.addEventListener('click', async () => {
           await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/members/${btn.dataset.user}`, { method: 'DELETE', credentials: 'include' });
-          loadEnterpriseMembers();
+          await loadEnterpriseMembers(); updateSeatUsage();
         });
       });
     } catch (err) {}
@@ -2439,8 +2477,9 @@
     try {
       const res = await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/invites`, { credentials: 'include' });
       const data = await res.json();
-      if (!res.ok) { list.innerHTML = ''; return; }
+      if (!res.ok) { list.innerHTML = ''; enterpriseInviteCount = 0; return; }
       const invites = data.invites || [];
+      enterpriseInviteCount = invites.length;
       if (!invites.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No pending invites.</div>'; return; }
       list.innerHTML = '';
       for (const inv of invites) {
@@ -2452,7 +2491,7 @@
       list.querySelectorAll('.revoke').forEach((btn) => {
         btn.addEventListener('click', async () => {
           await fetch(`/api/v1/auth/sso/${encodeURIComponent(enterpriseCurrentOrg)}/invites/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' });
-          loadEnterpriseInvites();
+          await loadEnterpriseInvites(); updateSeatUsage();
         });
       });
     } catch (err) {}
@@ -2472,7 +2511,7 @@
       });
       const data = await res.json();
       if (!res.ok) { enterpriseShowError(data.error || 'Could not send invite.'); return; }
-      enterpriseInviteForm.reset(); loadEnterpriseInvites();
+      enterpriseInviteForm.reset(); await loadEnterpriseInvites(); updateSeatUsage();
       if (data.dev_accept_url) { enterpriseShowError(`Dev mode (no SMTP configured) — accept link: ${data.dev_accept_url}`); }
     } catch (err) { enterpriseShowError('Could not reach the server.'); }
     finally { enterpriseInviteSubmit.disabled = false; restoreText(); }
@@ -2553,20 +2592,56 @@
     }
   }
 
-  // ─── Billing / Agency upgrade ───
+  // ─── Billing / plan upgrade ───
+  // Mirrors agentraas_core::tier::Tier::seat_limit — null means unlimited.
+  const SEAT_LIMITS = { free: 1, pro: 3, agency: 10, enterprise: null };
+  const PLAN_LABELS = { free: 'Free', pro: 'Pro', agency: 'Agency', enterprise: 'Enterprise' };
+
   async function loadBillingPlanState() {
     const planEl = document.getElementById('billing-current-plan');
+    const proSection = document.getElementById('billing-pro-section');
     const agencySection = document.getElementById('billing-agency-section');
     const brandingSection = document.getElementById('branding-section');
     try {
       const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
       const data = await res.json();
       const plan = data.user?.plan || 'free';
-      planEl.textContent = plan === 'agency' ? 'You are on the Agency plan.' : 'You are on the Free plan.';
-      agencySection.style.display = plan === 'agency' ? 'none' : 'block';
+      planEl.textContent = `You are on the ${escapeHtml(PLAN_LABELS[plan] || 'Free')} plan.`;
+      proSection.style.display = plan === 'free' ? 'block' : 'none';
+      agencySection.style.display = (plan === 'free' || plan === 'pro') ? 'block' : 'none';
       brandingSection.style.display = plan === 'agency' ? 'block' : 'none';
     } catch (err) {
       planEl.textContent = 'Could not load plan status.';
+    }
+    loadLicensePanel();
+  }
+
+  // Self-host only: the dashboard fetch is what a self-host admin uses to
+  // get the LICENSE_TOKEN to paste into their deployment (Task 13's
+  // issuance endpoint). Cloud deployments never need one — cloud reads
+  // users.plan directly, so this section stays hidden there.
+  async function loadLicensePanel() {
+    const section = document.getElementById('license-section');
+    if (currentDeploymentMode === 'cloud') { section.style.display = 'none'; return; }
+    const panel = document.getElementById('license-panel');
+    const errorBox = document.getElementById('license-error');
+    section.style.display = 'block';
+    errorBox.style.display = 'none';
+    panel.textContent = 'Loading…';
+    try {
+      const res = await fetch(`/api/v1/licensing/token?org_id=${encodeURIComponent(currentUserOrgId)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) { errorBox.textContent = escapeHtml(data.error || 'Could not load license.'); errorBox.style.display = 'block'; panel.textContent = ''; return; }
+      if (!data.token) {
+        panel.textContent = 'Free tier — no license needed.';
+        return;
+      }
+      const expires = data.expires_at ? new Date(data.expires_at).toLocaleString() : 'unknown';
+      panel.innerHTML = `<div>Tier: ${escapeHtml(PLAN_LABELS[data.tier] || data.tier)}</div>
+        <div>Expires: ${escapeHtml(expires)}</div>
+        <textarea readonly style="width:100%;margin-top:8px;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;font-family:monospace;font-size:11px;resize:vertical;" rows="3">${escapeHtml(data.token)}</textarea>`;
+    } catch (err) {
+      errorBox.textContent = 'Could not load license.'; errorBox.style.display = 'block'; panel.textContent = '';
     }
   }
 
@@ -2582,18 +2657,18 @@
     });
   }
 
-  // Shared checkout trigger - used by both the header's quick-access button
-  // and the Account modal's Agency button, so the logic lives in one place.
-  // Agency is the only self-serve paid plan (Enterprise is sales-assisted).
-  // errorBox is optional: pass an element to show errors inline, or omit to
-  // fall back to alert() (used by the header button, which has no nearby
-  // space for an inline error message).
-  async function startAgencyCheckout(btn, errorBox) {
+  // Shared checkout trigger - used by the header's quick-access button and
+  // the Account modal's Pro/Agency buttons, so the logic lives in one place.
+  // Pro and Agency are the self-serve paid plans (Enterprise is
+  // sales-assisted). errorBox is optional: pass an element to show errors
+  // inline, or omit to fall back to alert() (used by the header button,
+  // which has no nearby space for an inline error message).
+  async function startCheckout(plan, btn, errorBox) {
     if (errorBox) errorBox.style.display = 'none';
     btn.disabled = true;
     const restoreText = withLoadingText(btn, 'Loading checkout...');
     try {
-      const infoRes = await fetch('/api/v1/billing/checkout-info', { credentials: 'include' });
+      const infoRes = await fetch(`/api/v1/billing/checkout-info?plan=${encodeURIComponent(plan)}`, { credentials: 'include' });
       const info = await infoRes.json();
       if (!infoRes.ok) {
         const msg = info.error || 'Billing is not available.';
@@ -2616,12 +2691,16 @@
     }
   }
 
+  document.getElementById('billing-pro-btn').addEventListener('click', () => {
+    startCheckout('pro', document.getElementById('billing-pro-btn'), document.getElementById('billing-error'));
+  });
+
   document.getElementById('billing-agency-btn').addEventListener('click', () => {
-    startAgencyCheckout(document.getElementById('billing-agency-btn'), document.getElementById('billing-error'));
+    startCheckout('agency', document.getElementById('billing-agency-btn'), document.getElementById('billing-error'));
   });
 
   document.getElementById('header-upgrade-btn').addEventListener('click', () => {
-    startAgencyCheckout(document.getElementById('header-upgrade-btn'), null);
+    startCheckout('agency', document.getElementById('header-upgrade-btn'), null);
   });
 
   document.getElementById('branding-save-btn').addEventListener('click', async () => {

@@ -5,7 +5,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::extract::{ConnectInfo, Path, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -17,7 +17,7 @@ use serde_json::{json, Value};
 use crate::agent::db::get_user_org_ids;
 use crate::auth::{check_dashboard_rate_limit, check_login_rate_limit, AuthUser};
 use crate::state::{ApiError, SharedState};
-use crate::util::validate_target_url;
+use crate::util::{configured_env, validate_target_url};
 
 pub fn router() -> Router<SharedState> {
     Router::new()
@@ -277,10 +277,24 @@ async fn require_admin(state: &SharedState, user_id: i32) -> Result<(), ApiError
 // deployment has no PADDLE_* env vars configured, so both routes 503
 // "not configured" here, same as Node's own fallback when unconfigured.
 
-async fn billing_checkout_info(State(state): State<SharedState>, user: AuthUser) -> Result<Json<Value>, ApiError> {
+#[derive(Deserialize)]
+struct CheckoutQuery {
+    plan: Option<String>,
+}
+
+async fn billing_checkout_info(State(state): State<SharedState>, user: AuthUser, Query(q): Query<CheckoutQuery>) -> Result<Json<Value>, ApiError> {
     check_dashboard_rate_limit(&state, user.sub).await?;
-    let client_token = std::env::var("PADDLE_CLIENT_TOKEN").ok();
-    let price_id = std::env::var("PADDLE_AGENCY_PRICE_ID").ok();
+    // Defaults to "agency" — the only paid plan this endpoint supported
+    // before Pro existed, so an old frontend build calling this with no
+    // ?plan= param keeps working exactly as it does today.
+    let target_plan = q.plan.unwrap_or_else(|| "agency".to_string());
+    let price_id_env = match target_plan.as_str() {
+        "pro" => "PADDLE_PRO_PRICE_ID",
+        "agency" => "PADDLE_AGENCY_PRICE_ID",
+        other => return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, format!("plan must be \"pro\" or \"agency\", got \"{other}\"."))),
+    };
+    let client_token = configured_env("PADDLE_CLIENT_TOKEN");
+    let price_id = configured_env(price_id_env);
     let (Some(client_token), Some(price_id)) = (client_token, price_id) else {
         return Err(ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Billing is not configured on this deployment."));
     };
@@ -292,7 +306,7 @@ async fn billing_checkout_info(State(state): State<SharedState>, user: AuthUser)
     Ok(Json(json!({
         "client_token": client_token, "environment": environment, "price_id": price_id,
         "email": email, "current_plan": current_plan,
-        "custom_data": { "user_id": user.sub, "plan": "agency" },
+        "custom_data": { "user_id": user.sub, "plan": target_plan },
     })))
 }
 
@@ -325,10 +339,13 @@ fn verify_paddle_signature(raw_body: &str, signature_header: &str, secret: &str)
 }
 
 async fn paddle_webhook(State(state): State<SharedState>, headers: HeaderMap, raw_body: axum::body::Bytes) -> Result<Json<Value>, ApiError> {
-    let (Ok(api_key), Ok(webhook_secret)) = (std::env::var("PADDLE_API_KEY"), std::env::var("PADDLE_WEBHOOK_SECRET")) else {
+    // webhook_secret specifically must never be blank — an empty HMAC key
+    // is still a well-defined signature scheme, so a genuinely-empty
+    // secret (from an unset `${PADDLE_WEBHOOK_SECRET:-}` default) would
+    // let anyone forge a valid webhook by signing with an empty key too.
+    let (Some(_api_key), Some(webhook_secret)) = (configured_env("PADDLE_API_KEY"), configured_env("PADDLE_WEBHOOK_SECRET")) else {
         return Err(ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Billing is not configured on this deployment."));
     };
-    let _ = api_key;
     let Some(signature) = headers.get("paddle-signature").and_then(|v| v.to_str().ok()) else {
         return Err(ApiError::new(StatusCode::UNAUTHORIZED, "Missing Paddle-Signature header."));
     };
