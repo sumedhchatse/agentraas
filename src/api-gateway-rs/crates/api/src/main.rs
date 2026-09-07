@@ -195,7 +195,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(ee::inbound_webhooks::router())
         .merge(ee::output_sanitization::router())
         .merge(ee::hitl::router());
-    let app = app.with_state(state);
+    let app = app.fallback(pages::not_found).with_state(state);
 
     let port: u16 = std::env::var("PORT")
         .ok()

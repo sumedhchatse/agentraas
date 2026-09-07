@@ -13,9 +13,10 @@ use sha2::{Digest, Sha256};
 use crate::state::{ApiError, SharedState};
 
 use super::{
-    check_dashboard_rate_limit, check_login_rate_limit, clear_login_rate_limit,
-    clear_session_cookie, hash_password, is_valid_email, is_valid_identifier, is_valid_password,
-    session_cookie, sign_session, verify_password, AuthUser,
+    check_dashboard_rate_limit, check_login_rate_limit, check_register_rate_limit,
+    clear_login_rate_limit, clear_session_cookie, hash_password, is_valid_email,
+    is_valid_identifier, is_valid_password, session_cookie, sign_session, verify_password,
+    AuthUser,
 };
 
 pub fn router() -> Router<SharedState> {
@@ -61,8 +62,17 @@ struct RegisterBody {
 
 async fn register(
     State(state): State<SharedState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(body): Json<RegisterBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = client_ip(&addr);
+    if !check_register_rate_limit(&state.redis, &ip).await? {
+        return Err(ApiError::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many registration attempts from this network. Try again in an hour.",
+        ));
+    }
+
     let email = body.email.unwrap_or_default();
     let password = body.password.unwrap_or_default();
 
