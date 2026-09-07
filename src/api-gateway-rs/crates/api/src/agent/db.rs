@@ -229,13 +229,15 @@ pub async fn verify_api_key(
     org_id: &str,
     agent_id: &str,
 ) -> Result<ApiKeyVerification, sqlx::Error> {
-    let keys_exist: Option<i32> = sqlx::query_scalar(
-        "SELECT 1 FROM api_keys WHERE org_id=$1 AND agent_id=$2 AND revoked_at IS NULL LIMIT 1",
-    )
-    .bind(org_id)
-    .bind(agent_id)
-    .fetch_optional(pg)
-    .await?;
+    // Zero-config convenience is scoped to the ORG, not the (org, agent_id)
+    // pair — agent_id is a free-form string the caller supplies on every
+    // request, so scoping the "no keys configured yet" bypass to it let
+    // anyone with a real key for one agent skip auth entirely for any
+    // other, never-used agent_id under the same org.
+    let keys_exist: Option<i32> = sqlx::query_scalar("SELECT 1 FROM api_keys WHERE org_id=$1 AND revoked_at IS NULL LIMIT 1")
+        .bind(org_id)
+        .fetch_optional(pg)
+        .await?;
     if keys_exist.is_none() {
         return Ok(ApiKeyVerification { ok: true });
     }
