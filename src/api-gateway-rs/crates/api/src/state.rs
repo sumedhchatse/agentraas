@@ -48,6 +48,16 @@ pub struct AppState {
     pub token_bucket: agentraas_core::token_bucket::TokenBucket,
     pub http_client: reqwest::Client,
     pub cipher: agentraas_core::crypto::CredentialCipher,
+
+    /// Self-host's cached, already-verified license tier — read from
+    /// `LICENSE_TOKEN` at startup and kept current by a background task
+    /// (see `main.rs`). Only meaningful when `deployment_mode != "cloud"`
+    /// (see `agent::db::effective_tier`, the only reader); cloud always
+    /// resolves tier from `users.plan` and never touches this field.
+    /// Defaults to `Tier::Community` — a missing/invalid/expired license
+    /// degrades a self-host deployment to free-tier behavior, never a
+    /// crash or a refused startup.
+    pub license_tier: std::sync::RwLock<agentraas_core::tier::Tier>,
 }
 
 pub type SharedState = Arc<AppState>;

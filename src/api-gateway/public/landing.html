@@ -308,7 +308,7 @@
   section.pricing .section-head { text-align: center; margin-bottom: 54px; }
   section.pricing h2 { font-size: 42px; margin-bottom: 12px; }
   section.pricing p { color: var(--muted); font-size: 17px; }
-  .pricing-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .pricing-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; }
   .price-card { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 20px; padding: 38px; transition: transform 0.2s ease, border-color 0.2s ease; }
   .price-card:hover { transform: translateY(-3px); border-color: rgba(0,224,168,0.35); }
   .price-card.featured { border-color: var(--signal); background: linear-gradient(180deg, rgba(0,224,168,0.06), transparent 40%), var(--ink-2); }
@@ -669,7 +669,7 @@
   <div class="wrap">
     <div class="section-head">
       <h2>Pricing that doesn't punish you for self-hosting.</h2>
-      <p>Open-core, fair-code licensed — Community is free and self-hosted only. Agency and Enterprise run either cloud-hosted or self-hosted.</p>
+      <p>Open-core, fair-code licensed — Community is free and self-hosted only. Pro, Agency, and Enterprise all run either cloud-hosted or self-hosted, same license either way.</p>
     </div>
     <div class="pricing-grid">
       <div class="price-card featured">
@@ -689,14 +689,29 @@
         <p style="font-size:12.5px;color:var(--muted);margin-top:14px;text-align:center;">Want to try it without installing anything? <a href="/dashboard" style="color:var(--signal);">Start a free AgentRaaS Cloud account →</a></p>
       </div>
       <div class="price-card">
+        <h3>Pro</h3>
+        <div class="tagline">For individual builders past the free tier's usage cap</div>
+        <div class="amount">$20<span class="unit"> /month</span></div>
+        <div class="limit-note">Higher usage &amp; rate limits, cloud or self-hosted</div>
+        <ul>
+          <li>Everything in Community</li>
+          <li>3 team seats</li>
+          <li>Human-in-the-Loop approval gateway (Slack)</li>
+          <li>Higher monthly action &amp; rate limits</li>
+        </ul>
+        <a href="/dashboard" class="btn secondary">Get started →</a>
+      </div>
+      <div class="price-card">
         <h3>Agency</h3>
         <div class="tagline">Cloud-hosted or self-hosted — manage client tenants under your own brand</div>
-        <div class="amount">$149<span class="unit"> /month</span></div>
+        <div class="amount">$100<span class="unit"> /month</span></div>
         <div class="limit-note">Unlimited self-hosted · 50,000/month on Cloud</div>
         <ul>
+          <li>Everything in Pro</li>
+          <li>10 team seats</li>
           <li>Up to 10 client tenants</li>
           <li>Multi-tenant, white-label dashboard</li>
-          <li>Outbound rate smoothing (token bucket)</li>
+          <li>Inbound webhook receivers (Stripe, GitHub, Shopify &amp; more)</li>
           <li>Priority email support</li>
         </ul>
         <a href="/dashboard" class="btn secondary">Get started →</a>
@@ -705,17 +720,17 @@
         <h3>Enterprise</h3>
         <div class="tagline">Cloud-hosted or self-hosted/on-prem — production, multi-team agent fleets</div>
         <div class="amount">Custom<span class="unit"> from $499/mo</span></div>
-        <div class="limit-note">Unlimited actions &amp; workspaces, either way</div>
+        <div class="limit-note">Unlimited actions, workspaces &amp; seats, either way</div>
         <ul>
+          <li>Everything in Agency, unlimited seats</li>
           <li>Active-active HA clustering</li>
-          <li>Inbound HMAC verification (10+ providers)</li>
           <li>PII masking &amp; DLP redaction engine</li>
           <li>SAML/OIDC SSO, RBAC &amp; SOC2-ready audit export</li>
         </ul>
         <a href="mailto:support@agentraas.io" class="btn secondary">Contact sales →</a>
       </div>
     </div>
-    <p class="license-note">Full terms in <a href="/license">LICENSE.md</a> — a fair-code license modeled on n8n's Sustainable Use License. Enterprise features (<code>src/ee/</code>) are source-available under a separate commercial license.</p>
+    <p class="license-note">Full terms in <a href="/license">LICENSE.md</a> — a fair-code license modeled on n8n's Sustainable Use License. Pro/Agency/Enterprise features (<code>src/ee/</code>) are source-available under a separate commercial license.</p>
   </div>
 </section>
 
@@ -728,11 +743,11 @@
     <div class="faq-list">
       <details class="faq-item">
         <summary>Is self-hosted really unlimited, on every tier?</summary>
-        <p>Yes. Community, Agency, and Enterprise are all unlimited actions/month when you run them on your own infrastructure — no cap, no metering, no phone-home check. It's a term of <a href="/license">LICENSE.md</a>, not a "soft" limit we quietly enforce. The only metered tier is the free AgentRaaS Cloud account (500 actions/month) — because that one runs on our infrastructure, not yours.</p>
+        <p>Yes. Community, Pro, Agency, and Enterprise are all unlimited actions/month when you run them on your own infrastructure — no cap, no metering, no phone-home check. It's a term of <a href="/license">LICENSE.md</a>, not a "soft" limit we quietly enforce. The only metered tier is the free AgentRaaS Cloud account (500 actions/month) — because that one runs on our infrastructure, not yours. Pro/Agency/Enterprise features on a self-hosted instance unlock via a license token you paste into your own <code>.env</code> once at setup, verified entirely offline — never a network call back to us.</p>
       </details>
       <details class="faq-item">
-        <summary>What's the difference between Agency and Enterprise?</summary>
-        <p>Agency ($149/mo) adds multi-tenancy and white-label branding — built for agencies managing multiple client workspaces under one dashboard. Enterprise (custom pricing) adds everything needed for a production multi-team deployment: active-active HA clustering, inbound HMAC verification, PII/DLP redaction, and SAML/OIDC SSO with RBAC. Both run cloud-hosted or self-hosted.</p>
+        <summary>What's the difference between Pro, Agency, and Enterprise?</summary>
+        <p>Pro ($20/mo) is for an individual builder past the free tier's usage cap — 3 seats and the Human-in-the-Loop approval gateway. Agency ($100/mo) adds multi-tenancy, white-label branding, and inbound webhook receivers — built for agencies managing multiple client workspaces under one dashboard, with 10 seats. Enterprise (custom pricing) adds everything needed for a production multi-team deployment: unlimited seats, active-active HA clustering, PII/DLP redaction, and SAML/OIDC SSO with RBAC. All three run cloud-hosted or self-hosted.</p>
       </details>
       <details class="faq-item">
         <summary>Is my data safe if I self-host?</summary>

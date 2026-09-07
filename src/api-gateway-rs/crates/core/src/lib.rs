@@ -9,7 +9,9 @@ pub mod circuit_breaker;
 pub mod config;
 pub mod crypto;
 pub mod dedup;
+pub mod license;
 pub mod pruner;
+pub mod tier;
 pub mod token_bucket;
 pub mod validator;
 
