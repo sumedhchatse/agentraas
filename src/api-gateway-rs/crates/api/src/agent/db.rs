@@ -439,16 +439,29 @@ pub async fn check_agency_tenant_cap(
     Ok(TenantCapCheck { ok: true, limit: 0 })
 }
 
-/// Enterprise RBAC write gate: an 'auditor' `org_members` row means
-/// read-only for that org. No membership row at all (Community-tier, the
-/// overwhelming majority of orgs) is permissive, unchanged.
+/// Write gate for org-scoped dashboard/agent-connect routes. An
+/// `org_members` row (Enterprise RBAC, via an accepted invite) decides it
+/// when present — 'auditor' is read-only, anything else can write. With
+/// no membership row, only the org's own registered owner
+/// (`users.org_id = org_id`, set at registration — see `auth/routes.rs`'s
+/// register(), which already rejects claiming someone else's org_id) may
+/// write to it. A user with neither relationship to `org_id` has no
+/// business writing into it at all.
 pub async fn check_org_write_permission(pg: &PgPool, user_id: i32, org_id: &str) -> Result<bool, sqlx::Error> {
-    let role: Option<String> = sqlx::query_scalar("SELECT role FROM org_members WHERE user_id=$1 AND org_id=$2")
+    let role: Option<String> = sqlx::query_scalar("SELECT role FROM org_members WHERE user_id = $1 AND org_id = $2")
         .bind(user_id)
         .bind(org_id)
         .fetch_optional(pg)
         .await?;
-    Ok(role.as_deref() != Some("auditor"))
+    if let Some(role) = role {
+        return Ok(role != "auditor");
+    }
+    let is_owner: Option<i32> = sqlx::query_scalar("SELECT 1 FROM users WHERE id = $1 AND org_id = $2")
+        .bind(user_id)
+        .bind(org_id)
+        .fetch_optional(pg)
+        .await?;
+    Ok(is_owner.is_some())
 }
 
 #[derive(Clone)]
