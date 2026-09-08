@@ -203,29 +203,32 @@ flowchart TB
 
 ## Pricing
 
-Open-core, three tiers. Community is self-hosted only, with a limited
-feature set — it's the free on-ramp. Agency and Enterprise both run
+Open-core, four tiers. Community is self-hosted only, with a limited
+feature set — it's the free on-ramp. Pro, Agency, and Enterprise all run
 either cloud-hosted (on AgentRaaS Cloud) or self-hosted, and unlock
-everything above Community. The Agency/Enterprise-only pieces (SSO,
+everything above Community. The Pro/Agency/Enterprise-only pieces (SSO,
 RBAC, inbound HMAC verification, PII/DLP redaction, distributed rate
 limiting, tool output sanitization) live behind a separate commercial
 license and simply aren't in this repo's source tree — see
 [LICENSE.md](./LICENSE.md).
 
-| | Community | Agency | Enterprise |
-|---|---|---|---|
-| **Price** | $0/mo | $149/mo | Custom, from $499/mo |
-| **Deployment** | Self-hosted only | Cloud-hosted or self-hosted | Cloud-hosted or self-hosted/on-prem |
-| **Actions/month, self-hosted** | Unlimited | Unlimited | Unlimited |
-| **Actions/month, cloud-hosted** | n/a (not offered) | 50,000 | Unlimited |
-| **Payload dedup, MCP gateway, dashboard** | ✅ | ✅ | ✅ |
-| **Audit log retention** | Local Postgres (30d) | 1 year | SOC2-ready + SIEM export |
-| **Client tenants / white-label** | — | ✅ up to 10 | ✅ unlimited |
-| **Outbound rate smoothing (token bucket)** | Static cap only | ✅ | ✅ |
-| **Inbound HMAC verification, PII/DLP redaction** | — | — | ✅ |
-| **SSO (OIDC/SAML), RBAC** | — | — | ✅ |
-| **HA clustering** | — | — | ✅ |
-| **Support** | GitHub & Discord | Priority email | 24/7 SLA |
+| | Community | Pro | Agency | Enterprise |
+|---|---|---|---|---|
+| **Price** | $0/mo | $20/mo | $100/mo | Custom, from $499/mo |
+| **Deployment** | Self-hosted only | Cloud-hosted or self-hosted | Cloud-hosted or self-hosted | Cloud-hosted or self-hosted/on-prem |
+| **Actions/month, self-hosted** | Unlimited | Unlimited | Unlimited | Unlimited |
+| **Actions/month, cloud-hosted** | n/a (not offered) | 10,000 | 50,000 | Unlimited |
+| **Team seats** | 1 | 3 | 10 | Unlimited |
+| **Payload dedup, MCP gateway, dashboard** | ✅ | ✅ | ✅ | ✅ |
+| **Human-in-the-Loop approval gateway (Slack)** | — | ✅ | ✅ | ✅ |
+| **Audit log retention** | Local Postgres (30d) | Local Postgres (30d) | 1 year | SOC2-ready + SIEM export |
+| **Client tenants / white-label** | — | — | ✅ up to 10 | ✅ unlimited |
+| **Inbound webhook receivers** | — | — | ✅ | ✅ |
+| **Outbound rate smoothing (token bucket)** | Static cap only | Static cap only | ✅ | ✅ |
+| **Inbound HMAC verification, PII/DLP redaction** | — | — | — | ✅ |
+| **SSO (OIDC/SAML), RBAC** | — | — | — | ✅ |
+| **HA clustering** | — | — | — | ✅ |
+| **Support** | GitHub & Discord | GitHub & Discord | Priority email | Priority, SLA-backed |
 
 Community also has a free-to-try flavor on AgentRaaS Cloud (no install,
 capped at 500 actions/month — the only tier/deployment combination with
@@ -270,23 +273,18 @@ started or self-host from `/dashboard`, or contact
 
 ## License
 
-AgentRaaS uses a custom **fair-code / source-available license** — see
-[LICENSE.md](./LICENSE.md) for full terms. In short:
-
-- **Self-hosted:** free, unlimited forwarded actions/month, on any tier
-- **On an AgentRaaS-hosted deployment:** free for up to 500/month
-- To offer AgentRaaS as a competing hosted service, or for a Cloud plan
-  beyond the free tier, contact **support@agentraas.io**
-
-This is not an OSI-approved open-source license — it's modeled on n8n's
+**One sentence:** everything in this repo is dual-licensed MIT/Apache-2.0
+(genuinely open, no restrictions — [LICENSE-MIT](./LICENSE-MIT) /
+[LICENSE-APACHE](./LICENSE-APACHE)). The Pro/Agency/Enterprise-only pieces
+(SSO, RBAC, HMAC verification, DLP, distributed rate limiting, tool
+output sanitization) aren't a flag or a config toggle — their source
+simply isn't included in this repo at all, and lives under a separate
+fair-code/source-available commercial license in the private edition
+(`agentraas-enterprise`) — see [LICENSE.md](./LICENSE.md) for the exact
+terms, including the metered free tier for AgentRaaS-hosted deployments
+(500 actions/month) and the fact that self-hosting is unlimited on every
+tier. Not an OSI-approved open-source license, modeled on n8n's
 Sustainable Use License.
-
-Everything in this repo is MIT/Apache-2.0 — genuinely open. The
-Agency/Enterprise-only pieces (SSO, RBAC, HMAC, DLP, distributed rate
-limiting, tool output sanitization) aren't a flag or a config toggle —
-their source simply isn't included here, and lives under a separate
-commercial license in the private edition. See [LICENSE.md](./LICENSE.md)
-for the full terms.
 
 ---
 
