@@ -196,7 +196,7 @@ fn build_email_html(t: EmailTemplate) -> String {
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;max-width:480px;width:100%;">
   <tr><td style="background:#0A0D14;padding:24px 32px;">
     <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-      <td style="width:28px;height:28px;background:#00E0A8;border-radius:8px;text-align:center;vertical-align:middle;font-size:14px;">🛡️</td>
+      <td style="width:28px;height:28px;background:#FFA53D;border-radius:8px;text-align:center;vertical-align:middle;font-size:14px;">🛡️</td>
       <td style="padding-left:10px;color:#FFFFFF;font-size:17px;font-weight:700;">AgentRaaS</td>
     </tr></table>
   </td></tr>
@@ -204,20 +204,20 @@ fn build_email_html(t: EmailTemplate) -> String {
     <h1 style="margin:0 0 16px;font-size:21px;color:#14171F;">{heading}</h1>
     <div style="font-size:15px;line-height:1.6;color:#3A4152;margin-bottom:28px;">{body_html}</div>
     <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-      <td style="background:#00E0A8;border-radius:999px;">
-        <a href="{cta_url}" style="display:inline-block;padding:13px 28px;color:#06231C;font-weight:700;font-size:15px;text-decoration:none;">{cta_text}</a>
+      <td style="background:#FFA53D;border-radius:999px;">
+        <a href="{cta_url}" style="display:inline-block;padding:13px 28px;color:#2B1400;font-weight:700;font-size:15px;text-decoration:none;">{cta_text}</a>
       </td>
     </tr></table>
     <p style="font-size:13px;color:#8B93A6;margin-top:24px;line-height:1.5;">
       Or copy and paste this link into your browser:<br>
-      <a href="{cta_url}" style="color:#059669;word-break:break-all;">{cta_url}</a>
+      <a href="{cta_url}" style="color:#C2650A;word-break:break-all;">{cta_url}</a>
     </p>
     {expiry_html}
   </td></tr>
   <tr><td style="padding:20px 32px;background:#F9F8F5;border-top:1px solid #E4E0D6;">
     <p style="font-size:12.5px;color:#8B93A6;margin:0;line-height:1.5;">
       If you didn't request this, you can safely ignore this email.
-      Questions? Reach us at <a href="mailto:support@agentraas.io" style="color:#059669;">support@agentraas.io</a>.
+      Questions? Reach us at <a href="mailto:support@agentraas.io" style="color:#C2650A;">support@agentraas.io</a>.
     </p>
   </td></tr>
 </table>
