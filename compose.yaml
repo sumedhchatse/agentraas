@@ -25,9 +25,15 @@ services:
     hostname: ar-postgres
     networks:
       - agentraas-net
+    # POSTGRES_PASSWORD comes from .env via env_file, not an explicit
+    # `environment:` mapping — podman-compose/docker-compose pass env_file
+    # as a bare --env-file <path> to `podman run`/`docker run`, so the
+    # value never appears in a verbose command-echo the way `-e KEY=value`
+    # does. Same reasoning for every other service below with secrets.
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: agentraas
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       POSTGRES_DB: agentraas
     ports:
       - "127.0.0.1:15432:5432"
@@ -42,9 +48,10 @@ services:
     hostname: ar-minio
     networks:
       - agentraas-net
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    # MINIO_ROOT_USER/PASSWORD come from .env via env_file — see ar-postgres
+    # above for why.
+    env_file:
+      - .env
     ports:
       - "127.0.0.1:19000:9000"
       - "127.0.0.1:19001:9001"
@@ -61,29 +68,40 @@ services:
     hostname: ar-api
     networks:
       - agentraas-net
+    # Secrets (JWT_SECRET, CREDENTIALS_ENCRYPTION_KEY, PADDLE_*,
+    # SMTP_USER/PASS) come from .env via env_file, not an explicit
+    # `environment:` mapping — see ar-postgres above for why. DATABASE_URL
+    # stays an explicit interpolated mapping below rather than a raw
+    # env_file passthrough: it's *derived* from POSTGRES_PASSWORD, so it
+    # has to be reconstructed fresh from the current value at compose-parse
+    # time — a literal DATABASE_URL sitting in .env can silently drift
+    # stale after a password rotation and break the app in a way that's
+    # easy to miss (this happened once in production; see the deploy repo's
+    # history if this file is ever diffed against agentraas-enterprise).
+    env_file:
+      - .env
     environment:
       NODE_ENV: "${NODE_ENV:-development}"
       PORT: 3000
       REDIS_URL: redis://ar-redis:6379
       DATABASE_URL: "postgres://agentraas:${POSTGRES_PASSWORD}@ar-postgres:5432/agentraas"
-      JWT_SECRET: "${JWT_SECRET}"
-      CREDENTIALS_ENCRYPTION_KEY: "${CREDENTIALS_ENCRYPTION_KEY}"
       DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
       PUBLIC_URL: "${PUBLIC_URL:-http://localhost:13000}"
       CLOUD_MONTHLY_LIMIT: "${CLOUD_MONTHLY_LIMIT}"
-      PADDLE_API_KEY: "${PADDLE_API_KEY:-}"
-      PADDLE_WEBHOOK_SECRET: "${PADDLE_WEBHOOK_SECRET:-}"
-      PADDLE_CLIENT_TOKEN: "${PADDLE_CLIENT_TOKEN:-}"
       PADDLE_PRO_PRICE_ID: "${PADDLE_PRO_PRICE_ID:-}"
       PADDLE_ENVIRONMENT: "${PADDLE_ENVIRONMENT:-sandbox}"
       PRO_MONTHLY_LIMIT: "${PRO_MONTHLY_LIMIT:-10000}"
       PRO_RATE_LIMIT_PER_MIN: "${PRO_RATE_LIMIT_PER_MIN:-1000}"
       SMTP_HOST: "${SMTP_HOST:-}"
       SMTP_PORT: "${SMTP_PORT:-587}"
-      SMTP_USER: "${SMTP_USER:-}"
-      SMTP_PASS: "${SMTP_PASS:-}"
       SMTP_FROM: "${SMTP_FROM:-}"
       MINIO_ENDPOINT: ar-minio:9000
+      # Renamed from MINIO_ROOT_USER/PASSWORD (the app reads
+      # MINIO_ACCESS_KEY/SECRET_KEY) — env_file passes .env's keys through
+      # verbatim, it can't rename, so this one pair still has to go through
+      # `environment:`. Lower-value credential (local object storage, not
+      # billing/auth/license), accepted as a residual gap rather than
+      # duplicating the values into .env under new key names.
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
     ports:
@@ -122,13 +140,17 @@ services:
     hostname: ar-api-rs
     networks:
       - agentraas-net
+    # Secrets (JWT_SECRET, CREDENTIALS_ENCRYPTION_KEY, SMTP_USER/PASS,
+    # PADDLE_*, LICENSE_SIGNING_PRIVATE_KEY, LICENSE_TOKEN) come from .env
+    # via env_file — see ar-api above for why, and for why DATABASE_URL
+    # stays an explicit interpolated mapping instead.
+    env_file:
+      - .env
     environment:
       RUST_LOG: "info"
       PORT: 3000
       DATABASE_URL: "postgres://agentraas:${POSTGRES_PASSWORD}@ar-postgres:5432/agentraas"
       REDIS_URL: redis://ar-redis:6379
-      JWT_SECRET: "${JWT_SECRET}"
-      CREDENTIALS_ENCRYPTION_KEY: "${CREDENTIALS_ENCRYPTION_KEY}"
       # Was missing entirely until 2026-09-06: with no SMTP_HOST, `Mailer::
       # is_configured()` is always false, so every registration/password-
       # reset response unconditionally included a working dev_verify_url —
@@ -136,25 +158,15 @@ services:
       # never sent via this service, mirroring ar-api's own SMTP_* block above.
       SMTP_HOST: "${SMTP_HOST:-}"
       SMTP_PORT: "${SMTP_PORT:-587}"
-      SMTP_USER: "${SMTP_USER:-}"
-      SMTP_PASS: "${SMTP_PASS:-}"
       SMTP_FROM: "${SMTP_FROM:-}"
       EXPOSE_DEV_VERIFY_URL: "${EXPOSE_DEV_VERIFY_URL:-false}"
       # Paddle billing is a cloud (agentraas.io) concept, not something a
       # self-hosted Community deployment normally uses — left wired but
       # unset by default so billing_checkout_info/paddle_webhook cleanly
       # 503 "not configured" rather than needing to be compiled out.
-      PADDLE_API_KEY: "${PADDLE_API_KEY:-}"
-      PADDLE_WEBHOOK_SECRET: "${PADDLE_WEBHOOK_SECRET:-}"
-      PADDLE_CLIENT_TOKEN: "${PADDLE_CLIENT_TOKEN:-}"
       PADDLE_PRO_PRICE_ID: "${PADDLE_PRO_PRICE_ID:-}"
       PADDLE_AGENCY_PRICE_ID: "${PADDLE_AGENCY_PRICE_ID:-}"
       PADDLE_ENVIRONMENT: "${PADDLE_ENVIRONMENT:-sandbox}"
-      # Only ever set on agentraas.io itself, never on a self-hosted
-      # image's own .env — this is what signs license tokens for OTHER
-      # deployments. A self-hoster only ever needs LICENSE_TOKEN below
-      # (verification), never this (issuance).
-      LICENSE_SIGNING_PRIVATE_KEY: "${LICENSE_SIGNING_PRIVATE_KEY:-}"
       # DEPLOYMENT_MODE drives the dashboard's cloud-vs-self-hosted UI
       # (e.g. the 24h history limit on the free self-host tier).
       # LICENSE_TOKEN is what a paying self-hoster pastes in from the
@@ -163,7 +175,6 @@ services:
       # `agentraas-enterprise` repo for that), but the same env var is
       # wired here so switching to a paid-tier binary later is a drop-in.
       DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
-      LICENSE_TOKEN: "${LICENSE_TOKEN:-}"
     ports:
       - "127.0.0.1:13001:3000"
     volumes:
