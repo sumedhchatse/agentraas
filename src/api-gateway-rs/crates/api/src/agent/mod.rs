@@ -2,6 +2,7 @@ pub mod db;
 pub mod forward;
 
 use agentraas_core::{circuit_breaker, dedup};
+use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{delete, get, post};
@@ -9,6 +10,7 @@ use axum::{Json, Router};
 use rand::RngCore;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tokio_stream::wrappers::ReceiverStream;
 
 use crate::auth::{check_dashboard_rate_limit, is_valid_identifier, AuthUser};
 use crate::state::{ApiError, SharedState};
@@ -17,7 +19,7 @@ use db::{
     check_agency_tenant_cap, check_org_write_permission, check_usage_limit,
     get_effective_dedup_rule, get_effective_rate_limit, get_effective_validation_rule,
     increment_monthly_usage, log_audit, resolve_custom_route, resolve_org_from_api_key,
-    verify_api_key, ResolvedRoute,
+    select_dedup_hash_mode, verify_api_key, DedupHashMode, ResolvedRoute,
 };
 
 pub fn router() -> Router<SharedState> {
@@ -51,7 +53,8 @@ async fn internal_mockpay(Json(body): Json<Value>) -> Response {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": "MockPay temporarily unavailable", "code": "mock_error" })),
-        );
+        )
+            .into();
     }
     let mut buf = [0u8; 8];
     rand::thread_rng().fill_bytes(&mut buf);
@@ -68,6 +71,7 @@ async fn internal_mockpay(Json(body): Json<Value>) -> Response {
             "timestamp": crate::util::iso_now(),
         })),
     )
+        .into()
 }
 
 fn generate_request_id() -> String {
@@ -172,10 +176,49 @@ fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
     headers.get(name).and_then(|v| v.to_str().ok()).map(String::from)
 }
 
-pub(crate) type Response = (StatusCode, Json<Value>);
+/// Almost always a plain `(StatusCode, Json<Value>)`; `Stream` is the one
+/// exception, used only by `handle_request`'s streaming-route success arm to
+/// pass an upstream SSE/chunked response through live instead of buffering
+/// it — see `forward.rs::forward_action_streaming`. Mirrors `ApiError`'s
+/// `IntoResponse` impl in `state.rs`.
+pub(crate) enum Response {
+    Json(StatusCode, Json<Value>),
+    Stream(axum::response::Response),
+}
+
+impl axum::response::IntoResponse for Response {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            Response::Json(status, json) => (status, json).into_response(),
+            Response::Stream(resp) => resp,
+        }
+    }
+}
+
+impl From<(StatusCode, Json<Value>)> for Response {
+    fn from((status, json): (StatusCode, Json<Value>)) -> Self {
+        Response::Json(status, json)
+    }
+}
+
+impl Response {
+    /// For callers that only care whether the request succeeded, not the
+    /// body — the Pause & Buffer maintenance queue's replay path (nothing
+    /// is waiting on a streamed body there, so a streaming action getting
+    /// replayed just forwards the call and discards the stream, same as it
+    /// would discard a normal JSON body). Only called from `ee::maintenance`,
+    /// which is enterprise-only — the Community build never calls this.
+    #[cfg_attr(not(feature = "enterprise"), allow(dead_code))]
+    pub(crate) fn status_code(&self) -> StatusCode {
+        match self {
+            Response::Json(status, _) => *status,
+            Response::Stream(resp) => resp.status(),
+        }
+    }
+}
 
 fn err_response(status: StatusCode, req_id: &str, message: impl Into<String>) -> Response {
-    (status, Json(json!({ "error": message.into(), "reqId": req_id })))
+    (status, Json(json!({ "error": message.into(), "reqId": req_id }))).into()
 }
 
 /// Shared by `handle_request` and (once approved) the HITL Gateway's
@@ -208,6 +251,7 @@ pub(crate) async fn resolve_route(state: &SharedState, org_id: &str, service: &s
                 extra_headers: r.extra_headers.clone(),
                 fanout_urls: Vec::new(),
                 credential_key: service.to_string(),
+                streaming: r.streaming,
             }),
             None => Err(err_response(StatusCode::BAD_REQUEST, req_id, format!("Unknown service.action: {route_key}"))),
         }
@@ -301,7 +345,8 @@ async fn handle_request(
                         "reqId": req_id,
                         "message": "AgentRaaS is in maintenance mode — this request has been queued and will be processed automatically once maintenance ends.",
                     })),
-                );
+                )
+                    .into();
             }
             Ok(false) => {}
             Err(err) => {
@@ -359,7 +404,7 @@ async fn handle_request(
                     map.insert("checkpointed".to_string(), Value::Bool(true));
                     map.insert("reqId".to_string(), Value::String(req_id.clone()));
                 }
-                return (StatusCode::OK, Json(cached));
+                return (StatusCode::OK, Json(cached)).into();
             }
         }
     }
@@ -395,7 +440,8 @@ async fn handle_request(
                             ),
                             "reqId": req_id,
                         })),
-                    );
+                    )
+                        .into();
                 }
                 Ok(_) => {}
                 Err(err) => tracing::error!(?err, "agent loop-detection check failed"),
@@ -406,17 +452,18 @@ async fn handle_request(
     let start = std::time::Instant::now();
     let payload_digest = dedup::hash_only(&payload);
 
-    let dedup_field_rule = if idempotency_key.is_some() {
-        None
-    } else {
-        get_effective_dedup_rule(&state.pg, &org_id, &service, &action).await.unwrap_or(None)
-    };
-    let dedup_hash = if let Some(idem) = &idempotency_key {
-        dedup::hash_idempotency_key(&api_key, &service, &action, idem)
-    } else if let Some(rule) = &dedup_field_rule {
-        dedup::hash_field_values(&api_key, &service, &action, &payload, &rule.fields, rule.normalize)
-    } else {
-        dedup::hash_payload(&api_key, &service, &action, &payload)
+    // Looked up regardless of idempotency-key mode: a rule's `ttl_seconds`
+    // (endpoint-specific dedup window) applies no matter which hash mode is
+    // active — only the (non-empty) `fields` list is specific to field-based
+    // hashing. This lets an org set a custom TTL without opting into a
+    // field-allow-list rule at all (a "TTL-only" rule has empty `fields`).
+    let dedup_field_rule = get_effective_dedup_rule(&state.pg, &org_id, &service, &action).await.unwrap_or(None);
+    let dedup_hash = match select_dedup_hash_mode(idempotency_key.as_deref(), dedup_field_rule.as_ref()) {
+        DedupHashMode::IdempotencyKey(idem) => dedup::hash_idempotency_key(&api_key, &service, &action, idem),
+        DedupHashMode::Fields { fields, normalize } => {
+            dedup::hash_field_values(&api_key, &service, &action, &payload, fields, normalize)
+        }
+        DedupHashMode::Payload => dedup::hash_payload(&api_key, &service, &action, &payload),
     };
     let dedup_ttl_seconds = dedup_field_rule.as_ref().and_then(|r| r.ttl_seconds);
 
@@ -438,6 +485,17 @@ async fn handle_request(
             .and_then(|v| v.get("pending"))
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        // A streaming route's completed slot holds a non-replayable
+        // sentinel (see the success arm below), not the actual response
+        // body — a stream can't be replayed byte-for-byte without buffering
+        // it, which is exactly what streaming passthrough exists to avoid.
+        // Reject rather than silently handing back the sentinel as if it
+        // were a real result.
+        let is_streamed = existing
+            .as_ref()
+            .and_then(|v| v.get("streamed"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let Some(existing) = existing else {
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
@@ -445,6 +503,10 @@ async fn handle_request(
         if is_pending {
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
+        }
+        if is_streamed {
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_of_streamed_response"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+            return err_response(StatusCode::CONFLICT, &req_id, "An identical request was already served as a streaming response and cannot be replayed. Wait for the dedup window to expire, or use a new Idempotency-Key.");
         }
 
         if let Some(idem) = &idempotency_key {
@@ -465,7 +527,7 @@ async fn handle_request(
             map.insert("cached".to_string(), Value::Bool(true));
             map.insert("reqId".to_string(), Value::String(req_id.clone()));
         }
-        return (StatusCode::OK, Json(cached));
+        return (StatusCode::OK, Json(cached)).into();
     }
 
     // ─── claimed: do the real work ───
@@ -545,11 +607,101 @@ async fn handle_request(
                     state, &req_id, &org_id, &agent_id, &api_key, &service, &action, &payload, &dedup_hash, dedup_ttl_seconds, rule,
                     run_id.as_deref(), step_id.as_deref(),
                 )
-                .await;
+                .await
+                .into();
             }
             Ok(None) => {}
             Err(err) => tracing::error!(?err, "hitl match_rule failed"),
         }
+    }
+
+    if resolved_route.streaming {
+        return match forward::forward_with_retry_streaming(state, &resolved_route, &service, &org_id, &payload, &req_id, &circuit_key).await {
+            Ok(streaming) => {
+                if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
+                    if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
+                        forward::log_circuit_transition(state, t).await;
+                    }
+                }
+                forward::broadcast_fanout(state, &resolved_route, &payload, &req_id);
+                let _ = increment_monthly_usage(state, &org_id).await;
+                // Fired now, at confirmed-2xx-headers time — not when the
+                // stream finishes. This is what any reverse proxy does: a
+                // client disconnect or upstream drop mid-stream is invisible
+                // to it too. Checkpoint write is skipped for the same
+                // reason `complete_dedup_slot_with_ttl` below stores a
+                // sentinel, not the body: there's no full response to
+                // persist for either.
+                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref()).await;
+
+                // ponytail: no automated non-buffering test — proving bytes
+                // are forwarded incrementally (not buffered) needs a test
+                // double that trickles chunks over real wall-clock time,
+                // which this repo has no precedent for. Verify with a
+                // manual `curl -N` against a real/simulated chunked
+                // upstream before shipping. Add a timed-chunk test double
+                // if this regresses more than once.
+                let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::io::Error>>(16);
+                let claim_key = claim.key.clone();
+                let spawn_state = state.clone();
+                let spawn_circuit_key = circuit_key.clone();
+                let spawn_req_id = req_id.clone();
+                let spawn_api_key = api_key.clone();
+                let spawn_org_id = org_id.clone();
+                let spawn_agent_id = agent_id.clone();
+                let spawn_service = service.clone();
+                let spawn_action = action.clone();
+                let spawn_run_id = run_id.clone();
+                let spawn_step_id = step_id.clone();
+                let mut upstream = streaming.response;
+                tokio::spawn(async move {
+                    let mut had_error = false;
+                    loop {
+                        match upstream.chunk().await {
+                            Ok(Some(chunk)) => {
+                                if tx.send(Ok(chunk)).await.is_err() {
+                                    break; // client disconnected
+                                }
+                            }
+                            Ok(None) => break, // clean end of stream
+                            Err(err) => {
+                                had_error = true;
+                                let _ = tx.send(Err(std::io::Error::other(err.to_string()))).await;
+                                break;
+                            }
+                        }
+                    }
+                    let Ok(mut conn) = spawn_state.redis.get_multiplexed_async_connection().await else { return };
+                    if had_error {
+                        let _ = dedup::release_dedup_slot(&mut conn, &claim_key).await;
+                        if let Ok(Some(t)) = circuit_breaker::record_failure(&mut conn, &spawn_circuit_key).await {
+                            forward::log_circuit_transition(&spawn_state, t).await;
+                        }
+                        log_audit(&spawn_state.pg, &spawn_req_id, &spawn_api_key, &spawn_org_id, &spawn_agent_id, &spawn_service, &spawn_action, "error", Some("stream interrupted mid-response"), 0, None, false, None, spawn_run_id.as_deref(), spawn_step_id.as_deref()).await;
+                    } else {
+                        // Sentinel, not the real body — a stream can't be
+                        // dedup-replayed byte-for-byte without buffering it,
+                        // which is exactly what streaming exists to avoid.
+                        // A duplicate call is rejected instead of replayed;
+                        // see the `is_streamed` check above.
+                        let sentinel = json!({ "pending": false, "streamed": true });
+                        let _ = dedup::complete_dedup_slot_with_ttl(&mut conn, &claim_key, &sentinel, dedup_ttl_seconds).await;
+                    }
+                });
+
+                let mut builder = axum::response::Response::builder().status(streaming.status);
+                if let Some(ct) = &streaming.content_type {
+                    builder = builder.header(axum::http::header::CONTENT_TYPE, ct);
+                }
+                builder = builder.header("X-AgentRaaS-ReqId", &req_id);
+                let body = Body::from_stream(ReceiverStream::new(rx));
+                match builder.body(body) {
+                    Ok(resp) => Response::Stream(resp),
+                    Err(_) => err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred."),
+                }
+            }
+            Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref()).await,
+        };
     }
 
     match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key).await {
@@ -577,38 +729,62 @@ async fn handle_request(
             if let Value::Object(ref mut map) = result {
                 map.insert("reqId".to_string(), Value::String(req_id.clone()));
             }
-            (StatusCode::OK, Json(result))
+            (StatusCode::OK, Json(result)).into()
         }
-        Err(err) => {
-            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-            if !err.circuit_already_recorded {
-                if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
-                    if let Ok(Some(t)) = circuit_breaker::record_failure(&mut c2, &circuit_key).await {
-                        forward::log_circuit_transition(state, t).await;
-                    }
-                }
-            }
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id.as_deref(), step_id.as_deref()).await;
-            tracing::error!(req_id, error = %err.message, "request failed");
+        Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref()).await,
+    }
+}
 
-            let response_message = if err.upstream_status.is_some() {
-                err.message.clone()
-            } else {
-                "An internal error occurred while processing this request.".to_string()
-            };
-            if err.upstream_status.is_some() {
-                db::write_dead_letter_queue(state, &req_id, &org_id, &agent_id, &service, &action, &payload, &err.message).await;
+/// Shared by both the streaming and non-streaming success/failure arms of
+/// `handle_request` — a `ForwardError` is handled identically either way
+/// (nothing has been sent to the caller yet by the time either path sees
+/// one, so there's no streaming-specific case to special-case here).
+#[allow(clippy::too_many_arguments)]
+async fn forward_error_response(
+    state: &SharedState,
+    conn: &mut redis::aio::MultiplexedConnection,
+    claim_key: &str,
+    circuit_key: &str,
+    err: forward::ForwardError,
+    req_id: &str,
+    api_key: &str,
+    org_id: &str,
+    agent_id: &str,
+    service: &str,
+    action: &str,
+    payload: &Value,
+    start: std::time::Instant,
+    run_id: Option<&str>,
+    step_id: Option<&str>,
+) -> Response {
+    let _ = dedup::release_dedup_slot(conn, claim_key).await;
+    if !err.circuit_already_recorded {
+        if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
+            if let Ok(Some(t)) = circuit_breaker::record_failure(&mut c2, circuit_key).await {
+                forward::log_circuit_transition(state, t).await;
             }
-            let status = err
-                .upstream_status
-                .and_then(|s| StatusCode::from_u16(s).ok())
-                .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-            (
-                status,
-                Json(json!({ "error": response_message, "reqId": req_id, "agentraas_note": "Request blocked by AgentRaaS." })),
-            )
         }
     }
+    log_audit(&state.pg, req_id, api_key, org_id, agent_id, service, action, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id, step_id).await;
+    tracing::error!(req_id, error = %err.message, "request failed");
+
+    let response_message = if err.upstream_status.is_some() {
+        err.message.clone()
+    } else {
+        "An internal error occurred while processing this request.".to_string()
+    };
+    if err.upstream_status.is_some() {
+        db::write_dead_letter_queue(state, req_id, org_id, agent_id, service, action, payload, &err.message).await;
+    }
+    let status = err
+        .upstream_status
+        .and_then(|s| StatusCode::from_u16(s).ok())
+        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    (
+        status,
+        Json(json!({ "error": response_message, "reqId": req_id, "agentraas_note": "Request blocked by AgentRaaS." })),
+    )
+        .into()
 }
 
 // ─── agent key CRUD ───

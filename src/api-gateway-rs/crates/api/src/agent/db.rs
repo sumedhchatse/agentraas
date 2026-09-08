@@ -92,6 +92,71 @@ pub async fn get_effective_dedup_rule(
     }))
 }
 
+/// Which hash function a request should dedupe on: idempotency key beats a
+/// non-empty field rule beats whole-payload. Pulled out of the request
+/// handlers so this decision is testable without an async handler, DB, or
+/// Redis — a rule with empty `fields` (TTL-only) still falls through to
+/// `Payload`, it just carries a custom TTL alongside it.
+#[derive(Debug, PartialEq)]
+pub enum DedupHashMode<'a> {
+    IdempotencyKey(&'a str),
+    Fields { fields: &'a [String], normalize: bool },
+    Payload,
+}
+
+pub fn select_dedup_hash_mode<'a>(
+    idempotency_key: Option<&'a str>,
+    rule: Option<&'a EffectiveDedupRule>,
+) -> DedupHashMode<'a> {
+    if let Some(idem) = idempotency_key {
+        DedupHashMode::IdempotencyKey(idem)
+    } else if let Some(rule) = rule.filter(|r| !r.fields.is_empty()) {
+        DedupHashMode::Fields { fields: &rule.fields, normalize: rule.normalize }
+    } else {
+        DedupHashMode::Payload
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(fields: &[&str], ttl_seconds: Option<i64>) -> EffectiveDedupRule {
+        EffectiveDedupRule {
+            fields: fields.iter().map(|s| s.to_string()).collect(),
+            ttl_seconds,
+            normalize: false,
+        }
+    }
+
+    #[test]
+    fn idempotency_key_wins_regardless_of_rule() {
+        let r = rule(&["a"], Some(900));
+        assert_eq!(select_dedup_hash_mode(Some("idem-1"), Some(&r)), DedupHashMode::IdempotencyKey("idem-1"));
+        assert_eq!(select_dedup_hash_mode(Some("idem-1"), None), DedupHashMode::IdempotencyKey("idem-1"));
+    }
+
+    #[test]
+    fn ttl_only_rule_falls_through_to_payload_hash() {
+        let r = rule(&[], Some(900));
+        assert_eq!(select_dedup_hash_mode(None, Some(&r)), DedupHashMode::Payload);
+    }
+
+    #[test]
+    fn non_empty_fields_rule_selects_field_hash() {
+        let r = rule(&["a", "b"], None);
+        assert_eq!(
+            select_dedup_hash_mode(None, Some(&r)),
+            DedupHashMode::Fields { fields: &["a".to_string(), "b".to_string()], normalize: false }
+        );
+    }
+
+    #[test]
+    fn no_rule_selects_payload_hash() {
+        assert_eq!(select_dedup_hash_mode(None, None), DedupHashMode::Payload);
+    }
+}
+
 /// Tool Output Sanitization (Enterprise, opt-in per org) — default false, no
 /// row means never toggled. Checked once per forwarded call in
 /// `forward_action`; see `crates/api/src/ee/output_sanitization.rs` for the
@@ -529,6 +594,10 @@ pub struct ResolvedRoute {
     pub extra_headers: Option<Value>,
     pub fanout_urls: Vec<String>,
     pub credential_key: String,
+    /// See `RawActionConfig::streaming` in `agentraas_core::config`. Custom
+    /// actions have no config schema for this yet, so this is always
+    /// `false` for them.
+    pub streaming: bool,
 }
 
 /// Looks up a registered custom action, shaped like a `SERVICE_ROUTES`
@@ -604,6 +673,7 @@ pub async fn resolve_custom_route(
             .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
             .unwrap_or_default(),
         credential_key: format!("custom:{action_name}"),
+        streaming: false,
     }))
 }
 
@@ -631,6 +701,7 @@ pub async fn resolve_route(
         extra_headers: r.extra_headers.clone(),
         fanout_urls: Vec::new(),
         credential_key: service.to_string(),
+        streaming: r.streaming,
     }))
 }
 
