@@ -29,15 +29,19 @@ fn is_retryable(err: &ForwardError) -> bool {
     }
 }
 
-pub async fn forward_action(
+/// Everything `forward_action` and `forward_action_streaming` share: SSRF
+/// re-check, credential lookup, and building the outbound request up to
+/// (but not including) `.send()` — so the two response-handling strategies
+/// (buffer-and-parse vs. pass-through) don't have to duplicate the request
+/// side.
+async fn build_request(
     state: &SharedState,
     route: &ResolvedRoute,
     service_name: &str,
-    action_name: &str,
     org_id: &str,
     payload: &Value,
     req_id: &str,
-) -> Result<Value, ForwardError> {
+) -> Result<reqwest::RequestBuilder, ForwardError> {
     // Custom actions and inbound-webhook destinations are validated for
     // SSRF (`validate_target_url`) once, at registration time — a
     // destination's DNS record can change afterward (a low-TTL rebind to
@@ -140,6 +144,20 @@ pub async fn forward_action(
         builder.json(payload)
     };
 
+    Ok(builder)
+}
+
+pub async fn forward_action(
+    state: &SharedState,
+    route: &ResolvedRoute,
+    service_name: &str,
+    action_name: &str,
+    org_id: &str,
+    payload: &Value,
+    req_id: &str,
+) -> Result<Value, ForwardError> {
+    let builder = build_request(state, route, service_name, org_id, payload, req_id).await?;
+
     let response = builder.send().await.map_err(|err| ForwardError {
         message: err.to_string(),
         upstream_status: None,
@@ -215,6 +233,137 @@ pub async fn forward_action(
         "upstream_response": body,
         "timestamp": crate::util::iso_now(),
     }))
+}
+
+/// A streaming upstream response: status/headers are already available, but
+/// the body is deliberately left unconsumed so the caller can pipe it
+/// through live (`Response::bytes_stream()`/`chunk()`) instead of buffering
+/// it the way `forward_action` does at its `response.json().await` line —
+/// the one thing that makes SSE/chunked upstream responses (an LLM tool
+/// streaming tokens, for example) currently unsupported.
+pub struct StreamingForward {
+    pub status: reqwest::StatusCode,
+    pub content_type: Option<String>,
+    pub response: reqwest::Response,
+}
+
+/// Streaming counterpart to `forward_action`. Shares SSRF re-check,
+/// credential lookup, and request-building via `build_request`; diverges
+/// only at response time: a 2xx response is handed back with its body
+/// untouched, a 4xx/5xx response is buffered (small, error bodies only) so
+/// error handling/retry behaves identically to the non-streaming path.
+/// Deliberately skips: enterprise output sanitization, the pruner, and the
+/// Slack `ok:false` check — all of those need the parsed body, which a
+/// stream doesn't have; a streaming route is expected to be a raw
+/// token/event feed, not a structured API response those checks apply to.
+pub async fn forward_action_streaming(
+    state: &SharedState,
+    route: &ResolvedRoute,
+    service_name: &str,
+    org_id: &str,
+    payload: &Value,
+    req_id: &str,
+) -> Result<StreamingForward, ForwardError> {
+    let builder = build_request(state, route, service_name, org_id, payload, req_id).await?;
+
+    let response = builder.send().await.map_err(|err| ForwardError {
+        message: err.to_string(),
+        upstream_status: None,
+        upstream_body: None,
+        circuit_already_recorded: false,
+    })?;
+
+    let status = response.status();
+
+    if status.as_u16() >= 400 {
+        let body: Value = response.json().await.unwrap_or(Value::Null);
+        let message = extract_upstream_error_message(&body)
+            .unwrap_or_else(|| format!("HTTP {}", status.as_u16()));
+        return Err(ForwardError {
+            message,
+            upstream_status: Some(status.as_u16()),
+            upstream_body: Some(body),
+            circuit_already_recorded: false,
+        });
+    }
+
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    Ok(StreamingForward { status, content_type, response })
+}
+
+/// Streaming counterpart to `forward_with_retry`. Retry only ever applies to
+/// the pre-stream `Err` case (a network error, or a buffered 4xx/5xx before
+/// any bytes reached the client) — once a `StreamingForward` is returned
+/// here, the caller is already committed to forwarding it, so there is no
+/// "retry after the first byte" case to guard against separately; it falls
+/// out of `Ok`/`Err` never being retried once `Ok`.
+pub async fn forward_with_retry_streaming(
+    state: &SharedState,
+    route: &ResolvedRoute,
+    service_name: &str,
+    org_id: &str,
+    payload: &Value,
+    req_id: &str,
+    circuit_key: &str,
+) -> Result<StreamingForward, ForwardError> {
+    let mut last_error = None;
+
+    for attempt in 1..=state.proxy_retry_max_attempts {
+        match forward_action_streaming(state, route, service_name, org_id, payload, req_id).await {
+            Ok(result) => return Ok(result),
+            Err(mut err) => {
+                err.circuit_already_recorded = true;
+                if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                    if let Ok(Some(transition)) = circuit_breaker::record_failure(&mut conn, circuit_key).await {
+                        log_circuit_transition(state, transition).await;
+                    }
+                }
+
+                let retryable = is_retryable(&err);
+                let is_last_attempt = attempt == state.proxy_retry_max_attempts;
+
+                if is_last_attempt || !retryable {
+                    last_error = Some(err);
+                    break;
+                }
+
+                let circuit_open = {
+                    if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                        circuit_breaker::get_circuit_state(&mut conn, circuit_key)
+                            .await
+                            .map(|(s, _)| s == "open")
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    }
+                };
+                if circuit_open {
+                    last_error = Some(err);
+                    break;
+                }
+
+                let delay_ms = state.proxy_retry_base_delay_ms * 2u64.pow(attempt - 1)
+                    + (rand::random::<u32>() % 100) as u64;
+                tracing::warn!(
+                    req_id,
+                    service = service_name,
+                    attempt,
+                    delay_ms,
+                    error = %err.message,
+                    "AgentRaaS: retrying transient upstream failure (streaming route)"
+                );
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                last_error = Some(err);
+            }
+        }
+    }
+
+    Err(last_error.expect("loop always sets last_error before exiting without returning Ok"))
 }
 
 /// Ports `route.url.replace(/{(\w+)}/g, (match, key) => process.env[key] ||

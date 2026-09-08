@@ -188,6 +188,12 @@ async fn create_dedup_rule(
             return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "ttl_seconds must be between 1 and 604800 (7 days)."));
         }
     }
+    if body.fields.as_array().is_some_and(|a| a.is_empty()) && body.ttl_seconds.is_none() {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "A dedup rule needs at least one field or a ttl_seconds override — this one would do nothing.",
+        ));
+    }
     let normalize = body.normalize.unwrap_or(false);
 
     #[derive(sqlx::FromRow)]

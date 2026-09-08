@@ -192,13 +192,12 @@ const MAX_DEDUP_FIELDS: usize = 10;
 
 /// Structural sanity check for a per-field dedup rule — just a list of
 /// field names, so much thinner than `is_valid_rule_definition`.
+/// An empty field list is valid — it means "TTL-only rule": no field-based
+/// dedup key, just a custom TTL override on the default whole-payload hash.
 pub fn is_valid_dedup_rule_definition(fields: &Value) -> Option<String> {
     let Some(arr) = fields.as_array() else {
-        return Some("At least one field name is required.".to_string());
+        return Some("fields must be an array (use [] for a TTL-only rule).".to_string());
     };
-    if arr.is_empty() {
-        return Some("At least one field name is required.".to_string());
-    }
     if arr.len() > MAX_DEDUP_FIELDS {
         return Some(format!("At most {MAX_DEDUP_FIELDS} fields can be used for a dedup key."));
     }
@@ -230,4 +229,41 @@ fn is_valid_e164(s: &str) -> bool {
         return false;
     }
     (8..=15).contains(&rest.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn empty_fields_is_valid_ttl_only_rule() {
+        assert_eq!(is_valid_dedup_rule_definition(&json!([])), None);
+    }
+
+    #[test]
+    fn non_array_is_rejected() {
+        assert!(is_valid_dedup_rule_definition(&json!("not an array")).is_some());
+    }
+
+    #[test]
+    fn too_many_fields_is_rejected() {
+        let fields: Vec<String> = (0..=MAX_DEDUP_FIELDS).map(|i| format!("f{i}")).collect();
+        assert!(is_valid_dedup_rule_definition(&json!(fields)).is_some());
+    }
+
+    #[test]
+    fn duplicate_field_is_rejected() {
+        assert!(is_valid_dedup_rule_definition(&json!(["a", "a"])).is_some());
+    }
+
+    #[test]
+    fn non_string_element_is_rejected() {
+        assert!(is_valid_dedup_rule_definition(&json!(["a", 1])).is_some());
+    }
+
+    #[test]
+    fn normal_field_list_is_valid() {
+        assert_eq!(is_valid_dedup_rule_definition(&json!(["order_id", "customer_id"])), None);
+    }
 }
