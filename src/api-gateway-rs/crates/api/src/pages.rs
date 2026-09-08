@@ -9,6 +9,7 @@ use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::{Json, Router};
+use pulldown_cmark::{html as md_html, Options, Parser};
 use serde_json::json;
 
 use crate::state::SharedState;
@@ -198,10 +199,11 @@ async fn public_status(axum::extract::State(state): axum::extract::State<SharedS
     Ok(Json(json!({ "overall": overall, "generated_at": crate::util::iso_now(), "services": report })))
 }
 
-/// Legal/docs documents, served as styled HTML (client-side markdown via
-/// marked.js from a CDN, matching Node) rather than raw plaintext. Read
-/// from the self-host snapshot dir (`crate::self_host::SNAPSHOT_DIR`),
-/// same source Node reads from.
+/// Legal/docs documents, served as styled HTML with the markdown
+/// rendered server-side (server.js still does this client-side via
+/// marked.js from a CDN) rather than raw plaintext. Read from the
+/// self-host snapshot dir (`crate::self_host::SNAPSHOT_DIR`), same
+/// source Node reads from.
 async fn doc_page(filename: &str, title: &str) -> axum::response::Response {
     let path = std::path::Path::new(crate::self_host::SNAPSHOT_DIR).join(filename);
     match tokio::fs::read_to_string(&path).await {
@@ -226,12 +228,20 @@ async fn doc_readme() -> axum::response::Response {
     doc_page("README.md", "Documentation").await
 }
 
-/// Byte-for-byte the same table-based inline-styled layout as
-/// `renderDocPage()` in server.js.
+/// Same table-based inline-styled layout as `renderDocPage()` in
+/// server.js, but rendered server-side (server.js still renders
+/// client-side via marked.js) — a fetcher that doesn't execute
+/// JavaScript (curl, most scrapers, some audit tools) used to see only
+/// a "Loading…" placeholder here, identical whether the content was
+/// fresh or stale. Parsing with pulldown-cmark at request time means
+/// the real content is in the initial response either way.
 fn render_doc_page(title: &str, raw_markdown: &str) -> String {
-    // Mirrors `JSON.stringify(rawMarkdown).replace(/<\/script/gi, ...)` —
-    // safely escapes for embedding in a script tag.
-    let safe_markdown = serde_json::to_string(raw_markdown).unwrap().replace("</script", "<\\/script").replace("</SCRIPT", "<\\/SCRIPT");
+    // README.md uses GFM pipe tables and task-list checkboxes (the
+    // roadmap section) — plain CommonMark (pulldown-cmark's default)
+    // doesn't parse either, they'd render as literal text.
+    let options = Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS;
+    let mut content_html = String::new();
+    md_html::push_html(&mut content_html, Parser::new_ext(raw_markdown, options));
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -284,13 +294,8 @@ fn render_doc_page(title: &str, raw_markdown: &str) -> String {
   <a href="/dashboard" class="back-link">← Back to dashboard</a>
 </header>
 <div class="wrap">
-  <div id="doc-content">Loading…</div>
+  <div id="doc-content">{content_html}</div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
-<script>
-  const rawMarkdown = {safe_markdown};
-  document.getElementById('doc-content').innerHTML = marked.parse(rawMarkdown);
-</script>
 </body>
 </html>"##
     )
