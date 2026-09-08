@@ -1,12 +1,21 @@
-AgentRaaS License v1.0
+AgentRaaS Enterprise Module License v1.0
 (Fair-code / source-available — not an OSI-approved open source license)
 
 Copyright (c) 2026 Sumedh Chatse. All rights reserved except as granted below.
 
+SCOPE: this license covers the enterprise module that implements
+Pro/Agency/Enterprise-tier features (SSO, RBAC, HMAC verification, DLP
+redaction, distributed rate limiting, HA) — its source is not included in
+this repository at all (see README.md's License section for why); it
+lives in the private `agentraas-enterprise` repo under this same license.
+Everything that IS in this repository is dual-licensed under MIT
+(LICENSE-MIT) or Apache-2.0 (LICENSE-APACHE), genuinely open source —
+this document does not restrict any of it.
+
 This is a source-available license, not a traditional open-source license — it
 is closely modeled on n8n's Sustainable Use License, adapted with a metered
-free tier. By using, copying, modifying, or distributing this software
-("AgentRaaS"), you agree to the terms below.
+free tier. By using, copying, modifying, or distributing the enterprise
+module described above, you agree to the terms below.
 
 ──────────────────────────────────────────────────────────────────────────
 1. FREE USE GRANT

@@ -424,14 +424,15 @@
 
     <div class="hero-panel">
       <div class="row">
-        <span class="tag">EXECUTION LEDGER</span>
-        <span class="live" id="ledger-live-tag"><span class="dot"></span> live — last 24h, this deployment</span>
+        <span class="tag">CONCURRENCY PROOF</span>
+        <span class="live"><span class="dot"></span> asserted in the test suite, not a marketing number</span>
       </div>
       <div class="hero-stat-grid">
-        <div class="hero-stat"><div class="n" id="ledger-verified">—</div><div class="l">actions verified</div></div>
-        <div class="hero-stat"><div class="n" id="ledger-duplicates">—</div><div class="l">duplicates caught</div></div>
-        <div class="hero-stat"><div class="n" id="ledger-latency">—</div><div class="l">avg per action</div></div>
+        <div class="hero-stat"><div class="n">8</div><div class="l">concurrent identical requests</div></div>
+        <div class="hero-stat"><div class="n">1</div><div class="l">executed for real</div></div>
+        <div class="hero-stat"><div class="n">7</div><div class="l">caught as duplicates</div></div>
       </div>
+      <p style="font-size:12px;color:var(--muted-dark);margin-top:10px;">From <code>dedup.test.js</code>'s own concurrency test — clone the repo and run <code>npm test</code> to reproduce it yourself.</p>
     </div>
   </div>
 </section>
@@ -522,6 +523,43 @@
       <div class="flow-step"><div class="num">3</div><p><b>First call:</b> forwarded to the real API, the result gets cached.</p></div>
       <div class="flow-step"><div class="num">4</div><p><b>Retry or duplicate:</b> the cached result comes back — never a second real execution.</p></div>
     </div>
+  </div>
+</section>
+
+<section class="why-not-diy" id="why-not-diy">
+  <div class="wrap">
+    <div class="eyebrow">04 — WHY NOT JUST DIY IDEMPOTENCY KEYS?</div>
+    <h2 style="font-size:36px;max-width:760px;">If you're calling Stripe by hand, its native <code>Idempotency-Key</code> header is genuinely enough. You don't need this.</h2>
+    <p class="section-lead" style="margin-bottom:24px;">The honest case for AgentRaaS is narrower and specific: <b>not every provider has native idempotency</b> (Stripe does; Twilio, Slack, most SaaS/CRM APIs, and any custom internal endpoint don't) — <b>no-code tools can't set the header at all</b> (n8n, Make, and Zapier give you a URL field, not a place to compute and attach an idempotency key) — and <b>none of them give you one audit trail across services</b> (Stripe's idempotency keys only tell you what happened inside Stripe; an agent calling Stripe, Twilio, and a custom CRM endpoint in the same run has zero unified record of which of those three actually fired).</p>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;min-width:640px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border-dark);">
+            <th style="text-align:left;padding:12px 16px;color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;"></th>
+            <th style="text-align:left;padding:12px 16px;color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;">DIY idempotency keys</th>
+            <th style="text-align:left;padding:12px 16px;color:var(--signal);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;">AgentRaaS</th>
+          </tr>
+        </thead>
+        <tbody style="color:var(--text);font-size:15px;">
+          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Code changes</td><td style="padding:14px 16px;">Modify every API call, only where the provider supports it</td><td style="padding:14px 16px;">Change the URL</td></tr>
+          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">No-code support</td><td style="padding:14px 16px;">❌ Not possible — no-code tools can't set custom headers</td><td style="padding:14px 16px;">✅ Paste webhook URL (n8n, Make, Zapier)</td></tr>
+          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Providers without native idempotency</td><td style="padding:14px 16px;">Build your own dedup logic, per provider</td><td style="padding:14px 16px;">One proxy, same guarantee, every service</td></tr>
+          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Multiple services</td><td style="padding:14px 16px;">Different logic per API</td><td style="padding:14px 16px;">One proxy, all services — plus any custom endpoint</td></tr>
+          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Credential management</td><td style="padding:14px 16px;">Build yourself</td><td style="padding:14px 16px;">Self-serve, encrypted at rest</td></tr>
+          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Validation, circuit breaker, rate limiting</td><td style="padding:14px 16px;">Build yourself</td><td style="padding:14px 16px;">Built-in</td></tr>
+          <tr><td style="padding:14px 16px;color:var(--muted);">Audit trail, dashboard</td><td style="padding:14px 16px;">Per-provider at best</td><td style="padding:14px 16px;">One trail across every service you call</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="failure-mode" id="failure-mode">
+  <div class="wrap">
+    <div class="eyebrow">05 — WHAT HAPPENS WHEN AGENTRAAS IS DOWN?</div>
+    <h2 style="font-size:36px;max-width:760px;">Fail-closed by design — not fail-silent.</h2>
+    <p class="section-lead" style="max-width:760px;">AgentRaaS sits in the request path between your agent and the real API. If it's unreachable, your call to it fails — it does not silently succeed un-deduped. There is no fallback path anywhere in the SDK, the n8n node, or the MCP gateway that quietly calls Stripe or Twilio directly when AgentRaaS doesn't respond. That's deliberate: the alternative — routing around an outage — would mean the exact retry-storm double-charge scenario this product exists to prevent happens silently, at the one moment you'd least want it to. Treat AgentRaaS like any other proxy or database on your critical path: standard timeout and retry handling on the calling side applies, same as it would for any dependency.</p>
+    <p class="section-lead" style="max-width:760px;color:var(--muted-dark);font-size:14px;">Honest gap: we haven't published real p99 latency numbers yet. Self-hosted, it's one network hop to a service running on your own infrastructure — not a call out to us — but we're not going to put a number here we haven't actually measured. That's on the roadmap, not fabricated in this paragraph.</p>
   </div>
 </section>
 
@@ -670,11 +708,32 @@
   </div>
 </section>
 
+<section class="about-founder" id="about">
+  <div class="wrap">
+    <div class="eyebrow">WHO'S BEHIND THIS</div>
+    <div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap;margin-top:20px;">
+      <!-- TODO: replace with the real photo asset once provided; keep this
+           img tag's src pointed at a real file before shipping — a broken
+           image here is worse than no photo at all. -->
+      <img src="/img/sumedh-chatse.jpg" alt="Sumedh Chatse" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:2px solid var(--border-dark);flex-shrink:0;">
+      <div style="max-width:600px;">
+        <h3 style="font-size:22px;margin-bottom:6px;">Sumedh Chatse</h3>
+        <p style="color:var(--muted);font-size:15px;line-height:1.6;margin-bottom:14px;">You're being asked to hand this a live Stripe or Twilio key — that shouldn't come from an anonymous handle. I'm an infrastructure engineer with six years in production systems, and I built AgentRaaS, alone, after watching a retry storm double-charge a customer at 2 AM. Every line of the dedup engine, the SDK, and this site is mine to answer for.</p>
+        <div style="display:flex;gap:16px;">
+          <!-- TODO: replace with the real LinkedIn URL once provided. -->
+          <a href="https://www.linkedin.com/in/PLACEHOLDER" target="_blank" rel="noopener" style="color:var(--signal);font-weight:600;font-size:14px;">LinkedIn →</a>
+          <a href="https://github.com/sumedhchatse" target="_blank" rel="noopener" style="color:var(--signal);font-weight:600;font-size:14px;">GitHub →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="pricing" id="pricing">
   <div class="wrap">
     <div class="section-head">
       <h2>Pricing that doesn't punish you for self-hosting.</h2>
-      <p>Open-core, fair-code licensed — Community is free and self-hosted only. Pro, Agency, and Enterprise all run either cloud-hosted or self-hosted, same license either way.</p>
+      <p>Open-core: the engine is MIT/Apache-2.0, genuinely open. Community is free and self-hosted only. Pro, Agency, and Enterprise all run either cloud-hosted or self-hosted, and unlock the separately-licensed enterprise module.</p>
     </div>
     <div class="pricing-grid">
       <div class="price-card featured">
@@ -735,7 +794,7 @@
         <a href="mailto:support@agentraas.io" class="btn secondary">Contact sales →</a>
       </div>
     </div>
-    <p class="license-note">Full terms in <a href="/license">LICENSE.md</a> — a fair-code license modeled on n8n's Sustainable Use License. Pro/Agency/Enterprise features (<code>src/ee/</code>) are source-available under a separate commercial license.</p>
+    <p class="license-note">The core engine is MIT/Apache-2.0 — genuinely open, no restrictions. Pro/Agency/Enterprise features (<code>src/ee/</code>) are a separate module under a fair-code/source-available commercial license modeled on n8n's Sustainable Use License — full terms in <a href="/license">LICENSE.md</a>.</p>
   </div>
 </section>
 
@@ -854,60 +913,6 @@
     revealTargets.forEach(function(el) { observer.observe(el); });
   }
 
-  // Count-up animation for the hero's live execution-ledger stats — ties
-  // into the "watching your agents live" framing already there. Skipped
-  // entirely under prefers-reduced-motion (the value is set directly then).
-  function animateCount(el, from, target, suffix, duration) {
-    if (!motionOk) { el.textContent = target + suffix; return; }
-    var start = performance.now();
-    function tick(now) {
-      var progress = Math.min((now - start) / duration, 1);
-      var eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      el.textContent = Math.floor(from + eased * (target - from)) + suffix;
-      if (progress < 1) requestAnimationFrame(tick);
-      else el.textContent = target + suffix;
-    }
-    requestAnimationFrame(tick);
-  }
-
-  // Live execution ledger — real counts from this deployment's own audit
-  // log (see GET /api/v1/public/execution-ledger), not a fixed marketing
-  // number. Polled every 20s so the "live" claim on the page stays true.
-  var verifiedEl = document.getElementById('ledger-verified');
-  var duplicatesEl = document.getElementById('ledger-duplicates');
-  var latencyEl = document.getElementById('ledger-latency');
-  var liveTagEl = document.getElementById('ledger-live-tag');
-  var lastVerified = 0, lastDuplicates = 0;
-
-  // Brief highlight flash on a hero-stat box when its number actually
-  // changes — makes the "live" claim visually felt, not just read.
-  function flashStat(el) {
-    var box = el.closest('.hero-stat');
-    if (!box) return;
-    box.classList.remove('flash');
-    void box.offsetWidth; // restart the animation if it's still mid-flash
-    box.classList.add('flash');
-  }
-
-  function refreshLedger() {
-    fetch('/api/v1/public/execution-ledger')
-      .then(function(res) { if (!res.ok) throw new Error('bad status'); return res.json(); })
-      .then(function(data) {
-        if (data.actions_verified !== lastVerified) flashStat(verifiedEl);
-        if (data.duplicates_caught !== lastDuplicates) flashStat(duplicatesEl);
-        animateCount(verifiedEl, lastVerified, data.actions_verified, '', 900);
-        animateCount(duplicatesEl, lastDuplicates, data.duplicates_caught, '', 900);
-        latencyEl.textContent = data.avg_duration_ms != null ? data.avg_duration_ms + 'ms' : '—';
-        lastVerified = data.actions_verified;
-        lastDuplicates = data.duplicates_caught;
-      })
-      .catch(function() {
-        if (liveTagEl) liveTagEl.textContent = 'live data unavailable';
-      });
-  }
-
-  refreshLedger();
-  setInterval(refreshLedger, 20000);
 })();
 </script>
 </body>

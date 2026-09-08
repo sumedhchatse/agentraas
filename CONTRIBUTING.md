@@ -4,14 +4,12 @@ Thanks for your interest in AgentRaaS. A few things to know before you dive in.
 
 ## License
 
-AgentRaaS is source-available under a custom fair-code license (see
-[LICENSE.md](./LICENSE.md)) — not a traditional open-source license. By
-submitting a contribution, you agree that it may be distributed under the
-same license terms.
-
-Notably, the license restricts offering AgentRaaS (or a derivative of it)
-as a competing hosted service. If you're contributing as part of building
-something like that, reach out to support@agentraas.io first.
+Everything in this repo is dual-licensed MIT/Apache-2.0 — genuinely open
+source. By submitting a contribution, you agree that it may be
+distributed under those same terms. (The enterprise module referenced in
+[LICENSE.md](./LICENSE.md) isn't present in this repo at all — see
+README.md's License section — so it has no bearing on contributions
+here.)
 
 ## Reporting bugs
 
