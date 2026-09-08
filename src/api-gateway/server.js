@@ -459,7 +459,7 @@ function buildEmailHtml({ heading, bodyHtml, ctaText, ctaUrl, expiryNote }) {
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;max-width:480px;width:100%;">
   <tr><td style="background:#0A0D14;padding:24px 32px;">
     <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-      <td style="width:28px;height:28px;background:#00E0A8;border-radius:8px;text-align:center;vertical-align:middle;font-size:14px;">🛡️</td>
+      <td style="width:28px;height:28px;background:#FFA53D;border-radius:8px;text-align:center;vertical-align:middle;font-size:14px;">🛡️</td>
       <td style="padding-left:10px;color:#FFFFFF;font-size:17px;font-weight:700;">AgentRaaS</td>
     </tr></table>
   </td></tr>
@@ -467,20 +467,20 @@ function buildEmailHtml({ heading, bodyHtml, ctaText, ctaUrl, expiryNote }) {
     <h1 style="margin:0 0 16px;font-size:21px;color:#14171F;">${heading}</h1>
     <div style="font-size:15px;line-height:1.6;color:#3A4152;margin-bottom:28px;">${bodyHtml}</div>
     <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-      <td style="background:#00E0A8;border-radius:999px;">
-        <a href="${ctaUrl}" style="display:inline-block;padding:13px 28px;color:#06231C;font-weight:700;font-size:15px;text-decoration:none;">${ctaText}</a>
+      <td style="background:#FFA53D;border-radius:999px;">
+        <a href="${ctaUrl}" style="display:inline-block;padding:13px 28px;color:#2B1400;font-weight:700;font-size:15px;text-decoration:none;">${ctaText}</a>
       </td>
     </tr></table>
     <p style="font-size:13px;color:#8B93A6;margin-top:24px;line-height:1.5;">
       Or copy and paste this link into your browser:<br>
-      <a href="${ctaUrl}" style="color:#059669;word-break:break-all;">${ctaUrl}</a>
+      <a href="${ctaUrl}" style="color:#C2650A;word-break:break-all;">${ctaUrl}</a>
     </p>
     ${expiryNote ? `<p style="font-size:13px;color:#8B93A6;margin-top:16px;">${expiryNote}</p>` : ''}
   </td></tr>
   <tr><td style="padding:20px 32px;background:#F9F8F5;border-top:1px solid #E4E0D6;">
     <p style="font-size:12.5px;color:#8B93A6;margin:0;line-height:1.5;">
       If you didn't request this, you can safely ignore this email.
-      Questions? Reach us at <a href="mailto:support@agentraas.io" style="color:#059669;">support@agentraas.io</a>.
+      Questions? Reach us at <a href="mailto:support@agentraas.io" style="color:#C2650A;">support@agentraas.io</a>.
     </p>
   </td></tr>
 </table>
@@ -1082,7 +1082,7 @@ function renderDocPage(title, rawMarkdown) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${title} — AgentRaaS</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z' fill='%2306231C' stroke='%2300E0A8' stroke-width='0.8'/%3E%3Ccircle cx='12' cy='11.5' r='2.4' fill='%2300E0A8'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23FFA53D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232B1400' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232B1400'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1091,7 +1091,7 @@ function renderDocPage(title, rawMarkdown) {
     --ink: #0A0D14; --ink-2: #0F1420;
     --border-dark: #232A3A;
     --text: #F5F6F9; --muted: #8B93A6;
-    --signal: #00E0A8;
+    --signal: #FFA53D;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--ink); color: var(--text); font-family: 'Manrope', sans-serif; font-size: 16px; line-height: 1.7; }
@@ -1121,7 +1121,7 @@ function renderDocPage(title, rawMarkdown) {
 <body>
 <header class="nav">
   <a href="/" class="brand">
-    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z" fill="#06231C" stroke="#00E0A8" stroke-width="1"/><circle cx="12" cy="11.5" r="2.6" fill="#00E0A8"/></svg></span>
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#2B1400" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#2B1400"/></svg></span>
     <div><h1>AgentRaaS</h1><span>Agent Reliability as a Service</span></div>
   </a>
   <a href="/dashboard" class="back-link">← Back to dashboard</a>

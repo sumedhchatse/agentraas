@@ -6,7 +6,7 @@
 <title>AgentRaaS Status</title>
 <meta name="description" content="Live uptime for every service AgentRaaS protects, computed from real circuit-breaker history — not a marketing number.">
 <meta name="robots" content="index, follow">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z' fill='%2306231C' stroke='%2300E0A8' stroke-width='0.8'/%3E%3Ccircle cx='12' cy='11.5' r='2.4' fill='%2300E0A8'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23FFA53D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232B1400' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232B1400'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
     --ink: #0A0D14; --ink-2: #0F1420;
     --border-dark: #232A3A;
     --text: #F5F6F9; --muted: #8B93A6;
-    --signal: #00E0A8; --signal-deep: #06231C;
+    --signal: #FFA53D; --signal-deep: #2B1400;
     --alert: #FF5C6C; --warn: #FFC24B; --info: #7C9CFF;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,11 +34,11 @@
     border-radius: 16px; padding: 24px 28px; margin-bottom: 32px; display: flex; align-items: center; gap: 16px;
     border: 1px solid var(--border-dark);
   }
-  .banner.operational { background: rgba(0,224,168,0.08); border-color: rgba(0,224,168,0.3); }
+  .banner.operational { background: rgba(255,165,61,0.08); border-color: rgba(255,165,61,0.3); }
   .banner.degraded { background: rgba(255,194,75,0.08); border-color: rgba(255,194,75,0.3); }
   .banner.major_outage { background: rgba(255,92,108,0.08); border-color: rgba(255,92,108,0.3); }
   .banner .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-  .banner.operational .dot { background: var(--signal); box-shadow: 0 0 12px rgba(0,224,168,0.6); }
+  .banner.operational .dot { background: var(--signal); box-shadow: 0 0 12px rgba(255,165,61,0.6); }
   .banner.degraded .dot { background: var(--warn); box-shadow: 0 0 12px rgba(255,194,75,0.6); }
   .banner.major_outage .dot { background: var(--alert); box-shadow: 0 0 12px rgba(255,92,108,0.6); }
   .banner-text h2 { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 2px; }
@@ -72,7 +72,7 @@
 
 <header class="nav">
   <a href="/" class="brand">
-    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2.5L4.5 5.5V11C4.5 16 7.8 20.2 12 21.5C16.2 20.2 19.5 16 19.5 11V5.5L12 2.5Z" fill="#06231C" stroke="#00E0A8" stroke-width="1"/><circle cx="12" cy="11.5" r="2.6" fill="#00E0A8"/></svg></span>
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#2B1400" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#2B1400"/></svg></span>
     <div><h1>AgentRaaS</h1><span>Agent Reliability as a Service</span></div>
   </a>
   <a href="/" class="back-link">← Back to home</a>
