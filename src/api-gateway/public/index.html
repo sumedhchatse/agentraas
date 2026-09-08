@@ -18,8 +18,8 @@
     --text: #EDEFF5;
     --muted: #7C8AA3;
     --faint: #4A566E;
-    --signal: #4FBFA0;
-    --signal-dim: #2B6B58;
+    --signal: #FFA53D;
+    --signal-dim: #7A3D0A;
     --alert: #E2584A;
     --dedup: #D9A441;
     --info: #6C8EEF;
@@ -68,10 +68,10 @@
   }
   .field input:focus { outline: none; border-color: var(--signal); }
   button.primary {
-    width: 100%; background: var(--signal); color: #06231C; border: none; border-radius: 8px;
+    width: 100%; background: var(--signal); color: #2B1400; border: none; border-radius: 8px;
     padding: 12px; font-size: 14px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; cursor: pointer; margin-top: 4px;
   }
-  button.primary:hover { background: #5ED0AF; }
+  button.primary:hover { background: #FFB85C; }
   button.primary:disabled { opacity: 0.5; cursor: default; }
   .switch-mode { margin-top: 18px; font-size: 13px; color: var(--muted); text-align: center; }
   .switch-mode a { color: var(--signal); cursor: pointer; text-decoration: none; }
@@ -81,7 +81,7 @@
     padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px; display: none;
   }
   #forgot-message {
-    background: rgba(79,191,160,0.12); border: 1px solid var(--signal); color: #9BE0CC;
+    background: rgba(255,165,61,0.12); border: 1px solid var(--signal); color: #FFD08A;
     padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px;
   }
   #forgot-screen, #reset-screen, #verify-notice-screen { max-width: 380px; margin: 80px auto; }
@@ -139,8 +139,8 @@
     padding: 8px 14px; font-size: 12.5px; font-family: inherit; border-radius: 20px; cursor: pointer;
   }
   .btn:hover { border-color: var(--faint); }
-  .btn.filled { background: var(--signal); color: #06231C; border-color: var(--signal); font-weight: 700; }
-  .btn.filled:hover { background: #5ED0AF; }
+  .btn.filled { background: var(--signal); color: #2B1400; border-color: var(--signal); font-weight: 700; }
+  .btn.filled:hover { background: #FFB85C; }
   .spacer { flex: 1; }
   .ranges { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 3px; }
   .ranges button {
@@ -278,10 +278,10 @@
   .admin-tab.active .admin-tab-range { color: var(--signal); }
 
   .badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-  .badge.verified { background: rgba(79,191,160,0.14); color: var(--signal); }
+  .badge.verified { background: rgba(255,165,61,0.14); color: var(--signal); }
   .badge.unverified { background: rgba(226,88,74,0.14); color: var(--alert); }
   .badge.admin-role { background: rgba(108,142,239,0.14); color: var(--info); }
-  .badge.role-developer { background: rgba(79,191,160,0.14); color: var(--signal); }
+  .badge.role-developer { background: rgba(255,165,61,0.14); color: var(--signal); }
   .badge.role-auditor { background: rgba(180,180,180,0.14); color: var(--muted); }
   .sso-subhead { font-size: 12.5px; color: var(--muted); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
   .sso-inline-form { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
@@ -487,7 +487,7 @@
       <div class="caption"><span class="pulse-dot"></span> Watching your agents live</div>
       <svg viewBox="0 0 800 46" preserveAspectRatio="none">
         <path d="M0,23 L20,23 L28,8 L36,38 L44,23 L60,23 L68,14 L76,32 L84,23 L110,23 L118,6 L126,40 L134,23 L160,23 L168,17 L176,29 L184,23 L400,23 L420,23 L428,8 L436,38 L444,23 L460,23 L468,14 L476,32 L484,23 L510,23 L518,6 L526,40 L534,23 L560,23 L568,17 L576,29 L584,23 L800,23"
-          fill="none" stroke="#4FBFA0" stroke-width="1.4" opacity="0.55"/>
+          fill="none" stroke="#FFA53D" stroke-width="1.4" opacity="0.55"/>
       </svg>
     </div>
 
@@ -980,7 +980,7 @@
 
     <h3 style="font-size:14px;">Change password</h3>
     <div class="modal-error" id="account-error"></div>
-    <div class="modal-error" id="account-success" style="background:rgba(79,191,160,0.12);border-color:var(--signal);color:#9BE0CC;"></div>
+    <div class="modal-error" id="account-success" style="background:rgba(255,165,61,0.12);border-color:var(--signal);color:#FFD08A;"></div>
     <form id="account-form">
       <div class="field"><label for="current-password">Current password</label><input type="password" id="current-password" autocomplete="current-password" required></div>
       <div class="field"><label for="new-password">New password</label><input type="password" id="new-password" autocomplete="new-password" required minlength="8"></div>
@@ -1313,7 +1313,7 @@
       const data = {
         labels: ['Success', 'Deduplicated', 'Blocked', 'Errors'],
         datasets: [{ data: [Number(s.success)||0, Number(s.deduplicated)||0, Number(s.blocked)||0, Number(s.errors)||0],
-          backgroundColor: ['#4FBFA0', '#D9A441', '#E2584A', '#8B3A32'], borderColor: '#131928', borderWidth: 2 }],
+          backgroundColor: ['#FFA53D', '#D9A441', '#E2584A', '#8B3A32'], borderColor: '#131928', borderWidth: 2 }],
       };
       const ctx = document.getElementById('status-chart');
       if (statusChart) { statusChart.data = data; statusChart.update(); }
@@ -1328,7 +1328,7 @@
       const s = await res.json();
       const labels = s.points.map(p => { const d = new Date(p.bucket); return s.bucket === 'hour' ? d.toLocaleTimeString([], { hour: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' }); });
       const values = s.points.map(p => Number(p.total));
-      const data = { labels, datasets: [{ data: values, backgroundColor: '#4FBFA0', borderRadius: 3, barPercentage: 0.5, categoryPercentage: 0.9 }] };
+      const data = { labels, datasets: [{ data: values, backgroundColor: '#FFA53D', borderRadius: 3, barPercentage: 0.5, categoryPercentage: 0.9 }] };
       const ctx = document.getElementById('volume-chart');
       if (volumeChart) { volumeChart.data = data; volumeChart.update(); }
       else volumeChart = new Chart(ctx, { type: 'bar', data, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: MUTED, font: CHART_FONT }, grid: { display: false } }, y: { ticks: { color: MUTED, font: CHART_FONT, precision: 0 }, grid: { color: GRID } } } } });
