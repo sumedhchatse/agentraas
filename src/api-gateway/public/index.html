@@ -516,6 +516,7 @@
       <button class="btn" id="dlq-btn">Failed requests</button>
       <button class="btn" id="reliability-btn">Reliability report</button>
       <button class="btn" id="health-checks-btn">Active monitoring</button>
+      <button class="btn" id="plugins-btn">Plugins</button>
       <button class="btn" id="admin-btn" style="display:none;">Admin</button>
       <button class="btn" id="enterprise-btn">Enterprise</button>
       <button class="btn" id="seed-btn">Seed demo data</button>
@@ -798,6 +799,27 @@
     <h3 style="margin-top:26px;">Saved rules</h3>
     <div id="hitl-list"></div>
     <button class="close-btn" id="hitl-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Plugins modal -->
+<div class="modal-overlay" id="plugins-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Plugins">
+    <h3>Plugins</h3>
+    <p class="sub">Optional integrations that sit alongside AgentRaaS. More get added here over time.</p>
+
+    <h3 style="margin-top:10px;">Agentgateway <span class="badge unverified" style="font-size:10px;vertical-align:1px;">beta</span></h3>
+    <p class="sub">List other MCP/tool backends you want unified behind one <a href="https://agentgateway.dev/" target="_blank" rel="noopener">agentgateway</a> gateway alongside AgentRaaS's own MCP endpoint. This saves your target list — provisioning the actual shared gateway endpoint is manual for now; we'll follow up once it's ready. Self-hosting? You can run agentgateway yourself today — see the <a href="/guide#agentgateway" target="_blank" rel="noopener">guide</a>.</p>
+    <div class="modal-error" id="agentgateway-error"></div>
+    <form id="agentgateway-form">
+      <div class="field"><label for="agentgateway-org">Org ID</label><input type="text" id="agentgateway-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="agentgateway-name">Name</label><input type="text" id="agentgateway-name" placeholder="internal-tools-mcp" required></div>
+      <div class="field"><label for="agentgateway-url">Target URL</label><input type="text" id="agentgateway-url" placeholder="https://mcp.yourcompany.com" required></div>
+      <button type="submit" class="primary" id="agentgateway-submit">Add target</button>
+    </form>
+    <h3 style="margin-top:26px;">Saved targets</h3>
+    <div id="agentgateway-list"></div>
+    <button class="close-btn" id="plugins-modal-close">Close</button>
   </div>
 </div>
 
@@ -2105,6 +2127,59 @@
       }
       list.querySelectorAll('.delete-hitl-rule').forEach((btn) => {
         btn.addEventListener('click', async () => { await fetch(`/api/v1/hitl-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadHitlRulesList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Plugins modal (Agentgateway) ───
+  const pluginsModalOverlay = document.getElementById('plugins-modal-overlay');
+  const agentgatewayForm = document.getElementById('agentgateway-form');
+  const agentgatewayError = document.getElementById('agentgateway-error');
+  const agentgatewaySubmit = document.getElementById('agentgateway-submit');
+
+  document.getElementById('plugins-btn').addEventListener('click', () => {
+    agentgatewayError.style.display = 'none'; agentgatewayForm.reset();
+    pluginsModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('agentgateway-org').focus();
+    loadAgentgatewayList();
+  });
+  document.getElementById('plugins-modal-close').addEventListener('click', () => { pluginsModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  pluginsModalOverlay.addEventListener('click', (e) => { if (e.target === pluginsModalOverlay) { pluginsModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  agentgatewayForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); agentgatewayError.style.display = 'none'; agentgatewaySubmit.disabled = true;
+    const restoreText = withLoadingText(agentgatewaySubmit, 'Saving…');
+    const org_id = document.getElementById('agentgateway-org').value.trim();
+    const name = document.getElementById('agentgateway-name').value.trim();
+    const target_url = document.getElementById('agentgateway-url').value.trim();
+    try {
+      const res = await fetch('/api/v1/agentgateway-targets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, name, target_url }),
+      });
+      const data = await res.json();
+      if (!res.ok) { agentgatewayError.textContent = data.error || 'Could not save target.'; agentgatewayError.style.display = 'block'; return; }
+      agentgatewayForm.reset(); loadAgentgatewayList();
+    } catch (err) { agentgatewayError.textContent = 'Could not reach the server.'; agentgatewayError.style.display = 'block'; }
+    finally { agentgatewaySubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadAgentgatewayList() {
+    const list = document.getElementById('agentgateway-list');
+    try {
+      const res = await fetch('/api/v1/agentgateway-targets', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No targets yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'rule-summary-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.name)} — ${escapeHtml(row.org_id)}</div><div class="meta">${escapeHtml(row.target_url)}</div></div><button class="revoke delete-agentgateway-target" data-id="${row.id}">Delete</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.delete-agentgateway-target').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/agentgateway-targets/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadAgentgatewayList(); });
       });
     } catch (err) {}
   }

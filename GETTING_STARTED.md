@@ -163,15 +163,16 @@ need to give AgentRaaS your API key for that service:
    read it back out; it's only ever used server-side to make the call on
    your agent's behalf.
 
-## Optional: putting agentgateway in front (self-hosted)
+## Optional: putting agentgateway in front
 
-If you're self-hosting and already run — or want to run — multiple AI
-agents/tools behind a shared edge (auth, RBAC, rate limiting, observability
-across more than just AgentRaaS), you can put
-[agentgateway](https://agentgateway.dev/) (a Linux Foundation project) in
-front of AgentRaaS's MCP endpoint instead of pointing agents at it
-directly. This is available on every tier — it's a deployment choice, not
-one of AgentRaaS's own paid features.
+If you already run — or want to run — multiple AI agents/tools behind a
+shared edge (auth, RBAC, rate limiting, observability across more than
+just AgentRaaS), you can put [agentgateway](https://agentgateway.dev/) (a
+Linux Foundation project) in front of AgentRaaS's MCP endpoint instead of
+pointing agents at it directly. This is available on every tier — it's a
+deployment choice, not one of AgentRaaS's own paid features.
+
+**Self-hosted:**
 
 ```bash
 podman-compose --profile agentgateway up -d agentgateway
@@ -182,6 +183,13 @@ needs zero code changes for this; your agents' existing `x-agentraas-key`
 header passes straight through. Most self-hosters don't need this — it's
 useful once you have more than one MCP/tool server you want to manage
 behind a single gateway, not a requirement for using AgentRaaS.
+
+**Cloud (agentraas.io):** open the dashboard's **Plugins → Agentgateway**
+panel (beta) and list the other MCP/tool backends you want unified
+alongside AgentRaaS. This currently only saves your target list —
+provisioning the actual shared gateway endpoint for cloud accounts is a
+manual follow-up on our side until that's built out; we'll reach out once
+it's ready.
 
 ## Something not on the list?
 

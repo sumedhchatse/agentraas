@@ -28,5 +28,6 @@ Thumbs.db
 dist/
 build/
 .next/
+target/
 .env
 cookies.txt
