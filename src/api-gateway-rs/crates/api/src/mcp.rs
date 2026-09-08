@@ -15,7 +15,8 @@ use serde_json::{json, Value};
 use crate::agent::db::{
     check_usage_limit, get_effective_dedup_rule, get_effective_rate_limit,
     get_effective_validation_rule, get_org_validation_overrides, increment_monthly_usage, log_audit,
-    resolve_custom_route, resolve_org_from_api_key, verify_api_key, ResolvedRoute,
+    resolve_custom_route, resolve_org_from_api_key, select_dedup_hash_mode, verify_api_key,
+    DedupHashMode, ResolvedRoute,
 };
 use crate::auth::is_valid_identifier;
 use crate::agent::forward::{forward_with_retry, log_circuit_transition};
@@ -232,6 +233,11 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
                 extra_headers: r.extra_headers.clone(),
                 fanout_urls: Vec::new(),
                 credential_key: svc.clone(),
+                // MCP tool calls don't support streaming passthrough (see
+                // agent/mod.rs) — stringified into a single JSON-RPC "text"
+                // field regardless — but keep this field honest rather than
+                // silently forcing false and disagreeing with config.
+                streaming: r.streaming,
             });
         }
     }
@@ -330,19 +336,18 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
 
     let start = std::time::Instant::now();
     let payload_digest = dedup::hash_only(&payload);
-    let dedup_field_rule = if idempotency_key.is_some() {
-        None
-    } else {
-        get_effective_dedup_rule(&state.pg, &org_id, &resolved_service_name, &resolved_action_name)
-            .await
-            .unwrap_or(None)
-    };
-    let dedup_hash = if let Some(idem) = &idempotency_key {
-        dedup::hash_idempotency_key(&api_key, &resolved_service_name, &resolved_action_name, idem)
-    } else if let Some(rule) = &dedup_field_rule {
-        dedup::hash_field_values(&api_key, &resolved_service_name, &resolved_action_name, &payload, &rule.fields, rule.normalize)
-    } else {
-        dedup::hash_payload(&api_key, &resolved_service_name, &resolved_action_name, &payload)
+    // See agent/mod.rs::handle_request for why this is looked up unconditionally.
+    let dedup_field_rule = get_effective_dedup_rule(&state.pg, &org_id, &resolved_service_name, &resolved_action_name)
+        .await
+        .unwrap_or(None);
+    let dedup_hash = match select_dedup_hash_mode(idempotency_key.as_deref(), dedup_field_rule.as_ref()) {
+        DedupHashMode::IdempotencyKey(idem) => {
+            dedup::hash_idempotency_key(&api_key, &resolved_service_name, &resolved_action_name, idem)
+        }
+        DedupHashMode::Fields { fields, normalize } => dedup::hash_field_values(
+            &api_key, &resolved_service_name, &resolved_action_name, &payload, fields, normalize,
+        ),
+        DedupHashMode::Payload => dedup::hash_payload(&api_key, &resolved_service_name, &resolved_action_name, &payload),
     };
     let dedup_ttl_seconds = dedup_field_rule.as_ref().and_then(|r| r.ttl_seconds);
 
@@ -353,6 +358,12 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     if !claim.claimed {
         let existing = dedup::read_dedup_slot(&mut conn, &claim.key).await.ok().flatten();
         let is_pending = existing.as_ref().and_then(|v| v.get("pending")).and_then(Value::as_bool).unwrap_or(false);
+        // A REST-side streaming call (agent/mod.rs) that completed leaves a
+        // non-replayable sentinel in this same dedup keyspace, not the real
+        // response body — reject rather than replaying the sentinel as if
+        // it were a real tool result. See agent/mod.rs's own `is_streamed`
+        // check for the matching REST-side guard.
+        let is_streamed = existing.as_ref().and_then(|v| v.get("streamed")).and_then(Value::as_bool).unwrap_or(false);
         let Some(existing) = existing else {
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request is already being processed. Retry shortly.", "reqId": req_id }), true);
@@ -360,6 +371,10 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         if is_pending {
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request is already being processed. Retry shortly.", "reqId": req_id }), true);
+        }
+        if is_streamed {
+            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_of_streamed_response"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+            return jsonrpc_result(id, json!({ "error": "An identical request was already served as a streaming response and cannot be replayed. Wait for the dedup window to expire, or use a new idempotency_key.", "reqId": req_id }), true);
         }
         if let Some(existing_digest) = existing.get("__payloadDigest").and_then(Value::as_str) {
             if idempotency_key.is_some() && existing_digest != payload_digest {

@@ -38,6 +38,7 @@ fn health_check_specs() -> HashMap<&'static str, ResolvedRoute> {
             extra_headers: None,
             fanout_urls: Vec::new(),
             credential_key: "stripe".to_string(),
+            streaming: false,
         },
     );
     m.insert(
@@ -52,6 +53,7 @@ fn health_check_specs() -> HashMap<&'static str, ResolvedRoute> {
             extra_headers: None,
             fanout_urls: Vec::new(),
             credential_key: "slack".to_string(),
+            streaming: false,
         },
     );
     m.insert(
@@ -66,6 +68,7 @@ fn health_check_specs() -> HashMap<&'static str, ResolvedRoute> {
             extra_headers: None,
             fanout_urls: Vec::new(),
             credential_key: "mockpay".to_string(),
+            streaming: false,
         },
     );
     m

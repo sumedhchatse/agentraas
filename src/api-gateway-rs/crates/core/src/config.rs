@@ -50,6 +50,12 @@ pub struct RawActionConfig {
     pub path: String,
     #[serde(default)]
     pub validation: serde_json::Value,
+    /// True for an action whose upstream response is SSE/chunked (e.g. an
+    /// LLM tool streaming tokens) — the gateway passes the response through
+    /// live instead of buffering it, and skips dedup-replay for it (see
+    /// `forward.rs::forward_action_streaming`).
+    #[serde(default)]
+    pub streaming: bool,
 }
 
 /// One resolved `service.action` route — the Rust equivalent of a
@@ -66,6 +72,7 @@ pub struct ServiceRoute {
     pub content_type: String,
     pub extra_headers: Option<serde_json::Value>,
     pub validation: serde_json::Value,
+    pub streaming: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -140,6 +147,7 @@ pub fn build_service_routes(config: &ServicesConfig) -> HashMap<String, ServiceR
                         .unwrap_or_else(|| "application/json".to_string()),
                     extra_headers: service_config.extra_headers.clone(),
                     validation: action_config.validation.clone(),
+                    streaming: action_config.streaming,
                 },
             );
         }
