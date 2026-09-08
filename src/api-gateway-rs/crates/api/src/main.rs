@@ -1,4 +1,5 @@
 mod agent;
+mod agentgateway;
 mod auth;
 mod credentials;
 mod custom_actions;
@@ -190,6 +191,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(pages::router())
         .merge(self_host::router())
         .merge(pruning_settings::router())
+        .merge(agentgateway::router())
         .merge(licensing::router())
         .merge(long_tail::router());
     #[cfg(feature = "enterprise")]
