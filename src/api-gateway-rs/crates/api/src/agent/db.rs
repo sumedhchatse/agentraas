@@ -192,18 +192,41 @@ pub struct Credential {
 
 /// User-supplied stored credential first (self-serve path), falling back
 /// to an operator-set env var if nothing's been saved yet.
-pub async fn get_credential(state: &SharedState, service: &str, org_id: &str) -> Option<Credential> {
-    let row: Option<String> = sqlx::query_scalar(
-        "SELECT encrypted_payload FROM service_credentials
-         WHERE org_id=$1 AND service=$2 AND revoked_at IS NULL
-         ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(org_id)
-    .bind(service)
-    .fetch_optional(&state.pg)
-    .await
-    .ok()
-    .flatten();
+/// `end_user_id`, when `Some`, looks up a credential scoped to that
+/// specific end-user (On-Behalf-Of End-User Identity) instead of the
+/// org-wide shared one — and deliberately does **not** fall back to the
+/// shared credential (DB or env var) on a miss. Falling back would mean
+/// one end-user's call could silently use a credential meant for someone
+/// else (or a shared/admin key), which defeats the entire point of scoping
+/// it in the first place. `None` behaves exactly as before this feature
+/// existed.
+pub async fn get_credential(state: &SharedState, service: &str, org_id: &str, end_user_id: Option<&str>) -> Option<Credential> {
+    let row: Option<String> = if let Some(end_user_id) = end_user_id {
+        sqlx::query_scalar(
+            "SELECT encrypted_payload FROM service_credentials
+             WHERE org_id=$1 AND service=$2 AND end_user_id=$3 AND revoked_at IS NULL
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(org_id)
+        .bind(service)
+        .bind(end_user_id)
+        .fetch_optional(&state.pg)
+        .await
+        .ok()
+        .flatten()
+    } else {
+        sqlx::query_scalar(
+            "SELECT encrypted_payload FROM service_credentials
+             WHERE org_id=$1 AND service=$2 AND end_user_id IS NULL AND revoked_at IS NULL
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(org_id)
+        .bind(service)
+        .fetch_optional(&state.pg)
+        .await
+        .ok()
+        .flatten()
+    };
 
     if let Some(encrypted) = row {
         match state.cipher.decrypt(&encrypted) {
@@ -221,6 +244,12 @@ pub async fn get_credential(state: &SharedState, service: &str, org_id: &str) ->
         }
     }
 
+    // Env-var fallback is inherently a shared/org-wide credential source —
+    // never used to satisfy an end-user-scoped lookup, same fail-closed
+    // reasoning as above.
+    if end_user_id.is_some() {
+        return None;
+    }
     let env_var = format!("AGENTRAAS_KEY_{}_{}", service.to_uppercase(), org_id);
     let env_val = std::env::var(&env_var)
         .ok()
@@ -798,11 +827,12 @@ pub async fn log_audit(
     raw_payload: Option<&Value>,
     run_id: Option<&str>,
     step_id: Option<&str>,
+    end_user_id: Option<&str>,
 ) {
     let masked_key = mask_api_key_for_audit(api_key);
     let redacted_preview = redact_preview(enterprise_mode, raw_payload);
     if let Err(err) = sqlx::query(
-        "INSERT INTO audit_log (req_id,api_key,org_id,agent_id,service,action,status,error_type,duration_ms,payload_hash,redacted_payload_preview,run_id,step_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())",
+        "INSERT INTO audit_log (req_id,api_key,org_id,agent_id,service,action,status,error_type,duration_ms,payload_hash,redacted_payload_preview,run_id,step_id,end_user_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())",
     )
     .bind(req_id)
     .bind(&masked_key)
@@ -817,6 +847,7 @@ pub async fn log_audit(
     .bind(redacted_preview)
     .bind(run_id)
     .bind(step_id)
+    .bind(end_user_id)
     .execute(pg)
     .await
     {
