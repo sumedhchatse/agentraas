@@ -111,11 +111,24 @@ async fn create_mcp_server(
         }
     }
 
+    // Auto-discovered schemas: probe the server right now rather than
+    // trusting the URL blindly — the org gets immediate confirmation it
+    // actually speaks MCP, and a real tool count/list instead of having to
+    // guess or hand-type one.
+    let discovered = crate::mcp::probe_mcp_server_tools(&state, &org_id, &name, &target_url, &auth_type, body.auth_header_name.as_deref()).await;
+    let discovered_names: Vec<&str> = discovered.iter().filter_map(|t| t.get("name").and_then(Value::as_str)).collect();
+    let note = if discovered.is_empty() {
+        "Saved, but no tools were discovered at that URL just now — double-check it's a working MCP tools/call endpoint. Tools will still be re-probed live on the next tools/list call.".to_string()
+    } else {
+        format!("Discovered {} tool(s): {}. Available now in tools/list.", discovered.len(), discovered_names.join(", "))
+    };
+
     Ok(Json(json!({
         "saved": true,
         "org_id": org_id,
         "name": name,
-        "note": format!("This server's tools are now available as \"{name}.<tool>\" in tools/list."),
+        "discovered_tools": discovered_names,
+        "note": note,
     })))
 }
 
