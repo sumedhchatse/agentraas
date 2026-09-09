@@ -175,6 +175,8 @@ async fn main() -> anyhow::Result<()> {
 
     licensing::spawn_license_refresh_loop(state.clone());
     health_checks::spawn_health_check_loop(state.clone());
+    #[cfg(feature = "enterprise")]
+    ee::hitl::spawn_hitl_escalation_loop(state.clone());
     tokio::task::spawn_blocking(self_host::build_snapshot);
 
     let app = Router::new()
