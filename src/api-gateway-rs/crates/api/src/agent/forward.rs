@@ -628,6 +628,77 @@ pub fn broadcast_fanout(state: &SharedState, route: &ResolvedRoute, payload: &Va
     }
 }
 
+/// Retry-with-backoff counterpart to `forward_mcp_tool_call`, same shape as
+/// `forward_with_retry` above (fast-follow noted when MCP Custom Actions
+/// first shipped as a single-attempt-only v1 — this replaces that).
+pub async fn forward_mcp_with_retry(
+    state: &SharedState,
+    route: &ResolvedMcpRoute,
+    org_id: &str,
+    payload: &Value,
+    req_id: &str,
+    circuit_key: &str,
+) -> Result<Value, ForwardError> {
+    let mut last_error = None;
+
+    for attempt in 1..=state.proxy_retry_max_attempts {
+        match forward_mcp_tool_call(state, route, org_id, payload, req_id).await {
+            Ok(mut result) => {
+                if attempt > 1 {
+                    result["retried"] = json!(attempt - 1);
+                }
+                return Ok(result);
+            }
+            Err(mut err) => {
+                err.circuit_already_recorded = true;
+                if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                    if let Ok(Some(transition)) = circuit_breaker::record_failure(&mut conn, circuit_key).await {
+                        log_circuit_transition(state, transition).await;
+                    }
+                }
+
+                let retryable = is_retryable(&err);
+                let is_last_attempt = attempt == state.proxy_retry_max_attempts;
+
+                if is_last_attempt || !retryable {
+                    last_error = Some(err);
+                    break;
+                }
+
+                let circuit_open = {
+                    if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                        circuit_breaker::get_circuit_state(&mut conn, circuit_key)
+                            .await
+                            .map(|(s, _)| s == "open")
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    }
+                };
+                if circuit_open {
+                    last_error = Some(err);
+                    break;
+                }
+
+                let delay_ms = state.proxy_retry_base_delay_ms * 2u64.pow(attempt - 1)
+                    + (rand::random::<u32>() % 100) as u64;
+                tracing::warn!(
+                    req_id,
+                    tool = route.remote_tool_name,
+                    attempt,
+                    delay_ms,
+                    error = %err.message,
+                    "AgentRaaS: retrying transient MCP upstream failure"
+                );
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                last_error = Some(err);
+            }
+        }
+    }
+
+    Err(last_error.expect("loop always sets last_error before exiting without returning Ok"))
+}
+
 pub async fn log_circuit_transition(state: &SharedState, transition: circuit_breaker::Transition) {
     if let Err(err) = sqlx::query(
         "INSERT INTO circuit_breaker_events (service, from_state, to_state) VALUES ($1, $2, $3)",
