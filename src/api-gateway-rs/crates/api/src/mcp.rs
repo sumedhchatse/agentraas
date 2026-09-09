@@ -171,50 +171,7 @@ async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Va
             }
         }
 
-        let credential = crate::agent::db::get_credential(state, &format!("mcp:{}", row.name), org_id).await;
-        if row.auth_type != "none" && credential.is_none() {
-            return Vec::new();
-        }
-        let mut builder = state
-            .http_client
-            .post(&row.target_url)
-            .header("Content-Type", "application/json")
-            .timeout(std::time::Duration::from_secs(3));
-        if let Some(cred) = &credential {
-            match row.auth_type.as_str() {
-                "basic" => {
-                    let username = cred.username.clone().or_else(|| cred.api_key.clone()).unwrap_or_default();
-                    builder = builder.basic_auth(username, cred.password.clone());
-                }
-                "custom-header" => {
-                    if let Some(header_name) = &row.auth_header_name {
-                        builder = builder.header(header_name, cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default());
-                    }
-                }
-                _ => {
-                    let key = cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default();
-                    builder = builder.header("Authorization", format!("Bearer {key}"));
-                }
-            }
-        }
-        let rpc_request = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} });
-        let Ok(response) = builder.json(&rpc_request).send().await else {
-            tracing::warn!(server = row.name, "MCP Custom Action tools/list probe failed, skipping");
-            return Vec::new();
-        };
-        let body: Value = response.json().await.unwrap_or(Value::Null);
-        let Some(remote_tools) = body.get("result").and_then(|r| r.get("tools")).and_then(Value::as_array) else {
-            return Vec::new();
-        };
-        let tools: Vec<Value> = remote_tools
-            .iter()
-            .filter_map(|t| {
-                let remote_name = t.get("name").and_then(Value::as_str)?;
-                let mut entry = t.clone();
-                entry["name"] = json!(format!("{}.{}", row.name, remote_name));
-                Some(entry)
-            })
-            .collect();
+        let tools = probe_mcp_server_tools(state, org_id, &row.name, &row.target_url, &row.auth_type, row.auth_header_name.as_deref()).await;
 
         if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
             if let Ok(serialized) = serde_json::to_string(&tools) {
@@ -225,6 +182,66 @@ async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Va
     });
 
     futures_util::future::join_all(fetches).await.into_iter().flatten().collect()
+}
+
+/// Probes one MCP server's `tools/list` and returns its tools renamed to
+/// `<server_name>.<remote_tool>`. Shared by `fetch_registered_mcp_tools`
+/// above (the live `tools/list` merge, cached) and `mcp_servers.rs`'s
+/// registration endpoint (a one-off probe at save time, so the caller gets
+/// immediate confirmation the URL actually speaks MCP and a count of what
+/// it found — auto-discovered, not hand-typed).
+pub(crate) async fn probe_mcp_server_tools(
+    state: &SharedState,
+    org_id: &str,
+    server_name: &str,
+    target_url: &str,
+    auth_type: &str,
+    auth_header_name: Option<&str>,
+) -> Vec<Value> {
+    let credential = crate::agent::db::get_credential(state, &format!("mcp:{server_name}"), org_id).await;
+    if auth_type != "none" && credential.is_none() {
+        return Vec::new();
+    }
+    let mut builder = state
+        .http_client
+        .post(target_url)
+        .header("Content-Type", "application/json")
+        .timeout(std::time::Duration::from_secs(3));
+    if let Some(cred) = &credential {
+        match auth_type {
+            "basic" => {
+                let username = cred.username.clone().or_else(|| cred.api_key.clone()).unwrap_or_default();
+                builder = builder.basic_auth(username, cred.password.clone());
+            }
+            "custom-header" => {
+                if let Some(header_name) = auth_header_name {
+                    builder = builder.header(header_name, cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default());
+                }
+            }
+            _ => {
+                let key = cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default();
+                builder = builder.header("Authorization", format!("Bearer {key}"));
+            }
+        }
+    }
+    let rpc_request = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} });
+    let Ok(response) = builder.json(&rpc_request).send().await else {
+        tracing::warn!(server = server_name, "MCP Custom Action tools/list probe failed, skipping");
+        return Vec::new();
+    };
+    let body: Value = response.json().await.unwrap_or(Value::Null);
+    let Some(remote_tools) = body.get("result").and_then(|r| r.get("tools")).and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    remote_tools
+        .iter()
+        .filter_map(|t| {
+            let remote_name = t.get("name").and_then(Value::as_str)?;
+            let mut entry = t.clone();
+            entry["name"] = json!(format!("{server_name}.{remote_name}"));
+            Some(entry)
+        })
+        .collect()
 }
 
 async fn handle_mcp(
@@ -267,18 +284,35 @@ async fn handle_mcp(
             }
         };
         let empty = Value::Object(Default::default());
-        let mut tools: Vec<Value> = state
-            .tool_name_to_route
-            .iter()
-            .map(|(tool_name, (svc_name, act_name))| {
-                let fields = overrides
-                    .get(&(svc_name.clone(), act_name.clone()))
-                    .or_else(|| state.service_routes.get(&format!("{svc_name}.{act_name}")).map(|r| &r.validation))
-                    .unwrap_or(&empty);
-                build_tool_entry(tool_name, svc_name, act_name, fields)
-            })
-            .collect();
-        tools.extend(fetch_registered_mcp_tools(&state, &org_id).await);
+        let mut tools: Vec<Value> = Vec::new();
+        let mut circuit_keys_by_index: Vec<String> = Vec::new();
+        for (tool_name, (svc_name, act_name)) in state.tool_name_to_route.iter() {
+            let fields = overrides
+                .get(&(svc_name.clone(), act_name.clone()))
+                .or_else(|| state.service_routes.get(&format!("{svc_name}.{act_name}")).map(|r| &r.validation))
+                .unwrap_or(&empty);
+            tools.push(build_tool_entry(tool_name, svc_name, act_name, fields));
+            circuit_keys_by_index.push(svc_name.clone());
+        }
+        for mcp_tool in fetch_registered_mcp_tools(&state, &org_id).await {
+            let server = mcp_tool.get("name").and_then(Value::as_str).and_then(|n| n.split_once('.')).map(|(s, _)| s.to_string()).unwrap_or_default();
+            circuit_keys_by_index.push(format!("mcp:{server}"));
+            tools.push(mcp_tool);
+        }
+
+        // Tool health — attach each tool's current circuit-breaker state so
+        // an agent can check before calling instead of burning a turn on a
+        // call it could've known would fail. Best-effort: a Redis hiccup
+        // here just means every tool goes out unlabeled, not a broken list.
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+            let unique_keys: Vec<String> = circuit_keys_by_index.iter().cloned().collect::<std::collections::HashSet<_>>().into_iter().collect();
+            if let Ok((states_map, _)) = circuit_breaker::get_circuit_states_batch(&mut conn, &unique_keys).await {
+                for (tool, key) in tools.iter_mut().zip(circuit_keys_by_index.iter()) {
+                    let circuit_state = states_map.get(key).cloned().unwrap_or_else(|| "closed".to_string());
+                    tool["x-agentraas-circuit-state"] = json!(circuit_state);
+                }
+            }
+        }
         return (StatusCode::OK, Json(json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": tools } })));
     }
 

@@ -23,6 +23,9 @@ pub fn router() -> Router<SharedState> {
         // `#pricing`. Not a redirect: a real 200 with the pricing content
         // actually in the served HTML.
         .route("/pricing", get(landing))
+        .route("/vs-temporal", get(vs_temporal))
+        .route("/vs-composio", get(vs_composio))
+        .route("/vs-arcade", get(vs_arcade))
         .route("/dashboard", get(dashboard))
         .route("/dashboard/", get(dashboard))
         .route("/guide", get(guide))
@@ -61,6 +64,18 @@ async fn dashboard() -> axum::response::Response {
 
 async fn guide() -> axum::response::Response {
     serve_html_file(public_file("guide.html"), "Guide not found").await
+}
+
+async fn vs_temporal() -> axum::response::Response {
+    serve_html_file(public_file("vs-temporal.html"), "Page not found").await
+}
+
+async fn vs_composio() -> axum::response::Response {
+    serve_html_file(public_file("vs-composio.html"), "Page not found").await
+}
+
+async fn vs_arcade() -> axum::response::Response {
+    serve_html_file(public_file("vs-arcade.html"), "Page not found").await
 }
 
 async fn webhook_audit_page() -> axum::response::Response {
@@ -134,7 +149,7 @@ async fn robots_txt(axum::extract::State(state): axum::extract::State<SharedStat
     ([(header::CONTENT_TYPE, "text/plain")], body)
 }
 
-const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/guide", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
+const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/vs-temporal", "/vs-composio", "/vs-arcade", "/guide", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
 
 async fn sitemap_xml(axum::extract::State(state): axum::extract::State<SharedState>) -> impl IntoResponse {
     let urls: String = SITEMAP_ROUTES.iter().map(|route| format!("  <url><loc>{}{route}</loc></url>", state.public_url)).collect::<Vec<_>>().join("\n");
