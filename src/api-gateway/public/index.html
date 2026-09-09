@@ -509,6 +509,7 @@
       <button class="btn filled" id="connect-agent-btn">+ Connect agent</button>
       <button class="btn" id="credentials-btn">Credentials</button>
       <button class="btn" id="custom-actions-btn">Custom actions</button>
+      <button class="btn" id="mcpsvr-btn">MCP servers</button>
       <button class="btn" id="validation-rules-btn">Validation rules</button>
       <button class="btn" id="dedup-rules-btn">Dedup rules</button>
       <button class="btn filled" id="live-test-btn" title="Fires 8 identical requests at a sandbox endpoint through the real dedup pipeline and shows what happened">Run live dedup test</button>
@@ -696,6 +697,36 @@
     <h3 style="margin-top:26px;">Registered actions</h3>
     <div id="custom-list"></div>
     <button class="close-btn" id="custom-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- MCP Servers modal (MCP Custom Actions) -->
+<div class="modal-overlay" id="mcpsvr-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="MCP servers">
+    <h3>MCP servers</h3>
+    <p class="sub">Register any third-party MCP server (Notion, GitHub, or anything from the open MCP ecosystem) and every tool it exposes gets AgentRaaS's dedup, circuit breaker, and audit protection automatically — no per-tool setup. Its tools show up in <code>tools/list</code> as <code>&lt;name&gt;.&lt;tool&gt;</code>.</p>
+    <div class="modal-error" id="mcpsvr-error"></div>
+    <form id="mcpsvr-form">
+      <div class="field"><label for="mcpsvr-org">Org ID</label><input type="text" id="mcpsvr-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="mcpsvr-name">Server name</label><input type="text" id="mcpsvr-name" placeholder="notion" required></div>
+      <div class="field"><label for="mcpsvr-url">MCP endpoint URL</label><input type="text" id="mcpsvr-url" placeholder="https://mcp.example.com/mcp" required></div>
+      <div class="field"><label for="mcpsvr-authtype">Auth type</label>
+        <select id="mcpsvr-authtype">
+          <option value="none">None</option>
+          <option value="bearer">Bearer token</option>
+          <option value="basic">Username + password</option>
+          <option value="header">Custom header</option>
+        </select>
+      </div>
+      <div class="field" id="mcpsvr-headername-field" style="display:none;"><label for="mcpsvr-headername">Header name</label><input type="text" id="mcpsvr-headername" placeholder="X-API-Key"></div>
+      <div class="field" id="mcpsvr-apikey-field" style="display:none;"><label for="mcpsvr-apikey">API key / token / header value</label><input type="text" id="mcpsvr-apikey" placeholder="..."></div>
+      <div class="field" id="mcpsvr-username-field" style="display:none;"><label for="mcpsvr-username">Username</label><input type="text" id="mcpsvr-username"></div>
+      <div class="field" id="mcpsvr-password-field" style="display:none;"><label for="mcpsvr-password">Password</label><input type="text" id="mcpsvr-password"></div>
+      <button type="submit" class="primary" id="mcpsvr-submit">Register server</button>
+    </form>
+    <h3 style="margin-top:26px;">Registered servers</h3>
+    <div id="mcpsvr-list"></div>
+    <button class="close-btn" id="mcpsvr-modal-close">Close</button>
   </div>
 </div>
 
@@ -1792,6 +1823,79 @@
       }
       list.querySelectorAll('.revoke').forEach((btn) => {
         btn.addEventListener('click', async () => { await fetch(`/api/v1/custom-actions/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadCustomActionsList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── MCP Servers modal (MCP Custom Actions) ───
+  const mcpsvrModalOverlay = document.getElementById('mcpsvr-modal-overlay');
+  const mcpsvrForm = document.getElementById('mcpsvr-form');
+  const mcpsvrError = document.getElementById('mcpsvr-error');
+  const mcpsvrSubmit = document.getElementById('mcpsvr-submit');
+  const mcpsvrAuthType = document.getElementById('mcpsvr-authtype');
+
+  function updateMcpsvrFieldVisibility() {
+    const t = mcpsvrAuthType.value;
+    document.getElementById('mcpsvr-headername-field').style.display = t === 'header' ? 'block' : 'none';
+    document.getElementById('mcpsvr-apikey-field').style.display = (t === 'bearer' || t === 'header') ? 'block' : 'none';
+    document.getElementById('mcpsvr-username-field').style.display = t === 'basic' ? 'block' : 'none';
+    document.getElementById('mcpsvr-password-field').style.display = t === 'basic' ? 'block' : 'none';
+  }
+  mcpsvrAuthType.addEventListener('change', updateMcpsvrFieldVisibility);
+
+  document.getElementById('mcpsvr-btn').addEventListener('click', () => {
+    mcpsvrError.style.display = 'none'; mcpsvrForm.reset(); updateMcpsvrFieldVisibility();
+    mcpsvrModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('mcpsvr-org').focus();
+    loadMcpServersList();
+  });
+  document.getElementById('mcpsvr-modal-close').addEventListener('click', () => { mcpsvrModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  mcpsvrModalOverlay.addEventListener('click', (e) => { if (e.target === mcpsvrModalOverlay) { mcpsvrModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  mcpsvrForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); mcpsvrError.style.display = 'none'; mcpsvrSubmit.disabled = true;
+    const restoreText = withLoadingText(mcpsvrSubmit, 'Registering…');
+    const org_id = document.getElementById('mcpsvr-org').value.trim();
+    const name = document.getElementById('mcpsvr-name').value.trim();
+    const target_url = document.getElementById('mcpsvr-url').value.trim();
+    const auth_type = mcpsvrAuthType.value;
+    const auth_header_name = document.getElementById('mcpsvr-headername').value.trim();
+
+    let credential;
+    if (auth_type === 'basic') {
+      credential = { username: document.getElementById('mcpsvr-username').value.trim(), password: document.getElementById('mcpsvr-password').value.trim() };
+    } else if (auth_type === 'bearer' || auth_type === 'header') {
+      credential = { api_key: document.getElementById('mcpsvr-apikey').value.trim() };
+    }
+
+    try {
+      const res = await fetch('/api/v1/mcp-servers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, name, target_url, auth_type, auth_header_name: auth_header_name || undefined, credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) { mcpsvrError.textContent = data.error || 'Could not register server.'; mcpsvrError.style.display = 'block'; return; }
+      mcpsvrForm.reset(); updateMcpsvrFieldVisibility(); loadMcpServersList();
+    } catch (err) { mcpsvrError.textContent = 'Could not reach the server.'; mcpsvrError.style.display = 'block'; }
+    finally { mcpsvrSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadMcpServersList() {
+    const list = document.getElementById('mcpsvr-list');
+    try {
+      const res = await fetch('/api/v1/mcp-servers', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No MCP servers registered yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.name)} — ${escapeHtml(row.org_id)}</div><div class="meta">${escapeHtml(row.target_url)} · tools appear as ${escapeHtml(row.name)}.&lt;tool&gt;</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.revoke').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/mcp-servers/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadMcpServersList(); });
       });
     } catch (err) {}
   }
