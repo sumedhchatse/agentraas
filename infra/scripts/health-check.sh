@@ -14,11 +14,33 @@ set -euo pipefail
 REPO_DIR="${HOME}/agentraas"
 STATE_FILE="${HOME}/.health-check-state"
 ALERT_EMAIL="${ALERT_EMAIL:-sumedhchatse11@gmail.com}"
-DISK_THRESHOLD_PCT=85
+DISK_THRESHOLD_PCT="${DISK_THRESHOLD_PCT:-85}"
 REQUIRED_CONTAINERS=(ar-api-rs ar-postgres ar-redis ar-minio)
 
-# shellcheck disable=SC1090
-set -a; source "${REPO_DIR}/.env"; set +a
+# Deliberately NOT `source .env` — this repo's .env has a multi-line PEM
+# value (LICENSE_SIGNING_PRIVATE_KEY) that isn't valid bash syntax to
+# source (real bug hit while writing this script). Pull out only the
+# single-line SMTP_* keys actually needed, quotes stripped if present.
+env_get() {
+  local line
+  line=$(grep -E "^$1=" "${REPO_DIR}/.env" | tail -1)
+  line="${line#*=}"
+  line="${line%\"}"; line="${line#\"}"
+  printf '%s' "${line}"
+}
+SMTP_HOST=$(env_get SMTP_HOST)
+SMTP_PORT=$(env_get SMTP_PORT)
+SMTP_USER=$(env_get SMTP_USER)
+SMTP_PASS=$(env_get SMTP_PASS)
+SMTP_FROM=$(env_get SMTP_FROM)
+# curl's --mail-from is the raw SMTP envelope address — Resend (and most
+# providers) reject the "Display Name <addr>" form there with a 501
+# syntax error (found while testing this script). Strip it down to the
+# bare address for the envelope; the header below keeps the display name.
+SMTP_FROM_ENVELOPE="${SMTP_FROM}"
+if [[ "${SMTP_FROM}" == *"<"*">"* ]]; then
+  SMTP_FROM_ENVELOPE=$(printf '%s' "${SMTP_FROM}" | sed -E 's/.*<([^>]+)>.*/\1/')
+fi
 
 failures=()
 
@@ -67,7 +89,7 @@ prev_state="ok"
 send_mail() {
   local subject="$1" body="$2"
   curl -s --url "smtp://${SMTP_HOST}:${SMTP_PORT}" --ssl-reqd \
-    --mail-from "${SMTP_FROM}" --mail-rcpt "${ALERT_EMAIL}" \
+    --mail-from "${SMTP_FROM_ENVELOPE}" --mail-rcpt "${ALERT_EMAIL}" \
     --user "${SMTP_USER}:${SMTP_PASS}" --upload-file - <<EOF
 From: ${SMTP_FROM}
 To: ${ALERT_EMAIL}
