@@ -15,11 +15,11 @@ use serde_json::{json, Value};
 use crate::agent::db::{
     check_usage_limit, get_effective_dedup_rule, get_effective_rate_limit,
     get_effective_validation_rule, get_org_validation_overrides, increment_monthly_usage, log_audit,
-    resolve_custom_route, resolve_org_from_api_key, select_dedup_hash_mode, verify_api_key,
-    DedupHashMode, ResolvedRoute,
+    resolve_custom_route, resolve_mcp_tool_route, resolve_org_from_api_key, select_dedup_hash_mode,
+    verify_api_key, DedupHashMode, ResolvedMcpRoute, ResolvedRoute,
 };
 use crate::auth::is_valid_identifier;
-use crate::agent::forward::{forward_with_retry, log_circuit_transition};
+use crate::agent::forward::{forward_mcp_tool_call, forward_with_retry, log_circuit_transition};
 use crate::state::SharedState;
 
 pub fn router() -> Router<SharedState> {
@@ -127,6 +127,86 @@ fn jsonrpc_error(id: &Value, code: i32, message: impl Into<String>) -> Json<Valu
     }))
 }
 
+/// MCP Custom Actions — probes each of the org's registered third-party MCP
+/// servers for its own `tools/list` and merges the results in as
+/// `<server_name>.<remote_tool>`, so an agent sees them alongside AgentRaaS's
+/// curated tools without a separate discovery step. Run in parallel, each
+/// with its own short timeout — `tools/list` isn't `tools/call`'s hot path,
+/// but it shouldn't hang the whole response on one slow/dead server either.
+/// A server that times out or errors is silently skipped (logged), not
+/// fatal to the rest of the list. No caching in v1 — a handful of
+/// registered servers per org at a few seconds each in parallel is fine;
+/// revisit with a Redis-cached version if this ever becomes a real latency
+/// complaint.
+async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Value> {
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        name: String,
+        target_url: String,
+        auth_type: String,
+        auth_header_name: Option<String>,
+    }
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT name, target_url, auth_type, auth_header_name FROM custom_mcp_servers WHERE org_id=$1 AND revoked_at IS NULL",
+    )
+    .bind(org_id)
+    .fetch_all(&state.pg)
+    .await
+    .unwrap_or_default();
+    if rows.is_empty() {
+        return Vec::new();
+    }
+
+    let fetches = rows.into_iter().map(|row| async move {
+        let credential = crate::agent::db::get_credential(state, &format!("mcp:{}", row.name), org_id).await;
+        if row.auth_type != "none" && credential.is_none() {
+            return Vec::new();
+        }
+        let mut builder = state
+            .http_client
+            .post(&row.target_url)
+            .header("Content-Type", "application/json")
+            .timeout(std::time::Duration::from_secs(3));
+        if let Some(cred) = &credential {
+            match row.auth_type.as_str() {
+                "basic" => {
+                    let username = cred.username.clone().or_else(|| cred.api_key.clone()).unwrap_or_default();
+                    builder = builder.basic_auth(username, cred.password.clone());
+                }
+                "custom-header" => {
+                    if let Some(header_name) = &row.auth_header_name {
+                        builder = builder.header(header_name, cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default());
+                    }
+                }
+                _ => {
+                    let key = cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default();
+                    builder = builder.header("Authorization", format!("Bearer {key}"));
+                }
+            }
+        }
+        let rpc_request = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} });
+        let Ok(response) = builder.json(&rpc_request).send().await else {
+            tracing::warn!(server = row.name, "MCP Custom Action tools/list probe failed, skipping");
+            return Vec::new();
+        };
+        let body: Value = response.json().await.unwrap_or(Value::Null);
+        let Some(remote_tools) = body.get("result").and_then(|r| r.get("tools")).and_then(Value::as_array) else {
+            return Vec::new();
+        };
+        remote_tools
+            .iter()
+            .filter_map(|t| {
+                let remote_name = t.get("name").and_then(Value::as_str)?;
+                let mut entry = t.clone();
+                entry["name"] = json!(format!("{}.{}", row.name, remote_name));
+                Some(entry)
+            })
+            .collect::<Vec<_>>()
+    });
+
+    futures_util::future::join_all(fetches).await.into_iter().flatten().collect()
+}
+
 async fn handle_mcp(
     State(state): State<SharedState>,
     headers: HeaderMap,
@@ -167,7 +247,7 @@ async fn handle_mcp(
             }
         };
         let empty = Value::Object(Default::default());
-        let tools: Vec<Value> = state
+        let mut tools: Vec<Value> = state
             .tool_name_to_route
             .iter()
             .map(|(tool_name, (svc_name, act_name))| {
@@ -178,6 +258,7 @@ async fn handle_mcp(
                 build_tool_entry(tool_name, svc_name, act_name, fields)
             })
             .collect();
+        tools.extend(fetch_registered_mcp_tools(&state, &org_id).await);
         return (StatusCode::OK, Json(json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": tools } })));
     }
 
@@ -248,7 +329,18 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             resolved_route = Some(r);
         }
     }
-    let Some(resolved_route) = resolved_route else {
+    // MCP Custom Actions — a registered third-party MCP server's own tool,
+    // named "<server_name>.<remote_tool>" locally. Tried last since it's
+    // the least common case and `resolve_mcp_tool_route` is a real query.
+    let mut resolved_mcp_route: Option<ResolvedMcpRoute> = None;
+    if resolved_route.is_none() {
+        if let Ok(Some(r)) = resolve_mcp_tool_route(&state.pg, &org_id, tool_name).await {
+            resolved_service_name = format!("mcp:{}", r.credential_key.trim_start_matches("mcp:"));
+            resolved_action_name = r.remote_tool_name.clone();
+            resolved_mcp_route = Some(r);
+        }
+    }
+    if resolved_route.is_none() && resolved_mcp_route.is_none() {
         return jsonrpc_error(id, -32601, format!("Tool not found: {tool_name}"));
     };
 
@@ -402,10 +494,15 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         }
     }
 
-    let circuit_key = if resolved_route.credential_key.is_empty() {
-        resolved_service_name.clone()
+    let circuit_key = if let Some(mcp_route) = &resolved_mcp_route {
+        mcp_route.credential_key.clone()
     } else {
-        resolved_route.credential_key.clone()
+        let resolved_route = resolved_route.as_ref().expect("resolved_route or resolved_mcp_route is Some, checked above");
+        if resolved_route.credential_key.is_empty() {
+            resolved_service_name.clone()
+        } else {
+            resolved_route.credential_key.clone()
+        }
     };
     match circuit_breaker::get_circuit_state(&mut conn, &circuit_key).await {
         Ok((state_str, transition)) => {
@@ -437,7 +534,13 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         );
     }
 
-    match forward_with_retry(state, &resolved_route, &resolved_service_name, &resolved_action_name, &org_id, &payload, &req_id, &circuit_key).await {
+    let forward_result = if let Some(mcp_route) = &resolved_mcp_route {
+        forward_mcp_tool_call(state, mcp_route, &org_id, &payload, &req_id).await
+    } else {
+        let resolved_route = resolved_route.as_ref().expect("resolved_route or resolved_mcp_route is Some, checked above");
+        forward_with_retry(state, resolved_route, &resolved_service_name, &resolved_action_name, &org_id, &payload, &req_id, &circuit_key).await
+    };
+    match forward_result {
         Ok(mut result) => {
             if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
                 if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {

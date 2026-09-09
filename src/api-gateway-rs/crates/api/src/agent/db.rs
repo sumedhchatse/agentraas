@@ -677,6 +677,60 @@ pub async fn resolve_custom_route(
     }))
 }
 
+/// A registered third-party MCP server's tool — distinct from `ResolvedRoute`
+/// because the request/response shape is JSON-RPC (`forward::
+/// forward_mcp_tool_call`), not the REST shape `ResolvedRoute` implies.
+pub struct ResolvedMcpRoute {
+    pub target_url: String,
+    pub auth_type: String,
+    pub auth_header: Option<String>,
+    pub credential_key: String,
+    pub remote_tool_name: String,
+}
+
+/// Splits a local tool name shaped `<server_name>.<remote_tool_name>` and
+/// looks up the matching registered `custom_mcp_servers` row — the MCP
+/// Custom Actions counterpart to `resolve_custom_route` above. Returns
+/// `Ok(None)` (not an error) for anything that isn't `name.tool` shaped or
+/// doesn't match a registered server, so callers can just fall through to
+/// "tool not found" the same way they already do for curated/HTTP-custom
+/// misses.
+pub async fn resolve_mcp_tool_route(pg: &sqlx::PgPool, org_id: &str, tool_name: &str) -> Result<Option<ResolvedMcpRoute>, sqlx::Error> {
+    let Some((server_name, remote_tool_name)) = tool_name.split_once('.') else {
+        return Ok(None);
+    };
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        target_url: String,
+        auth_type: String,
+        auth_header_name: Option<String>,
+    }
+    let row = sqlx::query_as::<_, Row>(
+        "SELECT target_url, auth_type, auth_header_name FROM custom_mcp_servers WHERE org_id=$1 AND name=$2 AND revoked_at IS NULL LIMIT 1",
+    )
+    .bind(org_id)
+    .bind(server_name)
+    .fetch_optional(pg)
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+
+    let (auth_type, auth_header) = if row.auth_type == "header" {
+        ("custom-header".to_string(), row.auth_header_name)
+    } else if row.auth_type == "bearer" {
+        ("bearer".to_string(), Some("Authorization".to_string()))
+    } else {
+        (row.auth_type, None)
+    };
+
+    Ok(Some(ResolvedMcpRoute {
+        target_url: row.target_url,
+        auth_type,
+        auth_header,
+        credential_key: format!("mcp:{server_name}"),
+        remote_tool_name: remote_tool_name.to_string(),
+    }))
+}
+
 /// Resolves `service`+`action` to a `ResolvedRoute`, exactly like
 /// `handle_request`'s own routing branch — shared with the Dead Letter
 /// Queue replay path, which needs the identical lookup outside the normal

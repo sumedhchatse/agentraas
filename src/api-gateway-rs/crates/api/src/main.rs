@@ -12,6 +12,7 @@ mod health_checks;
 mod licensing;
 mod long_tail;
 mod mcp;
+mod mcp_servers;
 mod notifications;
 mod pages;
 mod pruning_settings;
@@ -181,6 +182,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(auth::routes::router())
         .merge(agent::router())
         .merge(mcp::router())
+        .merge(mcp_servers::router())
         .merge(rules::router())
         .merge(credentials::router())
         .merge(custom_actions::router())
