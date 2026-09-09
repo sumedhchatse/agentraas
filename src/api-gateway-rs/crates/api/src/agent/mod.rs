@@ -584,7 +584,7 @@ async fn handle_request(
         return err_response(
             StatusCode::PAYMENT_REQUIRED,
             &req_id,
-            format!("Monthly usage limit reached ({}/{} actions this month). Contact support@agentraas.io to upgrade.", usage.count, usage.limit),
+            format!("Monthly usage limit reached ({}/{} actions this month). Contact hello@agentraas.io to upgrade.", usage.count, usage.limit),
         );
     }
 
@@ -833,7 +833,7 @@ async fn connect_agent(
     if !tenant_cap.ok {
         return Err(ApiError::new(
             StatusCode::PAYMENT_REQUIRED,
-            format!("Agency plan is limited to {} client tenants. Contact support@agentraas.io to increase this.", tenant_cap.limit),
+            format!("Agency plan is limited to {} client tenants. Contact hello@agentraas.io to increase this.", tenant_cap.limit),
         ));
     }
 

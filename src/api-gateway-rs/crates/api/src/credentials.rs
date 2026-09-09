@@ -94,7 +94,7 @@ async fn create_credential(
     if !tenant_cap.ok {
         return Err(ApiError::new(
             StatusCode::PAYMENT_REQUIRED,
-            format!("Agency plan is limited to {} client tenants. Contact support@agentraas.io to increase this.", tenant_cap.limit),
+            format!("Agency plan is limited to {} client tenants. Contact hello@agentraas.io to increase this.", tenant_cap.limit),
         ));
     }
 

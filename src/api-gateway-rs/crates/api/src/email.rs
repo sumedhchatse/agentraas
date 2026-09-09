@@ -217,7 +217,7 @@ fn build_email_html(t: EmailTemplate) -> String {
   <tr><td style="padding:20px 32px;background:#F9F8F5;border-top:1px solid #E4E0D6;">
     <p style="font-size:12.5px;color:#8B93A6;margin:0;line-height:1.5;">
       If you didn't request this, you can safely ignore this email.
-      Questions? Reach us at <a href="mailto:support@agentraas.io" style="color:#C2650A;">support@agentraas.io</a>.
+      Questions? Reach us at <a href="mailto:hello@agentraas.io" style="color:#C2650A;">hello@agentraas.io</a>.
     </p>
   </td></tr>
 </table>

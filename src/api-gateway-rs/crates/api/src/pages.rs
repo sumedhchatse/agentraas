@@ -17,6 +17,12 @@ use crate::state::SharedState;
 pub fn router() -> Router<SharedState> {
     Router::new()
         .route("/", get(landing))
+        // Same page as `/` — the pricing section already lives on the
+        // homepage (`#pricing`); this just gives it a real crawlable URL
+        // instead of leaving `/pricing` 404 while the nav still links to
+        // `#pricing`. Not a redirect: a real 200 with the pricing content
+        // actually in the served HTML.
+        .route("/pricing", get(landing))
         .route("/dashboard", get(dashboard))
         .route("/dashboard/", get(dashboard))
         .route("/guide", get(guide))
@@ -128,7 +134,7 @@ async fn robots_txt(axum::extract::State(state): axum::extract::State<SharedStat
     ([(header::CONTENT_TYPE, "text/plain")], body)
 }
 
-const SITEMAP_ROUTES: &[&str] = &["/", "/guide", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
+const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/guide", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
 
 async fn sitemap_xml(axum::extract::State(state): axum::extract::State<SharedState>) -> impl IntoResponse {
     let urls: String = SITEMAP_ROUTES.iter().map(|route| format!("  <url><loc>{}{route}</loc></url>", state.public_url)).collect::<Vec<_>>().join("\n");
