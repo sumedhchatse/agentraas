@@ -19,7 +19,7 @@ use crate::agent::db::{
     verify_api_key, DedupHashMode, ResolvedMcpRoute, ResolvedRoute,
 };
 use crate::auth::is_valid_identifier;
-use crate::agent::forward::{forward_mcp_tool_call, forward_with_retry, log_circuit_transition};
+use crate::agent::forward::{forward_mcp_with_retry, forward_with_retry, log_circuit_transition};
 use crate::state::SharedState;
 
 pub fn router() -> Router<SharedState> {
@@ -127,6 +127,8 @@ fn jsonrpc_error(id: &Value, code: i32, message: impl Into<String>) -> Json<Valu
     }))
 }
 
+const MCP_TOOLS_CACHE_TTL_SECONDS: i64 = 300;
+
 /// MCP Custom Actions — probes each of the org's registered third-party MCP
 /// servers for its own `tools/list` and merges the results in as
 /// `<server_name>.<remote_tool>`, so an agent sees them alongside AgentRaaS's
@@ -134,10 +136,11 @@ fn jsonrpc_error(id: &Value, code: i32, message: impl Into<String>) -> Json<Valu
 /// with its own short timeout — `tools/list` isn't `tools/call`'s hot path,
 /// but it shouldn't hang the whole response on one slow/dead server either.
 /// A server that times out or errors is silently skipped (logged), not
-/// fatal to the rest of the list. No caching in v1 — a handful of
-/// registered servers per org at a few seconds each in parallel is fine;
-/// revisit with a Redis-cached version if this ever becomes a real latency
-/// complaint.
+/// fatal to the rest of the list. Each server's result is Redis-cached for
+/// 5 minutes (fast-follow noted when this shipped uncached — a registered
+/// server's own tool list rarely changes minute to minute, so a short TTL
+/// trades a little staleness for skipping the live probe on almost every
+/// `tools/list` call).
 async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Value> {
     #[derive(sqlx::FromRow)]
     struct Row {
@@ -158,6 +161,16 @@ async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Va
     }
 
     let fetches = rows.into_iter().map(|row| async move {
+        let cache_key = format!("mcp_tools_cache:{org_id}:{}", row.name);
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+            let cached: Option<String> = redis::cmd("GET").arg(&cache_key).query_async(&mut conn).await.ok().flatten();
+            if let Some(cached) = cached {
+                if let Ok(tools) = serde_json::from_str::<Vec<Value>>(&cached) {
+                    return tools;
+                }
+            }
+        }
+
         let credential = crate::agent::db::get_credential(state, &format!("mcp:{}", row.name), org_id).await;
         if row.auth_type != "none" && credential.is_none() {
             return Vec::new();
@@ -193,7 +206,7 @@ async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Va
         let Some(remote_tools) = body.get("result").and_then(|r| r.get("tools")).and_then(Value::as_array) else {
             return Vec::new();
         };
-        remote_tools
+        let tools: Vec<Value> = remote_tools
             .iter()
             .filter_map(|t| {
                 let remote_name = t.get("name").and_then(Value::as_str)?;
@@ -201,7 +214,14 @@ async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Va
                 entry["name"] = json!(format!("{}.{}", row.name, remote_name));
                 Some(entry)
             })
-            .collect::<Vec<_>>()
+            .collect();
+
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+            if let Ok(serialized) = serde_json::to_string(&tools) {
+                let _: Result<(), _> = redis::cmd("SET").arg(&cache_key).arg(serialized).arg("EX").arg(MCP_TOOLS_CACHE_TTL_SECONDS).query_async(&mut conn).await;
+            }
+        }
+        tools
     });
 
     futures_util::future::join_all(fetches).await.into_iter().flatten().collect()
@@ -535,7 +555,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     }
 
     let forward_result = if let Some(mcp_route) = &resolved_mcp_route {
-        forward_mcp_tool_call(state, mcp_route, &org_id, &payload, &req_id).await
+        forward_mcp_with_retry(state, mcp_route, &org_id, &payload, &req_id, &circuit_key).await
     } else {
         let resolved_route = resolved_route.as_ref().expect("resolved_route or resolved_mcp_route is Some, checked above");
         forward_with_retry(state, resolved_route, &resolved_service_name, &resolved_action_name, &org_id, &payload, &req_id, &circuit_key).await
