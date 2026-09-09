@@ -23,6 +23,7 @@ pub fn router() -> Router<SharedState> {
     Router::new()
         .route("/api/v1/tools/webhook-audit", post(webhook_audit_tool))
         .route("/api/v1/demo/seed", post(demo_seed))
+        .route("/api/v1/demo/reset", post(demo_reset))
         .route("/api/v1/billing/checkout-info", get(billing_checkout_info))
         .route("/api/v1/webhooks/paddle", post(paddle_webhook))
         .route("/api/v1/org-branding/:org_id", get(get_org_branding).put(put_org_branding))
@@ -124,7 +125,7 @@ async fn webhook_audit_tool(
 
 async fn demo_seed(State(state): State<SharedState>, user: AuthUser) -> Result<Json<Value>, ApiError> {
     check_dashboard_rate_limit(&state, user.sub).await?;
-    require_admin(&state, user.sub).await?;
+    require_admin_or_demo(&state, user.sub).await?;
 
     let mut org_ids = get_user_org_ids(&state.pg, user.sub).await?;
     if org_ids.is_empty() {
@@ -263,12 +264,48 @@ async fn demo_seed(State(state): State<SharedState>, user: AuthUser) -> Result<J
     Ok(Json(json!({ "seeded": 30, "circuit_events": 3, "dlq_entries": 2, "custom_actions": 1, "health_checks_enabled": 1 })))
 }
 
-async fn require_admin(state: &SharedState, user_id: i32) -> Result<(), ApiError> {
-    let is_admin: Option<bool> = sqlx::query_scalar("SELECT is_admin FROM users WHERE id = $1").bind(user_id).fetch_optional(&state.pg).await?;
-    if is_admin != Some(true) {
-        return Err(ApiError::new(StatusCode::FORBIDDEN, "Admin access required."));
+/// The super-admin (`is_admin`) or the designated self-serve demo account
+/// (`is_demo`) — deliberately two separate flags, not one, since `is_admin`
+/// stays a one-account/system-wide-visibility concept by design (see
+/// docs/kb/06-reference.md). `is_demo` only ever unlocks these two demo
+/// data routes, scoped to the caller's own org — nothing system-wide.
+async fn require_admin_or_demo(state: &SharedState, user_id: i32) -> Result<(), ApiError> {
+    let row: Option<(bool, bool)> = sqlx::query_as("SELECT is_admin, is_demo FROM users WHERE id = $1").bind(user_id).fetch_optional(&state.pg).await?;
+    let (is_admin, is_demo) = row.unwrap_or((false, false));
+    if !is_admin && !is_demo {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Admin or demo-account access required."));
     }
     Ok(())
+}
+
+/// Clears the caller's own org(s) of seeded/accumulated demo activity —
+/// the counterpart to `demo_seed` above, so a demo account doesn't need
+/// the super-admin to hand-run SQL every time it wants a clean slate.
+/// Deliberately does NOT touch `circuit_breaker_events` — that table is
+/// shared across every org calling a given service (circuit state is
+/// per-service, not per-org), so wiping it here could erase another
+/// org's real reliability history, not just this org's seeded rows.
+async fn demo_reset(State(state): State<SharedState>, user: AuthUser) -> Result<Json<Value>, ApiError> {
+    check_dashboard_rate_limit(&state, user.sub).await?;
+    require_admin_or_demo(&state, user.sub).await?;
+
+    let org_ids = get_user_org_ids(&state.pg, user.sub).await?;
+    if org_ids.is_empty() {
+        return Ok(Json(json!({ "reset": true, "audit_log": 0, "dead_letter_queue": 0, "custom_actions": 0, "health_check_settings": 0 })));
+    }
+
+    let audit_deleted = sqlx::query("DELETE FROM audit_log WHERE org_id = ANY($1)").bind(&org_ids).execute(&state.pg).await?.rows_affected();
+    let dlq_deleted = sqlx::query("DELETE FROM dead_letter_queue WHERE org_id = ANY($1)").bind(&org_ids).execute(&state.pg).await?.rows_affected();
+    let ca_deleted = sqlx::query("DELETE FROM custom_actions WHERE org_id = ANY($1)").bind(&org_ids).execute(&state.pg).await?.rows_affected();
+    let hc_deleted = sqlx::query("DELETE FROM health_check_settings WHERE org_id = ANY($1)").bind(&org_ids).execute(&state.pg).await?.rows_affected();
+
+    Ok(Json(json!({
+        "reset": true,
+        "audit_log": audit_deleted,
+        "dead_letter_queue": dlq_deleted,
+        "custom_actions": ca_deleted,
+        "health_check_settings": hc_deleted,
+    })))
 }
 
 // ─── Paddle billing (agency-tier self-serve upgrade) ───

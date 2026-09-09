@@ -283,6 +283,7 @@
   .badge.admin-role { background: rgba(108,142,239,0.14); color: var(--info); }
   .badge.role-developer { background: rgba(255,165,61,0.14); color: var(--signal); }
   .badge.role-auditor { background: rgba(180,180,180,0.14); color: var(--muted); }
+  .badge.pro { background: rgba(217,164,65,0.16); color: var(--dedup); }
   .sso-subhead { font-size: 12.5px; color: var(--muted); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
   .sso-inline-form { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
   .sso-inline-form .field { margin-bottom: 0; flex: 1; min-width: 120px; }
@@ -521,6 +522,7 @@
       <button class="btn" id="admin-btn" style="display:none;">Admin</button>
       <button class="btn" id="enterprise-btn">Enterprise</button>
       <button class="btn" id="seed-btn">Seed demo data</button>
+      <button class="btn" id="reset-demo-btn">Reset demo data</button>
       <button class="btn" id="export-btn">Export CSV</button>
       <button class="btn" id="refresh-btn">Refresh</button>
       <div class="spacer"></div>
@@ -1186,6 +1188,19 @@
       btn.disabled = false; restoreText();
     }
   });
+  document.getElementById('reset-demo-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('reset-demo-btn');
+    if (btn.disabled) return;
+    if (!confirm('Clear this org\'s activity log, dead-letter queue, custom actions, and health-check settings? This cannot be undone.')) return;
+    const restoreText = withLoadingText(btn, 'Resetting…');
+    btn.disabled = true;
+    try {
+      await fetch('/api/v1/demo/reset', { method: 'POST', credentials: 'include' });
+      await loadAll();
+    } finally {
+      btn.disabled = false; restoreText();
+    }
+  });
   document.getElementById('export-btn').addEventListener('click', () => { window.location.href = '/api/v1/export/csv'; });
 
   function showDashboard(user) {
@@ -1195,20 +1210,39 @@
     currentDeploymentMode = user.deployment_mode;
     accountBtn.textContent = user.email;
     const planBadgeEl = document.getElementById('header-plan-badge');
-    planBadgeEl.textContent = 'Agency';
-    planBadgeEl.style.display = user.plan === 'agency' ? 'inline-flex' : 'none';
-    document.getElementById('header-upgrade-btn').style.display = user.plan === 'agency' ? 'none' : 'inline-flex';
+    const upgradeBtnEl = document.getElementById('header-upgrade-btn');
+    planBadgeEl.classList.remove('pro');
+    if (user.plan === 'agency') {
+      planBadgeEl.textContent = 'Agency';
+      planBadgeEl.style.display = 'inline-flex';
+      upgradeBtnEl.style.display = 'none';
+    } else if (user.plan === 'pro') {
+      planBadgeEl.textContent = 'Pro';
+      planBadgeEl.classList.add('pro');
+      planBadgeEl.style.display = 'inline-flex';
+      upgradeBtnEl.textContent = 'Upgrade to Agency';
+      upgradeBtnEl.dataset.targetPlan = 'agency';
+      upgradeBtnEl.style.display = 'inline-flex';
+    } else {
+      planBadgeEl.style.display = 'none';
+      upgradeBtnEl.textContent = 'Upgrade to Pro';
+      upgradeBtnEl.dataset.targetPlan = 'pro';
+      upgradeBtnEl.style.display = 'inline-flex';
+    }
     hasEverAuthenticated = true;
     sessionBanner.style.display = 'none';
 
     const isCloud = user.deployment_mode === 'cloud';
     document.getElementById('admin-btn').style.display = (user.is_admin && isCloud) ? 'flex' : 'none';
 
-    // Seed data is an admin-only convenience for testing/demoing — regular
-    // users have their own real activity to look at, not a reason to
-    // fabricate demo data. Export CSV stays available to everyone in cloud
-    // mode, since it now correctly exports only their own data.
-    document.getElementById('seed-btn').style.display = (isCloud && user.is_admin) ? 'flex' : 'none';
+    // Seed/reset data is an admin- or designated-demo-account convenience
+    // for testing/demoing — regular users have their own real activity to
+    // look at, not a reason to fabricate demo data. Export CSV stays
+    // available to everyone in cloud mode, since it now correctly exports
+    // only their own data.
+    const canSeed = isCloud && (user.is_admin || user.is_demo);
+    document.getElementById('seed-btn').style.display = canSeed ? 'flex' : 'none';
+    document.getElementById('reset-demo-btn').style.display = canSeed ? 'flex' : 'none';
     document.getElementById('export-btn').style.display = isCloud ? 'flex' : 'none';
 
     // Self-hosted free tier: only 24h of dashboard history, matching the
@@ -2819,8 +2853,8 @@
     startCheckout('agency', document.getElementById('billing-agency-btn'), document.getElementById('billing-error'));
   });
 
-  document.getElementById('header-upgrade-btn').addEventListener('click', () => {
-    startCheckout('agency', document.getElementById('header-upgrade-btn'), null);
+  document.getElementById('header-upgrade-btn').addEventListener('click', (e) => {
+    startCheckout(e.currentTarget.dataset.targetPlan || 'agency', document.getElementById('header-upgrade-btn'), null);
   });
 
   document.getElementById('branding-save-btn').addEventListener('click', async () => {
@@ -2934,7 +2968,8 @@
       const lastLogin = u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : 'never';
       const orgsLabel = u.org_count === 0 ? 'no orgs yet' : `${u.org_count} org${u.org_count === 1 ? '' : 's'}`;
       const adminBadge = u.is_admin ? '<span class="badge admin-role">Admin</span>' : '';
-      const planBadge = u.plan === 'agency' ? '<span class="badge role-developer">Agency</span>' : '';
+      const planBadge = u.plan === 'agency' ? '<span class="badge role-developer">Agency</span>'
+        : u.plan === 'pro' ? '<span class="badge pro">Pro</span>' : '';
       row.innerHTML = `
         <div class="info">
           <div class="svc"><span class="user-id-badge">#${u.id}</span>${escapeHtml(u.email)} ${adminBadge} ${planBadge}</div>
