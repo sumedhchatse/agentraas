@@ -435,6 +435,18 @@
       </div>
       <p style="font-size:12px;color:var(--muted-dark);margin-top:10px;">From <code>dedup.test.js</code>'s own concurrency test — clone the repo and run <code>npm test</code> to reproduce it yourself.</p>
     </div>
+
+    <div class="hero-panel" id="live-ledger-panel" style="margin-top:16px;">
+      <div class="row">
+        <span class="tag">LIVE EXECUTION LEDGER</span>
+        <span class="live"><span class="dot"></span> real production traffic, last 24h</span>
+      </div>
+      <div class="hero-stat-grid">
+        <div class="hero-stat" id="ledger-stat-actions"><div class="n">—</div><div class="l">actions verified</div></div>
+        <div class="hero-stat" id="ledger-stat-dupes"><div class="n">—</div><div class="l">duplicates caught</div></div>
+        <div class="hero-stat" id="ledger-stat-avg"><div class="n">—</div><div class="l">avg ms per action</div></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -914,6 +926,49 @@
     revealTargets.forEach(function(el) { observer.observe(el); });
   }
 
+})();
+</script>
+<script>
+(function() {
+  // Live Execution Ledger — the unauthenticated /api/v1/public/execution-ledger
+  // endpoint already existed (built for exactly this), but nothing on the
+  // landing page ever actually called it. Polls every 30s and flashes each
+  // stat tile on change, so a visitor watching for a few seconds sees the
+  // numbers move on their own — the same "watch it happen, don't take our
+  // word for it" idea as the dashboard's live dedup test.
+  var cells = {
+    actions: document.querySelector('#ledger-stat-actions .n'),
+    dupes: document.querySelector('#ledger-stat-dupes .n'),
+    avg: document.querySelector('#ledger-stat-avg .n'),
+  };
+  if (!cells.actions) return;
+
+  var last = null;
+  function setStat(el, wrapEl, text) {
+    var changed = el.textContent !== text && el.textContent !== '—';
+    el.textContent = text;
+    if (changed) {
+      wrapEl.classList.remove('flash');
+      void wrapEl.offsetWidth; // restart the animation if it's already mid-flash
+      wrapEl.classList.add('flash');
+    }
+  }
+
+  async function refreshLedger() {
+    try {
+      var res = await fetch('/api/v1/public/execution-ledger');
+      if (!res.ok) return;
+      var data = await res.json();
+      setStat(cells.actions, document.getElementById('ledger-stat-actions'), Number(data.actions_verified || 0).toLocaleString());
+      setStat(cells.dupes, document.getElementById('ledger-stat-dupes'), Number(data.duplicates_caught || 0).toLocaleString());
+      setStat(cells.avg, document.getElementById('ledger-stat-avg'), data.avg_duration_ms == null ? '—' : Number(data.avg_duration_ms).toLocaleString());
+      last = data;
+    } catch (err) {
+      // Public marketing page — fail silently rather than show an error to a visitor.
+    }
+  }
+  refreshLedger();
+  setInterval(refreshLedger, 30000);
 })();
 </script>
 </body>
