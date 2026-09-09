@@ -510,6 +510,7 @@
       <button class="btn" id="custom-actions-btn">Custom actions</button>
       <button class="btn" id="validation-rules-btn">Validation rules</button>
       <button class="btn" id="dedup-rules-btn">Dedup rules</button>
+      <button class="btn filled" id="live-test-btn" title="Fires 8 identical requests at a sandbox endpoint through the real dedup pipeline and shows what happened">Run live dedup test</button>
       <button class="btn" id="pruning-btn">Output pruning</button>
       <button class="btn" id="hitl-rules-btn">HITL rules</button>
       <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
@@ -538,6 +539,8 @@
       <span class="num alert" id="stat-errors-blocked">—</span> <span class="plain">stopped. Averaging</span>
       <span class="num total" id="stat-duration">—</span> <span class="plain">per action.</span>
     </div>
+
+    <div id="live-test-result" style="display:none;background:rgba(217,164,65,0.1);border:1px solid var(--dedup);border-radius:12px;padding:14px 20px;margin-bottom:20px;font-size:14px;"></div>
 
     <div class="charts-row">
       <div class="panel">
@@ -1142,6 +1145,34 @@
     const restoreText = withLoadingText(btn, 'Refreshing…');
     btn.disabled = true;
     try { await loadAll(); } finally { btn.disabled = false; restoreText(); }
+  });
+  document.getElementById('live-test-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('live-test-btn');
+    if (btn.disabled) return;
+    const banner = document.getElementById('live-test-result');
+    const restoreText = withLoadingText(btn, 'Firing 8 identical requests…');
+    btn.disabled = true;
+    banner.style.display = 'block';
+    banner.textContent = 'Sending 8 identical requests to a sandbox endpoint through the real dedup pipeline…';
+    try {
+      const res = await fetch('/api/v1/demo/live-test', { method: 'POST', credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      if (!res.ok) {
+        banner.textContent = "Couldn't run the live test — try again in a moment.";
+        return;
+      }
+      const r = await res.json();
+      banner.innerHTML = `Sent <strong>${r.sent}</strong> identical requests to the sandbox endpoint — `
+        + `<strong>${r.executed}</strong> actually executed, `
+        + `<strong>${r.deduplicated}</strong> caught as duplicates`
+        + (r.errored ? `, ${r.errored} errored` : '')
+        + `. See the rows below in Recent activity — same req/idempotency key, real audit log.`;
+      await loadAll();
+    } catch {
+      banner.textContent = "Couldn't run the live test — try again in a moment.";
+    } finally {
+      btn.disabled = false; restoreText();
+    }
   });
   document.getElementById('seed-btn').addEventListener('click', async () => {
     const btn = document.getElementById('seed-btn');
