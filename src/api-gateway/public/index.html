@@ -706,6 +706,7 @@
     <h3>MCP servers</h3>
     <p class="sub">Register any third-party MCP server (Notion, GitHub, or anything from the open MCP ecosystem) and every tool it exposes gets AgentRaaS's dedup, circuit breaker, and audit protection automatically — no per-tool setup. Its tools show up in <code>tools/list</code> as <code>&lt;name&gt;.&lt;tool&gt;</code>.</p>
     <div class="modal-error" id="mcpsvr-error"></div>
+    <div id="mcpsvr-success" style="display:none;background:rgba(217,164,65,0.12);border:1px solid var(--dedup);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;"></div>
     <form id="mcpsvr-form">
       <div class="field"><label for="mcpsvr-org">Org ID</label><input type="text" id="mcpsvr-org" placeholder="org_acme" required></div>
       <div class="field"><label for="mcpsvr-name">Server name</label><input type="text" id="mcpsvr-name" placeholder="notion" required></div>
@@ -1844,7 +1845,7 @@
   mcpsvrAuthType.addEventListener('change', updateMcpsvrFieldVisibility);
 
   document.getElementById('mcpsvr-btn').addEventListener('click', () => {
-    mcpsvrError.style.display = 'none'; mcpsvrForm.reset(); updateMcpsvrFieldVisibility();
+    mcpsvrError.style.display = 'none'; document.getElementById('mcpsvr-success').style.display = 'none'; mcpsvrForm.reset(); updateMcpsvrFieldVisibility();
     mcpsvrModalOverlay.style.display = 'flex'; anyModalOpen = true;
     document.getElementById('mcpsvr-org').focus();
     loadMcpServersList();
@@ -1853,7 +1854,7 @@
   mcpsvrModalOverlay.addEventListener('click', (e) => { if (e.target === mcpsvrModalOverlay) { mcpsvrModalOverlay.style.display = 'none'; anyModalOpen = false; } });
 
   mcpsvrForm.addEventListener('submit', async (e) => {
-    e.preventDefault(); mcpsvrError.style.display = 'none'; mcpsvrSubmit.disabled = true;
+    e.preventDefault(); mcpsvrError.style.display = 'none'; document.getElementById('mcpsvr-success').style.display = 'none'; mcpsvrSubmit.disabled = true;
     const restoreText = withLoadingText(mcpsvrSubmit, 'Registering…');
     const org_id = document.getElementById('mcpsvr-org').value.trim();
     const name = document.getElementById('mcpsvr-name').value.trim();
@@ -1875,6 +1876,9 @@
       });
       const data = await res.json();
       if (!res.ok) { mcpsvrError.textContent = data.error || 'Could not register server.'; mcpsvrError.style.display = 'block'; return; }
+      const successEl = document.getElementById('mcpsvr-success');
+      successEl.textContent = data.note || 'Registered.';
+      successEl.style.display = 'block';
       mcpsvrForm.reset(); updateMcpsvrFieldVisibility(); loadMcpServersList();
     } catch (err) { mcpsvrError.textContent = 'Could not reach the server.'; mcpsvrError.style.display = 'block'; }
     finally { mcpsvrSubmit.disabled = false; restoreText(); }
