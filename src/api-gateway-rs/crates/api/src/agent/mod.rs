@@ -18,8 +18,8 @@ use crate::state::{ApiError, SharedState};
 use db::{
     check_agency_tenant_cap, check_org_write_permission, check_usage_limit,
     get_effective_dedup_rule, get_effective_rate_limit, get_effective_validation_rule,
-    increment_monthly_usage, log_audit, resolve_custom_route, resolve_org_from_api_key,
-    select_dedup_hash_mode, verify_api_key, DedupHashMode, ResolvedRoute,
+    get_user_org_ids, increment_monthly_usage, log_audit, resolve_custom_route,
+    resolve_org_from_api_key, select_dedup_hash_mode, verify_api_key, DedupHashMode, ResolvedRoute,
 };
 
 pub fn router() -> Router<SharedState> {
@@ -31,6 +31,7 @@ pub fn router() -> Router<SharedState> {
         .route("/api/v1/agents/keys/:id", delete(revoke_key))
         .route("/api/v1/agents/keys/:id/regenerate", post(regenerate_key))
         .route("/api/v1/runs/:run_id", get(get_run_status))
+        .route("/api/v1/demo/live-test", post(demo_live_test))
         .route("/internal/mockpay", post(internal_mockpay))
 }
 
@@ -949,6 +950,121 @@ async fn regenerate_key(
         "api_key": raw_key,
         "webhook_url": format!("{}/v1/webhook/{}/{}", state.public_url, org_id, agent_id),
         "mcp_url": format!("{}/mcp", state.public_url),
+        "org_id": org_id,
+        "agent_id": agent_id,
+    })))
+}
+
+/// Fires a real burst of identical requests through the exact same
+/// dedup/forward/audit pipeline every agent call goes through — against
+/// the built-in `mockpay` sandbox service, so it costs nothing and hits no
+/// real credentials — then reports how many actually executed vs. were
+/// caught as duplicates. This is the in-console version of the
+/// concurrency test on the homepage: a claim the user watches happen in
+/// their own Recent Activity feed, not a canned animation.
+///
+/// Requests are sent one-then-seven rather than all eight at once: a truly
+/// simultaneous burst would mostly race the first request mid-flight and
+/// come back `blocked` ("duplicate_in_progress"), which is also correct
+/// dedup behavior but not the clean "1 executed, 7 caught" shape this is
+/// meant to demonstrate. Waiting for the first call to land guarantees the
+/// rest hit the completed-result cache path (`status = 'deduplicated'`).
+async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Result<Json<Value>, ApiError> {
+    check_dashboard_rate_limit(&state, user.sub).await?;
+
+    let mut org_ids = get_user_org_ids(&state.pg, user.sub).await?;
+    let org_id = org_ids.pop().unwrap_or_else(|| format!("demo_{}", user.sub));
+    let agent_id = "live-test-agent";
+
+    // One active "Live test" key at a time per user/org — revoke any
+    // previous one before minting a fresh secret, so repeated clicks don't
+    // pile up rows in the Connect Agent key list.
+    sqlx::query("UPDATE api_keys SET revoked_at = NOW() WHERE user_id = $1 AND org_id = $2 AND agent_id = $3 AND revoked_at IS NULL")
+        .bind(user.sub)
+        .bind(&org_id)
+        .bind(agent_id)
+        .execute(&state.pg)
+        .await?;
+    let (raw_key, key_hash, key_prefix) = generate_api_key();
+    sqlx::query("INSERT INTO api_keys (user_id, org_id, agent_id, label, key_hash, key_prefix) VALUES ($1,$2,$3,$4,$5,$6)")
+        .bind(user.sub)
+        .bind(&org_id)
+        .bind(agent_id)
+        .bind("Live test")
+        .bind(&key_hash)
+        .bind(&key_prefix)
+        .execute(&state.pg)
+        .await?;
+
+    let mut idem_bytes = [0u8; 8];
+    rand::thread_rng().fill_bytes(&mut idem_bytes);
+    let idempotency_key = Some(format!("livetest_{}", hex::encode(idem_bytes)));
+    let payload = json!({ "amount": 4999, "fail": false });
+
+    fn tally(resp: Response, executed: &mut i64, deduplicated: &mut i64, errored: &mut i64) {
+        match resp {
+            Response::Json(StatusCode::OK, Json(body)) => {
+                if body.get("cached").and_then(Value::as_bool).unwrap_or(false) {
+                    *deduplicated += 1;
+                } else {
+                    *executed += 1;
+                }
+            }
+            _ => *errored += 1,
+        }
+    }
+
+    let mut executed = 0i64;
+    let mut deduplicated = 0i64;
+    let mut errored = 0i64;
+
+    let first = handle_request(
+        &state,
+        Source::Sdk,
+        RequestIdentity {
+            org_id: org_id.clone(),
+            agent_id: agent_id.to_string(),
+            api_key: raw_key.clone(),
+            service: "mockpay".to_string(),
+            action: "payment.create".to_string(),
+            payload: payload.clone(),
+            idempotency_key: idempotency_key.clone(),
+            run_id: None,
+            step_id: None,
+        },
+    )
+    .await;
+    tally(first, &mut executed, &mut deduplicated, &mut errored);
+
+    const BURST: i64 = 8;
+    let mut handles = Vec::with_capacity((BURST - 1) as usize);
+    for _ in 1..BURST {
+        let state = state.clone();
+        let identity = RequestIdentity {
+            org_id: org_id.clone(),
+            agent_id: agent_id.to_string(),
+            api_key: raw_key.clone(),
+            service: "mockpay".to_string(),
+            action: "payment.create".to_string(),
+            payload: payload.clone(),
+            idempotency_key: idempotency_key.clone(),
+            run_id: None,
+            step_id: None,
+        };
+        handles.push(tokio::spawn(async move { handle_request(&state, Source::Sdk, identity).await }));
+    }
+    for h in handles {
+        match h.await {
+            Ok(resp) => tally(resp, &mut executed, &mut deduplicated, &mut errored),
+            Err(_) => errored += 1,
+        }
+    }
+
+    Ok(Json(json!({
+        "sent": BURST,
+        "executed": executed,
+        "deduplicated": deduplicated,
+        "errored": errored,
         "org_id": org_id,
         "agent_id": agent_id,
     })))
