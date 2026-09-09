@@ -154,7 +154,7 @@ async fn enable_health_check(
     if !check_org_write_permission(&state.pg, user.sub, &org_id).await? {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Auditors have read-only access to this org."));
     }
-    if !spec.internal && get_credential(&state, &service, &org_id).await.is_none() {
+    if !spec.internal && get_credential(&state, &service, &org_id, None).await.is_none() {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             format!("No {service} credentials configured for this org yet. Add them from the Credentials panel first."),
@@ -242,7 +242,7 @@ async fn run_one_health_check(state: &SharedState, org_id: &str, service: &str, 
     let payload = if service == "mockpay" { json!({ "amount": 1, "fail": false }) } else { json!({}) };
     let req_id = format!("healthcheck_{}", hex::encode(rand::random::<[u8; 6]>()));
 
-    let (ok, error) = match forward_action(state, spec, service, "health_check", org_id, &payload, &req_id).await {
+    let (ok, error) = match forward_action(state, spec, service, "health_check", org_id, &payload, &req_id, None).await {
         Ok(_) => (true, None),
         Err(err) => {
             let msg = crate::agent::db::extract_upstream_error_message(&err.upstream_body.clone().unwrap_or(Value::Null))

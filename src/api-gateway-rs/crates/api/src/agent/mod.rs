@@ -102,6 +102,11 @@ struct RequestIdentity {
     /// State Checkpointing — a stable identifier for this specific step
     /// within `run_id`'s task. Only takes effect when both are present.
     step_id: Option<String>,
+    /// On-Behalf-Of End-User Identity — optional, additive. When present,
+    /// scopes credential lookup to this specific end-user (no fallback to
+    /// a shared org-wide credential) and the dedup hash, so a caller who
+    /// never sends this sees no behavior change at all.
+    end_user_id: Option<String>,
 }
 
 async fn webhook_handler(
@@ -123,6 +128,7 @@ async fn webhook_handler(
     let service = body.get("service").and_then(Value::as_str).unwrap_or_default().to_string();
     let action = body.get("action").and_then(Value::as_str).unwrap_or_default().to_string();
     let payload = body.get("payload").cloned().unwrap_or(json!({}));
+    let end_user_id = body.get("end_user_id").and_then(Value::as_str).map(String::from);
 
     handle_request(
         &state,
@@ -137,6 +143,7 @@ async fn webhook_handler(
             idempotency_key,
             run_id,
             step_id,
+            end_user_id,
         },
     )
     .await
@@ -154,6 +161,7 @@ async fn sdk_handler(
     let idempotency_key = header_value(&headers, "x-agentraas-idempotency-key");
     let run_id = header_value(&headers, "x-agentraas-run-id");
     let step_id = header_value(&headers, "x-agentraas-step-id");
+    let end_user_id = header_value(&headers, "x-agentraas-end-user");
 
     handle_request(
         &state,
@@ -168,6 +176,7 @@ async fn sdk_handler(
             idempotency_key,
             run_id,
             step_id,
+            end_user_id,
         },
     )
     .await
@@ -277,7 +286,7 @@ pub async fn replay_webhook(
     handle_request(
         state,
         Source::Webhook,
-        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None },
+        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None, end_user_id: None },
     )
     .await
 }
@@ -298,6 +307,7 @@ async fn handle_request(
         idempotency_key,
         run_id,
         step_id,
+        end_user_id,
     } = identity;
 
     if service.is_empty() || action.is_empty() {
@@ -460,11 +470,11 @@ async fn handle_request(
     // field-allow-list rule at all (a "TTL-only" rule has empty `fields`).
     let dedup_field_rule = get_effective_dedup_rule(&state.pg, &org_id, &service, &action).await.unwrap_or(None);
     let dedup_hash = match select_dedup_hash_mode(idempotency_key.as_deref(), dedup_field_rule.as_ref()) {
-        DedupHashMode::IdempotencyKey(idem) => dedup::hash_idempotency_key(&api_key, &service, &action, idem),
+        DedupHashMode::IdempotencyKey(idem) => dedup::hash_idempotency_key(&api_key, &service, &action, idem, end_user_id.as_deref()),
         DedupHashMode::Fields { fields, normalize } => {
-            dedup::hash_field_values(&api_key, &service, &action, &payload, fields, normalize)
+            dedup::hash_field_values(&api_key, &service, &action, &payload, fields, normalize, end_user_id.as_deref())
         }
-        DedupHashMode::Payload => dedup::hash_payload(&api_key, &service, &action, &payload),
+        DedupHashMode::Payload => dedup::hash_payload(&api_key, &service, &action, &payload, end_user_id.as_deref()),
     };
     let dedup_ttl_seconds = dedup_field_rule.as_ref().and_then(|r| r.ttl_seconds);
 
@@ -498,15 +508,15 @@ async fn handle_request(
             .and_then(Value::as_bool)
             .unwrap_or(false);
         let Some(existing) = existing else {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
         };
         if is_pending {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
         }
         if is_streamed {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_of_streamed_response"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_of_streamed_response"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request was already served as a streaming response and cannot be replayed. Wait for the dedup window to expire, or use a new Idempotency-Key.");
         }
 
@@ -515,13 +525,13 @@ async fn handle_request(
             if let Some(existing_digest) = existing_digest {
                 if existing_digest != payload_digest {
                     let _ = idem;
-                    log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("idempotency_key_reused"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+                    log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("idempotency_key_reused"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
                     return err_response(StatusCode::UNPROCESSABLE_ENTITY, &req_id, "This Idempotency-Key was already used with a different payload. Use a new key for a different request.");
                 }
             }
         }
 
-        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "deduplicated", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "deduplicated", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
         let mut cached = existing;
         if let Value::Object(ref mut map) = cached {
             map.remove("__payloadDigest");
@@ -536,7 +546,7 @@ async fn handle_request(
     if let Ok(Some(rule)) = get_effective_validation_rule(state, &org_id, &service, &action).await {
         if let Some(validation_error) = agentraas_core::validator::validate_fields(&payload, &rule.fields) {
             let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("validation_failed"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("validation_failed"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::UNPROCESSABLE_ENTITY, &req_id, validation_error);
         }
     }
@@ -553,7 +563,7 @@ async fn handle_request(
             }
             if state_str == "open" {
                 let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("circuit_open"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("circuit_open"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
                 {
                     let state = state.clone();
                     let org_id = org_id.clone();
@@ -580,7 +590,7 @@ async fn handle_request(
     };
     if !usage.ok {
         let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("usage_limit_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref()).await;
+        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("usage_limit_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
         return err_response(
             StatusCode::PAYMENT_REQUIRED,
             &req_id,
@@ -617,7 +627,7 @@ async fn handle_request(
     }
 
     if resolved_route.streaming {
-        return match forward::forward_with_retry_streaming(state, &resolved_route, &service, &org_id, &payload, &req_id, &circuit_key).await {
+        return match forward::forward_with_retry_streaming(state, &resolved_route, &service, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await {
             Ok(streaming) => {
                 if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
                     if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
@@ -633,7 +643,7 @@ async fn handle_request(
                 // reason `complete_dedup_slot_with_ttl` below stores a
                 // sentinel, not the body: there's no full response to
                 // persist for either.
-                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref()).await;
+                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
 
                 // ponytail: no automated non-buffering test — proving bytes
                 // are forwarded incrementally (not buffered) needs a test
@@ -654,6 +664,7 @@ async fn handle_request(
                 let spawn_action = action.clone();
                 let spawn_run_id = run_id.clone();
                 let spawn_step_id = step_id.clone();
+                let spawn_end_user_id = end_user_id.clone();
                 let mut upstream = streaming.response;
                 tokio::spawn(async move {
                     let mut had_error = false;
@@ -678,7 +689,7 @@ async fn handle_request(
                         if let Ok(Some(t)) = circuit_breaker::record_failure(&mut conn, &spawn_circuit_key).await {
                             forward::log_circuit_transition(&spawn_state, t).await;
                         }
-                        log_audit(&spawn_state.pg, &spawn_req_id, &spawn_api_key, &spawn_org_id, &spawn_agent_id, &spawn_service, &spawn_action, "error", Some("stream interrupted mid-response"), 0, None, false, None, spawn_run_id.as_deref(), spawn_step_id.as_deref()).await;
+                        log_audit(&spawn_state.pg, &spawn_req_id, &spawn_api_key, &spawn_org_id, &spawn_agent_id, &spawn_service, &spawn_action, "error", Some("stream interrupted mid-response"), 0, None, false, None, spawn_run_id.as_deref(), spawn_step_id.as_deref(), spawn_end_user_id.as_deref()).await;
                     } else {
                         // Sentinel, not the real body — a stream can't be
                         // dedup-replayed byte-for-byte without buffering it,
@@ -701,11 +712,11 @@ async fn handle_request(
                     Err(_) => err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred."),
                 }
             }
-            Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref()).await,
+            Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
         };
     }
 
-    match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key).await {
+    match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await {
         Ok(mut result) => {
             if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
                 if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
@@ -725,14 +736,14 @@ async fn handle_request(
                 let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored, state.checkpoint_ttl_seconds).await;
             }
             let _ = increment_monthly_usage(state, &org_id).await;
-            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
 
             if let Value::Object(ref mut map) = result {
                 map.insert("reqId".to_string(), Value::String(req_id.clone()));
             }
             (StatusCode::OK, Json(result)).into()
         }
-        Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref()).await,
+        Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
     }
 }
 
@@ -757,6 +768,7 @@ async fn forward_error_response(
     start: std::time::Instant,
     run_id: Option<&str>,
     step_id: Option<&str>,
+    end_user_id: Option<&str>,
 ) -> Response {
     let _ = dedup::release_dedup_slot(conn, claim_key).await;
     if !err.circuit_already_recorded {
@@ -766,7 +778,7 @@ async fn forward_error_response(
             }
         }
     }
-    log_audit(&state.pg, req_id, api_key, org_id, agent_id, service, action, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id, step_id).await;
+    log_audit(&state.pg, req_id, api_key, org_id, agent_id, service, action, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id, step_id, end_user_id).await;
     tracing::error!(req_id, error = %err.message, "request failed");
 
     let response_message = if err.upstream_status.is_some() {
@@ -1031,6 +1043,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             idempotency_key: idempotency_key.clone(),
             run_id: None,
             step_id: None,
+            end_user_id: None,
         },
     )
     .await;
@@ -1050,6 +1063,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             idempotency_key: idempotency_key.clone(),
             run_id: None,
             step_id: None,
+            end_user_id: None,
         };
         handles.push(tokio::spawn(async move { handle_request(&state, Source::Sdk, identity).await }));
     }

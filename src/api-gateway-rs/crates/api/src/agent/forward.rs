@@ -34,6 +34,7 @@ fn is_retryable(err: &ForwardError) -> bool {
 /// (but not including) `.send()` — so the two response-handling strategies
 /// (buffer-and-parse vs. pass-through) don't have to duplicate the request
 /// side.
+#[allow(clippy::too_many_arguments)]
 async fn build_request(
     state: &SharedState,
     route: &ResolvedRoute,
@@ -41,6 +42,7 @@ async fn build_request(
     org_id: &str,
     payload: &Value,
     req_id: &str,
+    end_user_id: Option<&str>,
 ) -> Result<reqwest::RequestBuilder, ForwardError> {
     // Custom actions and inbound-webhook destinations are validated for
     // SSRF (`validate_target_url`) once, at registration time — a
@@ -61,13 +63,15 @@ async fn build_request(
         }
     }
 
-    let credential = get_credential(state, &route.credential_key, org_id).await;
+    let credential = get_credential(state, &route.credential_key, org_id, end_user_id).await;
 
     if !route.internal && route.auth_type != "none" && credential.is_none() {
+        let message = match end_user_id {
+            Some(uid) => format!("No credentials connected for end-user \"{uid}\" on {service_name}. This never falls back to a shared org-wide credential — connect one for this specific end-user from the dashboard's Credentials panel."),
+            None => format!("No credentials configured for {service_name}. Add them from the dashboard's Credentials panel."),
+        };
         return Err(ForwardError {
-            message: format!(
-                "No credentials configured for {service_name}. Add them from the dashboard's Credentials panel."
-            ),
+            message,
             upstream_status: None,
             upstream_body: None,
             circuit_already_recorded: false,
@@ -147,6 +151,7 @@ async fn build_request(
     Ok(builder)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn forward_action(
     state: &SharedState,
     route: &ResolvedRoute,
@@ -155,8 +160,9 @@ pub async fn forward_action(
     org_id: &str,
     payload: &Value,
     req_id: &str,
+    end_user_id: Option<&str>,
 ) -> Result<Value, ForwardError> {
-    let builder = build_request(state, route, service_name, org_id, payload, req_id).await?;
+    let builder = build_request(state, route, service_name, org_id, payload, req_id, end_user_id).await?;
 
     let response = builder.send().await.map_err(|err| ForwardError {
         message: err.to_string(),
@@ -254,6 +260,7 @@ pub async fn forward_mcp_tool_call(
     org_id: &str,
     payload: &Value,
     req_id: &str,
+    end_user_id: Option<&str>,
 ) -> Result<Value, ForwardError> {
     if let Some(err) = crate::util::validate_target_url(&route.target_url).await {
         return Err(ForwardError {
@@ -264,10 +271,14 @@ pub async fn forward_mcp_tool_call(
         });
     }
 
-    let credential = get_credential(state, &route.credential_key, org_id).await;
+    let credential = get_credential(state, &route.credential_key, org_id, end_user_id).await;
     if route.auth_type != "none" && credential.is_none() {
+        let message = match end_user_id {
+            Some(uid) => format!("No credentials connected for end-user \"{uid}\" on this MCP server. Connect one for this specific end-user from the dashboard's Credentials panel."),
+            None => "No credentials configured for this MCP server. Add them from the dashboard's MCP Servers panel.".to_string(),
+        };
         return Err(ForwardError {
-            message: "No credentials configured for this MCP server. Add them from the dashboard's MCP Servers panel.".to_string(),
+            message,
             upstream_status: None,
             upstream_body: None,
             circuit_already_recorded: false,
@@ -379,6 +390,7 @@ pub struct StreamingForward {
 /// Slack `ok:false` check — all of those need the parsed body, which a
 /// stream doesn't have; a streaming route is expected to be a raw
 /// token/event feed, not a structured API response those checks apply to.
+#[allow(clippy::too_many_arguments)]
 pub async fn forward_action_streaming(
     state: &SharedState,
     route: &ResolvedRoute,
@@ -386,8 +398,9 @@ pub async fn forward_action_streaming(
     org_id: &str,
     payload: &Value,
     req_id: &str,
+    end_user_id: Option<&str>,
 ) -> Result<StreamingForward, ForwardError> {
-    let builder = build_request(state, route, service_name, org_id, payload, req_id).await?;
+    let builder = build_request(state, route, service_name, org_id, payload, req_id, end_user_id).await?;
 
     let response = builder.send().await.map_err(|err| ForwardError {
         message: err.to_string(),
@@ -425,6 +438,7 @@ pub async fn forward_action_streaming(
 /// here, the caller is already committed to forwarding it, so there is no
 /// "retry after the first byte" case to guard against separately; it falls
 /// out of `Ok`/`Err` never being retried once `Ok`.
+#[allow(clippy::too_many_arguments)]
 pub async fn forward_with_retry_streaming(
     state: &SharedState,
     route: &ResolvedRoute,
@@ -433,11 +447,12 @@ pub async fn forward_with_retry_streaming(
     payload: &Value,
     req_id: &str,
     circuit_key: &str,
+    end_user_id: Option<&str>,
 ) -> Result<StreamingForward, ForwardError> {
     let mut last_error = None;
 
     for attempt in 1..=state.proxy_retry_max_attempts {
-        match forward_action_streaming(state, route, service_name, org_id, payload, req_id).await {
+        match forward_action_streaming(state, route, service_name, org_id, payload, req_id, end_user_id).await {
             Ok(result) => return Ok(result),
             Err(mut err) => {
                 err.circuit_already_recorded = true;
@@ -540,11 +555,12 @@ pub async fn forward_with_retry(
     payload: &Value,
     req_id: &str,
     circuit_key: &str,
+    end_user_id: Option<&str>,
 ) -> Result<Value, ForwardError> {
     let mut last_error = None;
 
     for attempt in 1..=state.proxy_retry_max_attempts {
-        match forward_action(state, route, service_name, action_name, org_id, payload, req_id).await {
+        match forward_action(state, route, service_name, action_name, org_id, payload, req_id, end_user_id).await {
             Ok(mut result) => {
                 if attempt > 1 {
                     result["retried"] = json!(attempt - 1);
@@ -631,6 +647,7 @@ pub fn broadcast_fanout(state: &SharedState, route: &ResolvedRoute, payload: &Va
 /// Retry-with-backoff counterpart to `forward_mcp_tool_call`, same shape as
 /// `forward_with_retry` above (fast-follow noted when MCP Custom Actions
 /// first shipped as a single-attempt-only v1 — this replaces that).
+#[allow(clippy::too_many_arguments)]
 pub async fn forward_mcp_with_retry(
     state: &SharedState,
     route: &ResolvedMcpRoute,
@@ -638,11 +655,12 @@ pub async fn forward_mcp_with_retry(
     payload: &Value,
     req_id: &str,
     circuit_key: &str,
+    end_user_id: Option<&str>,
 ) -> Result<Value, ForwardError> {
     let mut last_error = None;
 
     for attempt in 1..=state.proxy_retry_max_attempts {
-        match forward_mcp_tool_call(state, route, org_id, payload, req_id).await {
+        match forward_mcp_tool_call(state, route, org_id, payload, req_id, end_user_id).await {
             Ok(mut result) => {
                 if attempt > 1 {
                     result["retried"] = json!(attempt - 1);

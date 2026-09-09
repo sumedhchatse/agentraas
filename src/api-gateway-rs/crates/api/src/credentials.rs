@@ -38,30 +38,39 @@ fn masked_preview(credentials: &Value) -> String {
     }
 }
 
-/// Shared by both the standalone Credentials panel and Custom Action
-/// creation.
+/// Shared by the standalone Credentials panel, Custom Action creation, and
+/// MCP Custom Actions registration — the latter two always pass `None` for
+/// `end_user_id` (org-wide credential, unchanged behavior). `end_user_id`
+/// is On-Behalf-Of End-User Identity: when present, this credential is
+/// scoped to that specific end-user instead of being the org's shared one
+/// — `IS NOT DISTINCT FROM` (not plain `=`) is required for the revoke
+/// step below since plain SQL `NULL = NULL` is never true, which would
+/// otherwise leave a stale org-wide credential active alongside a new one.
 pub async fn save_credential(
     state: &SharedState,
     user_id: i32,
     org_id: &str,
     service_key: &str,
     credentials: &Value,
+    end_user_id: Option<&str>,
 ) -> Result<String, sqlx::Error> {
     let encrypted = state.cipher.encrypt(&credentials.to_string());
     let preview = masked_preview(credentials);
 
     let mut tx = state.pg.begin().await?;
-    sqlx::query("UPDATE service_credentials SET revoked_at = NOW() WHERE org_id=$1 AND service=$2 AND revoked_at IS NULL")
+    sqlx::query("UPDATE service_credentials SET revoked_at = NOW() WHERE org_id=$1 AND service=$2 AND end_user_id IS NOT DISTINCT FROM $3 AND revoked_at IS NULL")
         .bind(org_id)
         .bind(service_key)
+        .bind(end_user_id)
         .execute(&mut *tx)
         .await?;
-    sqlx::query("INSERT INTO service_credentials (user_id, org_id, service, encrypted_payload, masked_preview) VALUES ($1,$2,$3,$4,$5)")
+    sqlx::query("INSERT INTO service_credentials (user_id, org_id, service, encrypted_payload, masked_preview, end_user_id) VALUES ($1,$2,$3,$4,$5,$6)")
         .bind(user_id)
         .bind(org_id)
         .bind(service_key)
         .bind(&encrypted)
         .bind(&preview)
+        .bind(end_user_id)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
@@ -74,6 +83,7 @@ struct CreateCredentialBody {
     org_id: Option<String>,
     service: Option<String>,
     credentials: Option<Value>,
+    end_user_id: Option<String>,
 }
 
 async fn create_credential(
@@ -96,6 +106,13 @@ async fn create_credential(
             StatusCode::PAYMENT_REQUIRED,
             format!("Agency plan is limited to {} client tenants. Contact hello@agentraas.io to increase this.", tenant_cap.limit),
         ));
+    }
+
+    let end_user_id = body.end_user_id.filter(|s| !s.is_empty());
+    if let Some(ref uid) = end_user_id {
+        if !is_valid_identifier(uid) {
+            return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "end_user_id must be 1-100 characters, letters/numbers/underscore/hyphen only."));
+        }
     }
 
     let service = body.service.unwrap_or_default();
@@ -121,9 +138,9 @@ async fn create_credential(
         return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "credentials object is required (e.g. { \"api_key\": \"...\" })."));
     }
 
-    let preview = save_credential(&state, user.sub, &org_id, &service, &credentials).await?;
+    let preview = save_credential(&state, user.sub, &org_id, &service, &credentials, end_user_id.as_deref()).await?;
 
-    Ok(Json(json!({ "saved": true, "org_id": org_id, "service": service, "masked_preview": preview })))
+    Ok(Json(json!({ "saved": true, "org_id": org_id, "service": service, "masked_preview": preview, "end_user_id": end_user_id })))
 }
 
 async fn list_credentials(State(state): State<SharedState>, user: AuthUser) -> Result<Json<Vec<Value>>, ApiError> {
@@ -134,10 +151,11 @@ async fn list_credentials(State(state): State<SharedState>, user: AuthUser) -> R
         org_id: String,
         service: String,
         masked_preview: Option<String>,
+        end_user_id: Option<String>,
         created_at: chrono::DateTime<chrono::Utc>,
     }
     let rows = sqlx::query_as::<_, Row>(
-        "SELECT id, org_id, service, masked_preview, created_at
+        "SELECT id, org_id, service, masked_preview, end_user_id, created_at
          FROM service_credentials WHERE user_id = $1 AND revoked_at IS NULL ORDER BY service",
     )
     .bind(user.sub)
@@ -145,7 +163,7 @@ async fn list_credentials(State(state): State<SharedState>, user: AuthUser) -> R
     .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|r| json!({ "id": r.id, "org_id": r.org_id, "service": r.service, "masked_preview": r.masked_preview, "created_at": r.created_at }))
+            .map(|r| json!({ "id": r.id, "org_id": r.org_id, "service": r.service, "masked_preview": r.masked_preview, "end_user_id": r.end_user_id, "created_at": r.created_at }))
             .collect(),
     ))
 }

@@ -175,7 +175,7 @@ async fn create_custom_action(
 
     if auth_type != "none" {
         if let Some(credential) = &body.credential {
-            save_credential(&state, user.sub, &org_id, &format!("custom:{name}"), credential).await?;
+            save_credential(&state, user.sub, &org_id, &format!("custom:{name}"), credential, None).await?;
         }
     }
 
