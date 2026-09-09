@@ -163,6 +163,18 @@ need to give AgentRaaS your API key for that service:
    read it back out; it's only ever used server-side to make the call on
    your agent's behalf.
 
+**Building a multi-tenant product on top of AgentRaaS?** If your own
+customers each need their own connected account instead of everyone
+sharing one org-wide credential — e.g. each of your users connects their
+own Stripe or Slack — fill in the optional **End-user ID** field when
+saving a credential, and pass that same ID with each call your agent
+makes on that user's behalf (`end_user_id` in the webhook body, the
+`x-agentraas-end-user` SDK header, or `end_user_id` in an MCP `tools/call`
+argument). That call's credential lookup is scoped to that end-user only —
+it never falls back to the shared org-wide credential — and the audit log
+records which end-user each call was made for. Leave it blank for the
+normal shared credential; nothing changes if you don't need this.
+
 ## Optional: putting agentgateway in front
 
 If you already run — or want to run — multiple AI agents/tools behind a
@@ -198,3 +210,11 @@ If the service you need isn't one of the built-in connectors, use
 protection, same SSRF guarding, same audit trail. Open the **Custom
 actions** panel and follow the form; it walks you through the same
 service/action/payload shape as the built-in connectors.
+
+Already running your own (or a third-party) **MCP server**? Register it
+under **MCP Servers** instead of Custom Actions — point it at the
+server's `tools/call` endpoint and every tool it exposes gets the same
+dedup/circuit-breaker/audit pipeline automatically, merged into your
+`tools/list` response as `<server_name>.<tool>`. Registration probes the
+server's own `tools/list` immediately so its tool schemas are
+auto-discovered, not hand-typed.
