@@ -7,7 +7,7 @@ use std::time::Duration;
 use agentraas_core::circuit_breaker;
 use serde_json::{json, Value};
 
-use super::db::{extract_upstream_error_message, get_credential, ResolvedRoute};
+use super::db::{extract_upstream_error_message, get_credential, ResolvedMcpRoute, ResolvedRoute};
 use crate::state::SharedState;
 
 pub struct ForwardError {
@@ -231,6 +231,129 @@ pub async fn forward_action(
         "upstream_status": status.as_u16(),
         "upstream_id": upstream_id,
         "upstream_response": body,
+        "timestamp": crate::util::iso_now(),
+    }))
+}
+
+/// MCP Custom Actions' forwarder — the JSON-RPC counterpart to
+/// `forward_action` above. Builds a `tools/call` envelope against a
+/// registered third-party MCP server and unwraps its response into the
+/// same `Result<Value, ForwardError>` shape `forward_action` returns, so
+/// `mcp.rs::handle_tools_call` can call this in place of
+/// `forward_with_retry` without needing a second reliability pipeline —
+/// the dedup claim, circuit-breaker check, and audit logging around this
+/// call are all unchanged, they just don't know the difference.
+///
+/// v1 deliberately does a single attempt, no retry-with-backoff loop like
+/// `forward_with_retry` has — still wrapped in circuit-breaker record_success/
+/// record_failure by the caller either way. Add a retrying variant once this
+/// is proven in real use; not worth duplicating the backoff loop for a v1.
+pub async fn forward_mcp_tool_call(
+    state: &SharedState,
+    route: &ResolvedMcpRoute,
+    org_id: &str,
+    payload: &Value,
+    req_id: &str,
+) -> Result<Value, ForwardError> {
+    if let Some(err) = crate::util::validate_target_url(&route.target_url).await {
+        return Err(ForwardError {
+            message: format!("Target URL failed a safety re-check: {err}"),
+            upstream_status: None,
+            upstream_body: None,
+            circuit_already_recorded: false,
+        });
+    }
+
+    let credential = get_credential(state, &route.credential_key, org_id).await;
+    if route.auth_type != "none" && credential.is_none() {
+        return Err(ForwardError {
+            message: "No credentials configured for this MCP server. Add them from the dashboard's MCP Servers panel.".to_string(),
+            upstream_status: None,
+            upstream_body: None,
+            circuit_already_recorded: false,
+        });
+    }
+
+    let mut builder = state
+        .http_client
+        .post(&route.target_url)
+        .header("Content-Type", "application/json")
+        .header("X-AgentRaaS-ReqId", req_id)
+        .timeout(Duration::from_secs(30));
+
+    if let Some(cred) = &credential {
+        match route.auth_type.as_str() {
+            "basic" => {
+                let username = cred.username.clone().or_else(|| cred.api_key.clone()).unwrap_or_default();
+                let password = cred.password.clone().unwrap_or_default();
+                builder = builder.basic_auth(username, Some(password));
+            }
+            "custom-header" => {
+                if let Some(header_name) = &route.auth_header {
+                    let key = cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default();
+                    builder = builder.header(header_name, key);
+                }
+            }
+            _ => {
+                if let Some(header_name) = &route.auth_header {
+                    let key = cred.api_key.clone().or_else(|| cred.username.clone()).unwrap_or_default();
+                    let value = if header_name == "Authorization" { format!("Bearer {key}") } else { key };
+                    builder = builder.header(header_name, value);
+                }
+            }
+        }
+    }
+
+    let rpc_request = json!({
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "method": "tools/call",
+        "params": { "name": route.remote_tool_name, "arguments": payload },
+    });
+
+    let response = builder.json(&rpc_request).send().await.map_err(|err| ForwardError {
+        message: err.to_string(),
+        upstream_status: None,
+        upstream_body: None,
+        circuit_already_recorded: false,
+    })?;
+
+    let status = response.status();
+    let body: Value = response.json().await.unwrap_or(Value::Null);
+
+    if status.as_u16() >= 400 {
+        let message = extract_upstream_error_message(&body).unwrap_or_else(|| format!("HTTP {}", status.as_u16()));
+        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false });
+    }
+    // JSON-RPC-level error — a 200 with an "error" field, distinct from a
+    // transport-level 4xx/5xx above.
+    if body.get("error").is_some() {
+        let message = extract_upstream_error_message(&body).unwrap_or_else(|| "MCP server returned a JSON-RPC error".to_string());
+        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false });
+    }
+    let result = body.get("result").cloned().unwrap_or(Value::Null);
+    // MCP's own convention: a successful JSON-RPC envelope whose result
+    // still carries isError:true means the TOOL failed, not the transport —
+    // same "genuine failure" treatment forward_action gives Slack's
+    // ok:false (which is also always HTTP 200).
+    if result.get("isError").and_then(Value::as_bool) == Some(true) {
+        let message = result
+            .get("content")
+            .and_then(Value::as_array)
+            .and_then(|c| c.first())
+            .and_then(|c| c.get("text"))
+            .and_then(Value::as_str)
+            .unwrap_or("MCP tool call failed")
+            .to_string();
+        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false });
+    }
+
+    Ok(json!({
+        "service": format!("mcp:{}", route.credential_key.trim_start_matches("mcp:")),
+        "action": route.remote_tool_name,
+        "forwarded": true,
+        "upstream_status": status.as_u16(),
+        "mcp_result": result,
         "timestamp": crate::util::iso_now(),
     }))
 }
