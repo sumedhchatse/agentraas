@@ -107,7 +107,7 @@ async fn create_mcp_server(
 
     if auth_type != "none" {
         if let Some(credential) = &body.credential {
-            save_credential(&state, user.sub, &org_id, &format!("mcp:{name}"), credential).await?;
+            save_credential(&state, user.sub, &org_id, &format!("mcp:{name}"), credential, None).await?;
         }
     }
 

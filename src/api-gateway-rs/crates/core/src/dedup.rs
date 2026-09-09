@@ -26,16 +26,25 @@ struct PayloadHashInput<'a> {
     service: &'a str,
     action: &'a str,
     payload: &'a Value,
+    // On-Behalf-Of End-User Identity: omitted entirely (not even as null)
+    // when absent, so a call with no end_user_id hashes byte-identically
+    // to how it always has — existing dedup keys must not shift under
+    // callers who never use this feature.
+    #[serde(rename = "endUserId", skip_serializing_if = "Option::is_none")]
+    end_user_id: Option<&'a str>,
 }
 
 /// Default dedup mode: hash the whole payload. Two calls only count as the
 /// same request if they're byte-identical (same field order too).
-pub fn hash_payload(api_key: &str, service: &str, action: &str, payload: &Value) -> String {
+/// `end_user_id`, when present, scopes the hash so two different end-users
+/// acting through the same org/agent never dedupe against each other.
+pub fn hash_payload(api_key: &str, service: &str, action: &str, payload: &Value, end_user_id: Option<&str>) -> String {
     let input = PayloadHashInput {
         api_key,
         service,
         action,
         payload,
+        end_user_id,
     };
     sha256_hex(&serde_json::to_string(&input).expect("serializing a hash input never fails"))
 }
@@ -48,16 +57,19 @@ struct IdempotencyHashInput<'a> {
     action: &'a str,
     #[serde(rename = "idempotencyKey")]
     idempotency_key: &'a str,
+    #[serde(rename = "endUserId", skip_serializing_if = "Option::is_none")]
+    end_user_id: Option<&'a str>,
 }
 
 /// Client-supplied idempotency-key mode: the caller controls what counts
 /// as a retry instead of the system inferring it from exact payload bytes.
-pub fn hash_idempotency_key(api_key: &str, service: &str, action: &str, idempotency_key: &str) -> String {
+pub fn hash_idempotency_key(api_key: &str, service: &str, action: &str, idempotency_key: &str, end_user_id: Option<&str>) -> String {
     let input = IdempotencyHashInput {
         api_key,
         service,
         action,
         idempotency_key,
+        end_user_id,
     };
     sha256_hex(&serde_json::to_string(&input).expect("serializing a hash input never fails"))
 }
@@ -108,6 +120,7 @@ pub fn hash_field_values(
     payload: &Value,
     fields: &[String],
     normalize: bool,
+    end_user_id: Option<&str>,
 ) -> String {
     let mut sorted_fields = fields.to_vec();
     sorted_fields.sort();
@@ -131,12 +144,15 @@ pub fn hash_field_values(
         service: &'a str,
         action: &'a str,
         fields: &'a BTreeMap<&'a str, Value>,
+        #[serde(rename = "endUserId", skip_serializing_if = "Option::is_none")]
+        end_user_id: Option<&'a str>,
     }
     let input = Input {
         api_key,
         service,
         action,
         fields: &values,
+        end_user_id,
     };
     sha256_hex(&serde_json::to_string(&input).expect("serializing a hash input never fails"))
 }

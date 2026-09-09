@@ -635,6 +635,7 @@
     <form id="creds-form">
       <div class="field"><label for="creds-org">Org ID</label><input type="text" id="creds-org" placeholder="org_acme" required></div>
       <div class="field"><label for="creds-service">Service</label><select id="creds-service" required></select></div>
+      <div class="field"><label for="creds-enduser">End-user ID <span style="color:var(--muted);font-weight:400;">(optional)</span></label><input type="text" id="creds-enduser" placeholder="leave blank for a shared org-wide credential"></div>
       <div class="field"><label for="creds-type">Credential type</label>
         <select id="creds-type">
           <option value="api_key">API key / token</option>
@@ -1700,12 +1701,13 @@
     const restoreText = withLoadingText(credsSubmit, 'Saving…');
     const org_id = document.getElementById('creds-org').value.trim();
     const service = credsServiceSelect.value;
+    const end_user_id = document.getElementById('creds-enduser').value.trim() || null;
     const isBasic = credsTypeSelect.value === 'basic';
     const credentials = isBasic
       ? { username: document.getElementById('creds-username').value.trim(), password: document.getElementById('creds-password').value.trim() }
       : { api_key: document.getElementById('creds-apikey').value.trim() };
     try {
-      const res = await fetch('/api/v1/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ org_id, service, credentials }) });
+      const res = await fetch('/api/v1/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ org_id, service, credentials, end_user_id }) });
       const data = await res.json();
       if (!res.ok) { credsError.textContent = data.error || 'Could not save credential.'; credsError.style.display = 'block'; return; }
       credsForm.reset(); updateCredsFieldVisibility(); loadCredentialsList();
@@ -1724,7 +1726,8 @@
       for (const row of rows) {
         const div = document.createElement('div');
         div.className = 'cred-row';
-        div.innerHTML = `<div class="info"><div class="svc">${row.service.charAt(0).toUpperCase() + row.service.slice(1)} — ${escapeHtml(row.org_id)}</div><div class="meta">${escapeHtml(row.masked_preview)}</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
+        const svcLabel = row.service.charAt(0).toUpperCase() + row.service.slice(1) + (row.end_user_id ? ` — end-user ${escapeHtml(row.end_user_id)}` : '');
+        div.innerHTML = `<div class="info"><div class="svc">${svcLabel} — ${escapeHtml(row.org_id)}</div><div class="meta">${escapeHtml(row.masked_preview)}</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
         list.appendChild(div);
       }
       list.querySelectorAll('.revoke').forEach((btn) => {
