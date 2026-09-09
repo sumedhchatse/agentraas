@@ -180,6 +180,7 @@ struct LoginUserRow {
     plan: String,
     password_hash: String,
     is_admin: bool,
+    is_demo: bool,
     email_verified: bool,
 }
 
@@ -207,7 +208,7 @@ async fn login(
     }
 
     let user = sqlx::query_as::<_, LoginUserRow>(
-        "SELECT id, email, org_id, plan, password_hash, is_admin, email_verified FROM users WHERE email = $1",
+        "SELECT id, email, org_id, plan, password_hash, is_admin, is_demo, email_verified FROM users WHERE email = $1",
     )
     .bind(&email)
     .fetch_optional(&state.pg)
@@ -273,6 +274,7 @@ async fn login(
                 "org_id": user.org_id,
                 "plan": user.plan,
                 "is_admin": user.is_admin,
+                "is_demo": user.is_demo,
                 "deployment_mode": state.deployment_mode,
                 "must_change_password": false,
             }
@@ -294,6 +296,7 @@ struct VerifiedUserRow {
     org_id: Option<String>,
     plan: String,
     is_admin: bool,
+    is_demo: bool,
     must_change_password: bool,
 }
 
@@ -324,7 +327,7 @@ async fn verify_email(
 
     let mut tx = state.pg.begin().await?;
     let user = sqlx::query_as::<_, VerifiedUserRow>(
-        "UPDATE users SET email_verified = true WHERE id = $1 RETURNING id, email, org_id, plan, is_admin, must_change_password",
+        "UPDATE users SET email_verified = true WHERE id = $1 RETURNING id, email, org_id, plan, is_admin, is_demo, must_change_password",
     )
     .bind(user_id)
     .fetch_one(&mut *tx)
@@ -348,6 +351,7 @@ async fn verify_email(
                 "org_id": user.org_id,
                 "plan": user.plan,
                 "is_admin": user.is_admin,
+                "is_demo": user.is_demo,
                 "deployment_mode": state.deployment_mode,
                 "must_change_password": user.must_change_password,
             }
@@ -537,13 +541,13 @@ struct OrgMembership {
 async fn me(State(state): State<SharedState>, user: AuthUser) -> Result<Json<serde_json::Value>, ApiError> {
     check_dashboard_rate_limit(&state, user.sub).await?;
 
-    let admin_row = sqlx::query_as::<_, (bool, bool)>(
-        "SELECT is_admin, must_change_password FROM users WHERE id = $1",
+    let admin_row = sqlx::query_as::<_, (bool, bool, bool, String)>(
+        "SELECT is_admin, is_demo, must_change_password, plan FROM users WHERE id = $1",
     )
     .bind(user.sub)
     .fetch_optional(&state.pg)
     .await?;
-    let (is_admin, must_change_password) = admin_row.unwrap_or((false, false));
+    let (is_admin, is_demo, must_change_password, plan) = admin_row.unwrap_or((false, false, false, "free".to_string()));
 
     let memberships = sqlx::query_as::<_, (String, String)>(
         "SELECT org_id, role FROM org_members WHERE user_id = $1",
@@ -560,7 +564,9 @@ async fn me(State(state): State<SharedState>, user: AuthUser) -> Result<Json<ser
             "id": user.sub,
             "email": user.email,
             "org_id": user.org_id,
+            "plan": plan,
             "is_admin": is_admin,
+            "is_demo": is_demo,
             "deployment_mode": state.deployment_mode,
             "must_change_password": must_change_password,
             "orgs": memberships,
