@@ -196,15 +196,15 @@ async fn create_dedup_rule(
             return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "ttl_seconds must be between 1 and 604800 (7 days)."));
         }
     }
-    if body.fields.as_array().is_some_and(|a| a.is_empty()) && body.ttl_seconds.is_none() {
+    let semantic_enabled = body.semantic_enabled.unwrap_or(false);
+    let semantic_threshold = body.semantic_threshold.unwrap_or(0.85);
+    if body.fields.as_array().is_some_and(|a| a.is_empty()) && body.ttl_seconds.is_none() && !semantic_enabled {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "A dedup rule needs at least one field or a ttl_seconds override — this one would do nothing.",
+            "A dedup rule needs at least one field, a ttl_seconds override, or semantic_enabled — this one would do nothing.",
         ));
     }
     let normalize = body.normalize.unwrap_or(false);
-    let semantic_enabled = body.semantic_enabled.unwrap_or(false);
-    let semantic_threshold = body.semantic_threshold.unwrap_or(0.85);
     if semantic_enabled {
         // Real per-request cost (vs the free deterministic hash/field
         // modes) — Team+ only, checked at config-time so this fails loudly
