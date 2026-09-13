@@ -10,7 +10,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::agent::db::{check_org_write_permission, get_user_org_ids};
+use crate::agent::db::{check_org_write_permission, get_user_org_ids, require_tier};
 use crate::auth::{check_dashboard_rate_limit, is_valid_action_name, is_valid_identifier, AuthUser};
 use crate::state::{ApiError, SharedState};
 
@@ -39,6 +39,14 @@ struct RuleBody {
     /// different-looking values still count as the same entity. Ignored
     /// by validation rules.
     normalize: Option<bool>,
+    /// Dedup rules only (Team+ tier) — opt into fuzzy/semantic similarity
+    /// matching (`agentraas_core::semantic_dedup`) alongside exact/field
+    /// dedup. Ignored by validation rules.
+    semantic_enabled: Option<bool>,
+    /// Jaccard similarity threshold (0.0-1.0) above which two payloads in
+    /// the same scope are treated as duplicates. Only meaningful when
+    /// `semantic_enabled` is true; defaults to 0.85 (see migration 044).
+    semantic_threshold: Option<f64>,
 }
 
 fn validate_identity(org_id: &Option<String>, service: &Option<String>, action: &Option<String>) -> Result<(String, String, String), ApiError> {
@@ -195,6 +203,17 @@ async fn create_dedup_rule(
         ));
     }
     let normalize = body.normalize.unwrap_or(false);
+    let semantic_enabled = body.semantic_enabled.unwrap_or(false);
+    let semantic_threshold = body.semantic_threshold.unwrap_or(0.85);
+    if semantic_enabled {
+        // Real per-request cost (vs the free deterministic hash/field
+        // modes) — Team+ only, checked at config-time so this fails loudly
+        // when someone tries to turn it on rather than silently at runtime.
+        require_tier(&state, &org_id, agentraas_core::tier::Tier::Team).await?;
+        if !(0.0..=1.0).contains(&semantic_threshold) {
+            return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "semantic_threshold must be between 0.0 and 1.0."));
+        }
+    }
 
     #[derive(sqlx::FromRow)]
     struct Row {
@@ -205,14 +224,17 @@ async fn create_dedup_rule(
         fields: Value,
         ttl_seconds: Option<i32>,
         normalize: bool,
+        semantic_enabled: bool,
+        semantic_threshold: f32,
         updated_at: chrono::DateTime<chrono::Utc>,
     }
     let row = sqlx::query_as::<_, Row>(
-        "INSERT INTO custom_dedup_rules (org_id, service, action, fields, ttl_seconds, normalize, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        "INSERT INTO custom_dedup_rules (org_id, service, action, fields, ttl_seconds, normalize, semantic_enabled, semantic_threshold, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (org_id, service, action) DO UPDATE SET
-             fields = EXCLUDED.fields, ttl_seconds = EXCLUDED.ttl_seconds, normalize = EXCLUDED.normalize, updated_at = NOW()
-         RETURNING id, org_id, service, action, fields, ttl_seconds, normalize, updated_at",
+             fields = EXCLUDED.fields, ttl_seconds = EXCLUDED.ttl_seconds, normalize = EXCLUDED.normalize,
+             semantic_enabled = EXCLUDED.semantic_enabled, semantic_threshold = EXCLUDED.semantic_threshold, updated_at = NOW()
+         RETURNING id, org_id, service, action, fields, ttl_seconds, normalize, semantic_enabled, semantic_threshold, updated_at",
     )
     .bind(&org_id)
     .bind(&service)
@@ -220,6 +242,8 @@ async fn create_dedup_rule(
     .bind(&body.fields)
     .bind(body.ttl_seconds.map(|t| t as i32))
     .bind(normalize)
+    .bind(semantic_enabled)
+    .bind(semantic_threshold as f32)
     .bind(user.sub)
     .fetch_one(&state.pg)
     .await?;
@@ -228,7 +252,9 @@ async fn create_dedup_rule(
         "saved": true,
         "rule": {
             "id": row.id, "org_id": row.org_id, "service": row.service, "action": row.action,
-            "fields": row.fields, "ttl_seconds": row.ttl_seconds, "normalize": row.normalize, "updated_at": row.updated_at
+            "fields": row.fields, "ttl_seconds": row.ttl_seconds, "normalize": row.normalize,
+            "semantic_enabled": row.semantic_enabled, "semantic_threshold": row.semantic_threshold,
+            "updated_at": row.updated_at
         }
     })))
 }
@@ -248,11 +274,13 @@ async fn list_dedup_rules(State(state): State<SharedState>, user: AuthUser) -> R
         fields: Value,
         ttl_seconds: Option<i32>,
         normalize: bool,
+        semantic_enabled: bool,
+        semantic_threshold: f32,
         created_at: chrono::DateTime<chrono::Utc>,
         updated_at: chrono::DateTime<chrono::Utc>,
     }
     let rows = sqlx::query_as::<_, Row>(
-        "SELECT id, org_id, service, action, fields, ttl_seconds, normalize, created_at, updated_at
+        "SELECT id, org_id, service, action, fields, ttl_seconds, normalize, semantic_enabled, semantic_threshold, created_at, updated_at
          FROM custom_dedup_rules WHERE org_id = ANY($1) ORDER BY updated_at DESC",
     )
     .bind(&org_ids)
@@ -262,7 +290,9 @@ async fn list_dedup_rules(State(state): State<SharedState>, user: AuthUser) -> R
         rows.into_iter()
             .map(|r| json!({
                 "id": r.id, "org_id": r.org_id, "service": r.service, "action": r.action, "fields": r.fields,
-                "ttl_seconds": r.ttl_seconds, "normalize": r.normalize, "created_at": r.created_at, "updated_at": r.updated_at
+                "ttl_seconds": r.ttl_seconds, "normalize": r.normalize,
+                "semantic_enabled": r.semantic_enabled, "semantic_threshold": r.semantic_threshold,
+                "created_at": r.created_at, "updated_at": r.updated_at
             }))
             .collect(),
     ))

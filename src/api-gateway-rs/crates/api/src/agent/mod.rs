@@ -469,7 +469,7 @@ async fn handle_request(
     // hashing. This lets an org set a custom TTL without opting into a
     // field-allow-list rule at all (a "TTL-only" rule has empty `fields`).
     let dedup_field_rule = get_effective_dedup_rule(&state.pg, &org_id, &service, &action).await.unwrap_or(None);
-    let dedup_hash = match select_dedup_hash_mode(idempotency_key.as_deref(), dedup_field_rule.as_ref()) {
+    let mut dedup_hash = match select_dedup_hash_mode(idempotency_key.as_deref(), dedup_field_rule.as_ref()) {
         DedupHashMode::IdempotencyKey(idem) => dedup::hash_idempotency_key(&api_key, &service, &action, idem, end_user_id.as_deref()),
         DedupHashMode::Fields { fields, normalize } => {
             dedup::hash_field_values(&api_key, &service, &action, &payload, fields, normalize, end_user_id.as_deref())
@@ -481,6 +481,27 @@ async fn handle_request(
     let Ok(mut conn) = state.redis_conn_result() else {
         return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
     };
+
+    // Fuzzy/semantic similarity dedup (Team+, opt-in per rule): catches
+    // near-duplicate payloads exact/field-hash dedup above can't. Only
+    // meaningful for idempotency-key/payload/field modes that didn't already
+    // find an exact match — if the request IS an exact/field match, exact
+    // dedup already handles it correctly and semantic matching would only
+    // add cost for no benefit. Fails open on any error: this is a
+    // best-effort enhancement layer, never a correctness requirement like
+    // exact-hash dedup is.
+    let mut semantic_record: Option<(String, String)> = None; // (scope, normalized_text)
+    if let Some(rule) = dedup_field_rule.as_ref().filter(|r| r.semantic_enabled) {
+        if db::effective_tier(state, &org_id).await >= agentraas_core::tier::Tier::Team {
+            let text = agentraas_core::semantic_dedup::normalize_for_similarity(&payload);
+            let scope = agentraas_core::semantic_dedup::window_scope(&api_key, &service, &action, end_user_id.as_deref());
+            match agentraas_core::semantic_dedup::check_window(&mut conn, &scope, &text, rule.semantic_threshold).await {
+                Ok(Some(matched_hash)) => dedup_hash = matched_hash,
+                Ok(None) => semantic_record = Some((scope, text)),
+                Err(err) => tracing::error!(?err, "semantic dedup window check failed, continuing without it"),
+            }
+        }
+    }
     let claim = match dedup::claim_dedup_slot_with_ttl(&mut conn, &dedup_hash, dedup_ttl_seconds).await {
         Ok(c) => c,
         Err(err) => {
@@ -542,6 +563,12 @@ async fn handle_request(
     }
 
     // ─── claimed: do the real work ───
+
+    if let Some((scope, text)) = semantic_record {
+        if let Err(err) = agentraas_core::semantic_dedup::record_window(&mut conn, &scope, &text, &dedup_hash, dedup_ttl_seconds).await {
+            tracing::error!(?err, "semantic dedup window record failed (non-fatal)");
+        }
+    }
 
     if let Ok(Some(rule)) = get_effective_validation_rule(state, &org_id, &service, &action).await {
         if let Some(validation_error) = agentraas_core::validator::validate_fields(&payload, &rule.fields) {
