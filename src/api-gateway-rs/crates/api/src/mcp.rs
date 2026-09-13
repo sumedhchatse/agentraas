@@ -488,7 +488,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     let dedup_field_rule = get_effective_dedup_rule(&state.pg, &org_id, &resolved_service_name, &resolved_action_name)
         .await
         .unwrap_or(None);
-    let dedup_hash = match select_dedup_hash_mode(idempotency_key.as_deref(), dedup_field_rule.as_ref()) {
+    let mut dedup_hash = match select_dedup_hash_mode(idempotency_key.as_deref(), dedup_field_rule.as_ref()) {
         DedupHashMode::IdempotencyKey(idem) => {
             dedup::hash_idempotency_key(&api_key, &resolved_service_name, &resolved_action_name, idem, end_user_id.as_deref())
         }
@@ -498,6 +498,22 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         DedupHashMode::Payload => dedup::hash_payload(&api_key, &resolved_service_name, &resolved_action_name, &payload, end_user_id.as_deref()),
     };
     let dedup_ttl_seconds = dedup_field_rule.as_ref().and_then(|r| r.ttl_seconds);
+
+    // See agent/mod.rs::handle_request for the full rationale — mirrored
+    // here so MCP tool-calls (the actual agent traffic path) get the same
+    // fuzzy/semantic dedup coverage as the REST webhook path.
+    let mut semantic_record: Option<(String, String)> = None;
+    if let Some(rule) = dedup_field_rule.as_ref().filter(|r| r.semantic_enabled) {
+        if crate::agent::db::effective_tier(state, &org_id).await >= agentraas_core::tier::Tier::Team {
+            let text = agentraas_core::semantic_dedup::normalize_for_similarity(&payload);
+            let scope = agentraas_core::semantic_dedup::window_scope(&api_key, &resolved_service_name, &resolved_action_name, end_user_id.as_deref());
+            match agentraas_core::semantic_dedup::check_window(&mut conn, &scope, &text, rule.semantic_threshold).await {
+                Ok(Some(matched_hash)) => dedup_hash = matched_hash,
+                Ok(None) => semantic_record = Some((scope, text)),
+                Err(err) => tracing::error!(?err, "semantic dedup window check failed, continuing without it"),
+            }
+        }
+    }
 
     let Ok(claim) = dedup::claim_dedup_slot_with_ttl(&mut conn, &dedup_hash, dedup_ttl_seconds).await else {
         return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
@@ -541,6 +557,12 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     }
 
     // ─── claimed: do the real work ───
+
+    if let Some((scope, text)) = semantic_record {
+        if let Err(err) = agentraas_core::semantic_dedup::record_window(&mut conn, &scope, &text, &dedup_hash, dedup_ttl_seconds).await {
+            tracing::error!(?err, "semantic dedup window record failed (non-fatal)");
+        }
+    }
 
     if let Ok(Some(rule)) = get_effective_validation_rule(state, &org_id, &resolved_service_name, &resolved_action_name).await {
         if let Some(validation_error) = validator::validate_fields(&payload, &rule.fields) {

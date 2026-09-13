@@ -57,6 +57,12 @@ pub struct EffectiveDedupRule {
     /// numeric-coerce) before hashing, so trivially different-looking
     /// values for the same field still count as a duplicate.
     pub normalize: bool,
+    /// Fuzzy/semantic similarity dedup (Team+ tier, see
+    /// `agentraas_core::semantic_dedup`): catches near-duplicate payloads
+    /// exact/field-hash dedup can't, via a free local heuristic rather than
+    /// an external embedding API.
+    pub semantic_enabled: bool,
+    pub semantic_threshold: f64,
 }
 
 /// No static fallback — every action defaults to whole-payload-hash dedup
@@ -72,9 +78,11 @@ pub async fn get_effective_dedup_rule(
         fields: Value,
         ttl_seconds: Option<i32>,
         normalize: bool,
+        semantic_enabled: bool,
+        semantic_threshold: f32,
     }
     let row: Option<Row> = sqlx::query_as(
-        "SELECT fields, ttl_seconds, normalize FROM custom_dedup_rules WHERE org_id = $1 AND service = $2 AND action = $3",
+        "SELECT fields, ttl_seconds, normalize, semantic_enabled, semantic_threshold FROM custom_dedup_rules WHERE org_id = $1 AND service = $2 AND action = $3",
     )
     .bind(org_id)
     .bind(service)
@@ -84,6 +92,8 @@ pub async fn get_effective_dedup_rule(
     Ok(row.map(|row| EffectiveDedupRule {
         ttl_seconds: row.ttl_seconds.map(i64::from),
         normalize: row.normalize,
+        semantic_enabled: row.semantic_enabled,
+        semantic_threshold: row.semantic_threshold as f64,
         fields: row
             .fields
             .as_array()
@@ -126,6 +136,8 @@ mod tests {
             fields: fields.iter().map(|s| s.to_string()).collect(),
             ttl_seconds,
             normalize: false,
+            semantic_enabled: false,
+            semantic_threshold: 0.85,
         }
     }
 
