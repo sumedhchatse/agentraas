@@ -8,6 +8,16 @@ use crate::email::Mailer;
 pub struct AppState {
     pub pg: sqlx::PgPool,
     pub redis: redis::Client,
+    /// One multiplexed connection, established once at startup and cloned
+    /// per use — cloning is cheap (it's a handle to a background task that
+    /// pipelines commands over a single real TCP connection), unlike
+    /// calling `redis.get_multiplexed_async_connection()` again, which
+    /// dials a brand-new connection every time. Every call site in this
+    /// codebase should go through `redis_conn()` rather than `redis`
+    /// directly — `redis` itself stays around only because `redis::Client`
+    /// has no other supported way to hand out a fresh clone of an
+    /// already-established connection.
+    pub redis_conn: redis::aio::MultiplexedConnection,
     pub service_routes: HashMap<String, ServiceRoute>,
     /// MCP tool name (`service_action`) -> (service_name, action_name).
     pub tool_name_to_route: HashMap<String, (String, String)>,
@@ -31,10 +41,12 @@ pub struct AppState {
     pub enterprise_mode: bool,
     pub dashboard_rate_limit_per_min: u32,
     pub agent_rate_limit_per_min: u32,
-    pub agency_rate_limit_per_min: u32,
+    pub team_rate_limit_per_min: u32,
+    pub enterprise_rate_limit_per_min: u32,
     pub cloud_monthly_limit: i64,
-    pub agency_monthly_limit: i64,
-    pub agency_max_client_tenants: i64,
+    pub team_monthly_limit: i64,
+    pub enterprise_monthly_limit: i64,
+    pub enterprise_max_client_tenants: i64,
     pub proxy_retry_max_attempts: u32,
     pub proxy_retry_base_delay_ms: u64,
 
@@ -64,6 +76,19 @@ pub struct AppState {
     /// degrades a self-host deployment to free-tier behavior, never a
     /// crash or a refused startup.
     pub license_tier: std::sync::RwLock<agentraas_core::tier::Tier>,
+}
+
+impl AppState {
+    /// `Result`-shaped clone of the shared connection, so every existing
+    /// call site — `let Ok(mut conn) = state.redis_conn_result() else {...}`,
+    /// `state.redis_conn_result()?`, etc. — keeps compiling unchanged after
+    /// swapping out a real per-call connection dial for a cheap clone.
+    /// Cloning a `MultiplexedConnection` cannot actually fail; the `Result`
+    /// wrapper exists only to match `get_multiplexed_async_connection()`'s
+    /// old signature at every call site.
+    pub fn redis_conn_result(&self) -> Result<redis::aio::MultiplexedConnection, redis::RedisError> {
+        Ok(self.redis_conn.clone())
+    }
 }
 
 pub type SharedState = Arc<AppState>;

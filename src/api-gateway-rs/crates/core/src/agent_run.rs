@@ -41,3 +41,18 @@ pub async fn record_call_and_check(
     }
     Ok(LoopCheckResult { tripped: count > max_repeats, count })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_format_is_stable_and_scoped_by_every_component() {
+        // Changing this format would silently orphan every in-flight loop
+        // counter in Redis on deploy (old keys never read again, new ones
+        // start counting from zero) — worth a test that pins the exact shape.
+        assert_eq!(key("org_1", "agent_1", "run_1", "stripe", "charge"), "agentrun:org_1:agent_1:run_1:stripe:charge");
+        // Two runs of the same agent/service/action must not share a counter.
+        assert_ne!(key("org_1", "agent_1", "run_1", "stripe", "charge"), key("org_1", "agent_1", "run_2", "stripe", "charge"));
+    }
+}

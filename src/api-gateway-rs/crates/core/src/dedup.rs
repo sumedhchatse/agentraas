@@ -1,10 +1,12 @@
-//! Payload hashing + Redis dedup claim/release — mirrors the top half of
-//! `src/core/proxy/index.js`. Both servers share the same Redis instance,
-//! so the hash MUST be byte-identical to Node's `JSON.stringify`-based
-//! hash for a request to dedupe correctly regardless of which server
-//! handled the first vs. the retry — this is why `serde_json`'s
-//! `preserve_order` feature is required workspace-wide (see Cargo.toml):
-//! a JS object serializes in insertion order, not alphabetical, and the
+//! Payload hashing + Redis dedup claim/release. The hash format is a
+//! stable wire contract in its own right (existing dedup keys, and the
+//! golden values in this file's own tests, depend on it never silently
+//! shifting) — originally required to be byte-identical to Node's
+//! `JSON.stringify`-based hash from when this and a Node server ran
+//! side-by-side against the same Redis instance during the Rust port;
+//! that's why `serde_json`'s `preserve_order` feature is still required
+//! workspace-wide (see Cargo.toml) even now that Node is fully retired: a
+//! JS object serializes in insertion order, not alphabetical, and the
 //! `payload` field here is exactly whatever order the caller's JSON body
 //! arrived in.
 
@@ -155,6 +157,111 @@ pub fn hash_field_values(
         end_user_id,
     };
     sha256_hex(&serde_json::to_string(&input).expect("serializing a hash input never fails"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // Golden values generated independently via Node's own
+    // crypto.createHash('sha256') over JSON.stringify of an object built
+    // in the exact key order PayloadHashInput/IdempotencyHashInput/the
+    // hash_field_values Input struct serialize in — this is the actual
+    // cross-server contract this module's doc comment warns about, not
+    // just internal self-consistency. If any of these change, a Node
+    // caller and a Rust caller would stop deduping each other's retries.
+    #[test]
+    fn hash_payload_matches_nodes_json_stringify_format() {
+        let payload = json!({"amount": 100, "customer": "cus_1"});
+        let got = hash_payload("key_abc", "stripe", "create_charge", &payload, None);
+        assert_eq!(got, "0338bc421ab64048b2a56691f5a566839b11046eef4282ea15978cfd91b912d5");
+
+        let got_scoped = hash_payload("key_abc", "stripe", "create_charge", &payload, Some("user_42"));
+        assert_eq!(got_scoped, "1174a600c569696b7bf6a0c595f0f1c13765de1183514bc11ac1b89b2b3449c4");
+    }
+
+    #[test]
+    fn hash_idempotency_key_matches_nodes_json_stringify_format() {
+        let got = hash_idempotency_key("key_abc", "stripe", "create_charge", "my-key-1", None);
+        assert_eq!(got, "8d6d5e2abe32ed65ea76172c00eac98907c2df2255ccc70c138b29a980484ad2");
+    }
+
+    #[test]
+    fn hash_only_matches_nodes_json_stringify_format() {
+        let payload = json!({"amount": 100, "customer": "cus_1"});
+        assert_eq!(hash_only(&payload), "d0cc5d551e6fcf5ef46ee2d735b81323f538f3feff878128c36f4b699508f20b");
+    }
+
+    #[test]
+    fn hash_field_values_matches_nodes_json_stringify_format() {
+        let payload = json!({"customer_email": "jane@acme.com"});
+        let got = hash_field_values("key_abc", "stripe", "create_charge", &payload, &["customer_email".to_string()], false, None);
+        assert_eq!(got, "fd3b59407d1cb80300d984539cc86578129b8633acaa990ef447725c2c85f0b9");
+    }
+
+    #[test]
+    fn end_user_id_none_hashes_identically_to_omitting_it_entirely() {
+        // The doc comment on end_user_id promises byte-identical hashes for
+        // callers who never use the feature — this is the regression that
+        // promise depends on (skip_serializing_if actually working).
+        let payload = json!({"a": 1});
+        let a = hash_payload("k", "svc", "act", &payload, None);
+        let b = hash_idempotency_key("k", "svc", "act", "idem", None);
+        // Same call twice with None must be deterministic, not just equal
+        // to some other call.
+        assert_eq!(a, hash_payload("k", "svc", "act", &payload, None));
+        assert_eq!(b, hash_idempotency_key("k", "svc", "act", "idem", None));
+    }
+
+    #[test]
+    fn different_end_user_ids_never_collide_even_with_same_payload() {
+        let payload = json!({"a": 1});
+        let alice = hash_payload("k", "svc", "act", &payload, Some("alice"));
+        let bob = hash_payload("k", "svc", "act", &payload, Some("bob"));
+        let none = hash_payload("k", "svc", "act", &payload, None);
+        assert_ne!(alice, bob);
+        assert_ne!(alice, none);
+    }
+
+    #[test]
+    fn normalize_value_collapses_equivalent_numbers_and_strings() {
+        assert_eq!(normalize_value(&json!(100)), normalize_value(&json!(100.0)));
+        assert_eq!(normalize_value(&json!(100)), normalize_value(&json!("100")));
+        assert_eq!(normalize_value(&json!(" Jane ")), normalize_value(&json!("jane")));
+        assert_eq!(normalize_value(&json!(" Jane ")), normalize_value(&json!("Jane")));
+        // A fractional float is NOT collapsed into an integer string.
+        assert_ne!(normalize_value(&json!(100.5)), normalize_value(&json!(100)));
+        // Composite types pass through unchanged (opt-in per rule, not guessed at).
+        let arr = json!([1, 2]);
+        assert_eq!(normalize_value(&arr), arr);
+    }
+
+    #[test]
+    fn hash_field_values_is_order_independent_and_treats_missing_as_null() {
+        let payload = json!({"b": 2, "a": 1});
+        // Field list given in reverse order still hashes the same as forward order.
+        let forward = hash_field_values("k", "svc", "act", &payload, &["a".to_string(), "b".to_string()], false, None);
+        let reverse = hash_field_values("k", "svc", "act", &payload, &["b".to_string(), "a".to_string()], false, None);
+        assert_eq!(forward, reverse);
+
+        // A field absent from the payload hashes as null, not as if it were skipped.
+        let with_missing = hash_field_values("k", "svc", "act", &payload, &["a".to_string(), "missing".to_string()], false, None);
+        assert_ne!(with_missing, hash_field_values("k", "svc", "act", &payload, &["a".to_string()], false, None));
+    }
+
+    #[test]
+    fn hash_field_values_normalize_flag_actually_changes_the_hash() {
+        let payload = json!({"email": " Jane@Acme.com "});
+        let raw = hash_field_values("k", "svc", "act", &payload, &["email".to_string()], false, None);
+        let normalized = hash_field_values("k", "svc", "act", &payload, &["email".to_string()], true, None);
+        assert_ne!(raw, normalized);
+
+        // But two differently-cased/whitespaced emails DO collide once normalized.
+        let other_payload = json!({"email": "jane@acme.com"});
+        let other_normalized = hash_field_values("k", "svc", "act", &other_payload, &["email".to_string()], true, None);
+        assert_eq!(normalized, other_normalized);
+    }
 }
 
 const DEDUP_TTL_SECONDS: i64 = 86400;

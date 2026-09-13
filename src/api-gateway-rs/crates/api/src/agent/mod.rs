@@ -16,7 +16,7 @@ use crate::auth::{check_dashboard_rate_limit, is_valid_identifier, AuthUser};
 use crate::state::{ApiError, SharedState};
 
 use db::{
-    check_agency_tenant_cap, check_org_write_permission, check_usage_limit,
+    check_enterprise_tenant_cap, check_org_write_permission, check_usage_limit,
     get_effective_dedup_rule, get_effective_rate_limit, get_effective_validation_rule,
     get_user_org_ids, increment_monthly_usage, log_audit, resolve_custom_route,
     resolve_org_from_api_key, select_dedup_hash_mode, verify_api_key, DedupHashMode, ResolvedRoute,
@@ -379,7 +379,7 @@ async fn handle_request(
         }
     };
     let within_limit = {
-        let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await else {
+        let Ok(mut conn) = state.redis_conn_result() else {
             return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
         };
         let bucket_key = format!("ratelimit:agent:{rate_limit_identity}");
@@ -409,7 +409,7 @@ async fn handle_request(
     // doesn't require the retried payload to match.
     if let (Some(run_id), Some(step_id)) = (&run_id, &step_id) {
         let checkpoint_key = agentraas_core::checkpoint::step_key(run_id, step_id);
-        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+        if let Ok(mut conn) = state.redis_conn_result() {
             if let Ok(Some(mut cached)) = agentraas_core::checkpoint::read_checkpoint(&mut conn, &checkpoint_key).await {
                 if let Value::Object(ref mut map) = cached {
                     map.insert("checkpointed".to_string(), Value::Bool(true));
@@ -427,7 +427,7 @@ async fn handle_request(
     // pattern, not how AgentRaaS happened to answer it. A checkpoint hit
     // above already returned, so this only runs for genuinely new attempts.
     if let Some(run_id) = &run_id {
-        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+        if let Ok(mut conn) = state.redis_conn_result() {
             match agentraas_core::agent_run::record_call_and_check(
                 &mut conn,
                 &org_id,
@@ -478,7 +478,7 @@ async fn handle_request(
     };
     let dedup_ttl_seconds = dedup_field_rule.as_ref().and_then(|r| r.ttl_seconds);
 
-    let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await else {
+    let Ok(mut conn) = state.redis_conn_result() else {
         return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
     };
     let claim = match dedup::claim_dedup_slot_with_ttl(&mut conn, &dedup_hash, dedup_ttl_seconds).await {
@@ -605,13 +605,13 @@ async fn handle_request(
     // Buffer above. The dedup slot claimed above is deliberately left
     // pending on freeze — see `ee::hitl` module doc.
     //
-    // Pro+ (not "enterprise_mode on", which was the old server-wide
+    // Team+ (not "enterprise_mode on", which was the old server-wide
     // switch, independent of any org's actual plan) — checked here, not
-    // just at rule-creation time, so a rule created while on Pro stops
+    // just at rule-creation time, so a rule created while on Team stops
     // firing the moment the org drops back to Community, without needing
     // to delete the rule itself.
     #[cfg(feature = "enterprise")]
-    if matches!(source, Source::Webhook) && db::effective_tier(state, &org_id).await >= agentraas_core::tier::Tier::Pro {
+    if matches!(source, Source::Webhook) && db::effective_tier(state, &org_id).await >= agentraas_core::tier::Tier::Team {
         match crate::ee::hitl::match_rule(&state.pg, &org_id, &service, &action, &payload).await {
             Ok(Some(rule)) => {
                 return crate::ee::hitl::freeze_and_notify(
@@ -629,7 +629,7 @@ async fn handle_request(
     if resolved_route.streaming {
         return match forward::forward_with_retry_streaming(state, &resolved_route, &service, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await {
             Ok(streaming) => {
-                if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
+                if let Ok(mut c2) = state.redis_conn_result() {
                     if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
                         forward::log_circuit_transition(state, t).await;
                     }
@@ -683,7 +683,7 @@ async fn handle_request(
                             }
                         }
                     }
-                    let Ok(mut conn) = spawn_state.redis.get_multiplexed_async_connection().await else { return };
+                    let Ok(mut conn) = spawn_state.redis_conn_result() else { return };
                     if had_error {
                         let _ = dedup::release_dedup_slot(&mut conn, &claim_key).await;
                         if let Ok(Some(t)) = circuit_breaker::record_failure(&mut conn, &spawn_circuit_key).await {
@@ -718,7 +718,7 @@ async fn handle_request(
 
     match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await {
         Ok(mut result) => {
-            if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
+            if let Ok(mut c2) = state.redis_conn_result() {
                 if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
                     forward::log_circuit_transition(state, t).await;
                 }
@@ -772,7 +772,7 @@ async fn forward_error_response(
 ) -> Response {
     let _ = dedup::release_dedup_slot(conn, claim_key).await;
     if !err.circuit_already_recorded {
-        if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
+        if let Ok(mut c2) = state.redis_conn_result() {
             if let Ok(Some(t)) = circuit_breaker::record_failure(&mut c2, circuit_key).await {
                 forward::log_circuit_transition(state, t).await;
             }
@@ -841,11 +841,11 @@ async fn connect_agent(
     if !check_org_write_permission(&state.pg, user.sub, &org_id).await? {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Auditors have read-only access to this org."));
     }
-    let tenant_cap = check_agency_tenant_cap(&state, user.sub, &org_id).await?;
+    let tenant_cap = check_enterprise_tenant_cap(&state, user.sub, &org_id).await?;
     if !tenant_cap.ok {
         return Err(ApiError::new(
             StatusCode::PAYMENT_REQUIRED,
-            format!("Agency plan is limited to {} client tenants. Contact hello@agentraas.io to increase this.", tenant_cap.limit),
+            format!("Enterprise plan is limited to {} client tenants. Contact hello@agentraas.io to increase this.", tenant_cap.limit),
         ));
     }
 

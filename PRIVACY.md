@@ -37,7 +37,7 @@ from those endpoints beyond what's needed for exactly-once deduplication
 (a hash of the request, and the response, held temporarily to serve
 duplicate/retry requests — not kept indefinitely).
 
-**Billing (Pro/Agency subscriptions):** payment is handled entirely by
+**Billing (Team subscriptions):** payment is handled entirely by
 our payment processor, Paddle — we never see or store your card number.
 What we do store is your plan tier, subscription status, and the
 customer/subscription identifiers Paddle gives us, so we know what

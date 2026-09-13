@@ -1,12 +1,11 @@
-//! Dashboard analytics routes — mirrors `src/core/dashboard/index.js`:
-//! stats, timeseries, by-service, recent activity, usage (+ SSE stream),
-//! reliability report, admin users/overview, CSV export, public execution
-//! ledger.
+//! Dashboard analytics routes: stats, timeseries, by-service, recent
+//! activity, usage (+ SSE stream), reliability report, admin
+//! users/overview, CSV export, public execution ledger.
 
 use std::collections::HashMap;
 use std::time::Duration;
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
@@ -28,6 +27,7 @@ pub fn router() -> Router<SharedState> {
         .route("/api/v1/dashboard/timeseries", get(dashboard_timeseries))
         .route("/api/v1/dashboard/by-service", get(dashboard_by_service))
         .route("/api/v1/recent", get(recent))
+        .route("/api/v1/dashboard/runs/:run_id", get(dashboard_run_status))
         .route("/api/v1/agents", get(agents))
         .route("/api/v1/usage", get(usage))
         .route("/api/v1/usage/stream", get(usage_stream))
@@ -229,6 +229,51 @@ async fn recent(State(state): State<SharedState>, user: AuthUser, Query(q): Quer
     ))
 }
 
+/// Cookie-authed counterpart to `agent::get_run_status` (which requires an
+/// `x-agentraas-key` and is meant for an agent polling its own run) — this
+/// is what the dashboard's "See full run" link calls, so a logged-in human
+/// can see every step of a run without needing one of their org's API keys
+/// on hand. Same query, just org-scoped by session instead of by API key,
+/// matching how `recent` above already does dashboard auth.
+async fn dashboard_run_status(State(state): State<SharedState>, user: AuthUser, Path(run_id): Path<String>) -> Result<Json<Value>, ApiError> {
+    check_dashboard_rate_limit(&state, user.sub).await?;
+    let org_ids = get_user_org_ids(&state.pg, user.sub).await?;
+    if org_ids.is_empty() {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "No steps found for this run_id."));
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct StepRow {
+        step_id: Option<String>,
+        service: String,
+        action: String,
+        status: String,
+        error_type: Option<String>,
+        duration_ms: i64,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+    let rows = sqlx::query_as::<_, StepRow>(
+        "SELECT step_id, service, action, status, error_type, duration_ms::bigint as duration_ms, (created_at AT TIME ZONE 'UTC') as created_at
+         FROM audit_log WHERE run_id = $1 AND org_id = ANY($2) ORDER BY created_at ASC",
+    )
+    .bind(&run_id)
+    .bind(&org_ids)
+    .fetch_all(&state.pg)
+    .await?;
+
+    if rows.is_empty() {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "No steps found for this run_id."));
+    }
+
+    Ok(Json(json!({
+        "run_id": run_id,
+        "steps": rows.into_iter().map(|r| json!({
+            "step_id": r.step_id, "service": r.service, "action": r.action,
+            "status": r.status, "error_type": r.error_type, "duration_ms": r.duration_ms, "created_at": r.created_at,
+        })).collect::<Vec<_>>(),
+    })))
+}
+
 async fn agents(State(state): State<SharedState>, user: AuthUser) -> Result<Json<Vec<Value>>, ApiError> {
     check_dashboard_rate_limit(&state, user.sub).await?;
     let org_ids = get_user_org_ids(&state.pg, user.sub).await?;
@@ -384,7 +429,7 @@ async fn admin_users(State(state): State<SharedState>, user: AuthUser) -> Result
     let mut usage_by_org: HashMap<String, i64> = HashMap::new();
     if !org_id_list.is_empty() {
         let keys: Vec<String> = org_id_list.iter().map(|org_id| format!("usage:{org_id}:{}", current_month_key())).collect();
-        let mut conn = state.redis.get_multiplexed_async_connection().await?;
+        let mut conn = state.redis_conn_result()?;
         let values: Vec<Option<String>> = redis::cmd("MGET").arg(&keys).query_async(&mut conn).await?;
         for (org_id, v) in org_id_list.iter().zip(values) {
             usage_by_org.insert(org_id.clone(), v.and_then(|s| s.parse().ok()).unwrap_or(0));
@@ -469,7 +514,7 @@ async fn services(State(state): State<SharedState>, user: AuthUser) -> Result<Js
     let service_names: Vec<String> = state.curated_services.iter().cloned().collect();
     let org_ids = get_user_org_ids(&state.pg, user.sub).await?;
 
-    let mut conn = state.redis.get_multiplexed_async_connection().await?;
+    let mut conn = state.redis_conn_result()?;
     let (circuit_states, _) = agentraas_core::circuit_breaker::get_circuit_states_batch(&mut conn, &service_names).await?;
 
     #[derive(sqlx::FromRow)]

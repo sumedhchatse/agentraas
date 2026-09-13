@@ -26,7 +26,7 @@ pub fn router() -> Router<SharedState> {
 /// Redis SETNX, so a burst of blocked requests during one outage sends one
 /// notification, not one per request.
 pub async fn notify_circuit_open(state: &SharedState, org_id: &str, service: &str) {
-    let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await else { return };
+    let Ok(mut conn) = state.redis_conn_result() else { return };
     let key = format!("circuit-notified:{org_id}:{service}");
     let claimed: Option<String> = redis::cmd("SET")
         .arg(&key)

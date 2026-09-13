@@ -66,7 +66,7 @@ async fn register(
     Json(body): Json<RegisterBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let ip = client_ip(&addr);
-    if !check_register_rate_limit(&state.redis, &ip).await? {
+    if !check_register_rate_limit(&state.redis_conn, &ip).await? {
         return Err(ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
             "Too many registration attempts from this network. Try again in an hour.",
@@ -200,7 +200,7 @@ async fn login(
     }
 
     let ip = client_ip(&addr);
-    if !check_login_rate_limit(&state.redis, &ip, &email).await? {
+    if !check_login_rate_limit(&state.redis_conn, &ip, &email).await? {
         return Err(ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
             "Too many login attempts. Try again in 15 minutes.",
@@ -230,7 +230,7 @@ async fn login(
         .with_code("EMAIL_NOT_VERIFIED"));
     }
 
-    clear_login_rate_limit(&state.redis, &ip, &email).await?;
+    clear_login_rate_limit(&state.redis_conn, &ip, &email).await?;
     sqlx::query("UPDATE users SET last_login_at = NOW() WHERE id = $1")
         .bind(user.id)
         .execute(&state.pg)
@@ -381,7 +381,7 @@ async fn resend_verification(
 
     let ip = client_ip(&addr);
     let key = format!("resend-verify:{email}");
-    if !check_login_rate_limit(&state.redis, &ip, &key).await? {
+    if !check_login_rate_limit(&state.redis_conn, &ip, &key).await? {
         return Ok(Json(generic_resend_response()));
     }
 
@@ -442,7 +442,7 @@ async fn forgot_password(
 
     let ip = client_ip(&addr);
     let key = format!("reset:{email}");
-    if !check_login_rate_limit(&state.redis, &ip, &key).await? {
+    if !check_login_rate_limit(&state.redis_conn, &ip, &key).await? {
         return Ok(Json(generic_forgot_password_response()));
     }
 

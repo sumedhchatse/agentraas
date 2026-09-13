@@ -1,28 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-KMQ7H6W6');</script>
+<!-- End Google Tag Manager -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AgentRaaS — Signal</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='8.5' cy='12' r='6' fill='none' stroke='%23FFA53D' stroke-width='1.8'/%3E%3Ccircle cx='15.3' cy='12' r='6' fill='%23FFA53D'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='8.5' cy='12' r='6' fill='none' stroke='%23E2724D' stroke-width='1.8'/%3E%3Ccircle cx='15.3' cy='12' r='6' fill='%23E2724D'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="/vendor/chart.umd.min.js"></script>
 <style>
+  /* Same "settlement ledger" identity as the landing page — one system,
+     one palette, across the whole product. */
   :root {
-    --bg: #0D111C;
-    --panel: #131928;
-    --panel-2: #182036;
-    --border: #212A3D;
-    --text: #EDEFF5;
-    --muted: #7C8AA3;
-    --faint: #4A566E;
-    --signal: #FFA53D;
-    --signal-dim: #7A3D0A;
-    --alert: #E2584A;
-    --dedup: #D9A441;
-    --info: #6C8EEF;
+    --bg: #12140F;
+    --panel: #1A1D16;
+    --panel-2: #212B1A;
+    --border: #2A3325;
+    --text: #ECEEE3;
+    --muted: #8A9481;
+    --faint: #57624F;
+    --signal: #E2724D;
+    --signal-dim: #3A2015;
+    --claim: #4E8B6B;
+    --alert: #D9463F;
+    --dedup: #D9B54B;
+    --info: #6E86A8;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -30,10 +40,10 @@
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: 'Manrope', sans-serif;
+    font-family: 'IBM Plex Sans', sans-serif;
     font-size: 14.5px;
   }
-  .display { font-family: 'Space Grotesk', sans-serif; }
+  .display { font-family: 'Archivo', sans-serif; }
   .wrap { max-width: 1140px; margin: 0 auto; padding: 0 28px 90px; }
 
   @media (prefers-reduced-motion: reduce) {
@@ -58,7 +68,7 @@
 
   /* ─── Auth screen ─── */
   #auth-screen { max-width: 380px; margin: 80px auto; }
-  #auth-screen h2 { font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 600; margin-bottom: 6px; }
+  #auth-screen h2 { font-family: 'Archivo', sans-serif; font-size: 21px; font-weight: 600; margin-bottom: 6px; }
   #auth-screen p.sub { color: var(--muted); font-size: 13px; margin: 0 0 28px; }
   .field { margin-bottom: 15px; }
   .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
@@ -68,8 +78,8 @@
   }
   .field input:focus { outline: none; border-color: var(--signal); }
   button.primary {
-    width: 100%; background: var(--signal); color: #2B1400; border: none; border-radius: 8px;
-    padding: 12px; font-size: 14px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; cursor: pointer; margin-top: 4px;
+    width: 100%; background: var(--signal); color: #2A140C; border: none; border-radius: 8px;
+    padding: 12px; font-size: 14px; font-weight: 700; font-family: 'Archivo', sans-serif; cursor: pointer; margin-top: 4px;
   }
   button.primary:hover { background: #FFB85C; }
   button.primary:disabled { opacity: 0.5; cursor: default; }
@@ -81,7 +91,7 @@
     padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px; display: none;
   }
   #forgot-message {
-    background: rgba(255,165,61,0.12); border: 1px solid var(--signal); color: #FFD08A;
+    background: rgba(226,114,77,0.12); border: 1px solid var(--signal); color: var(--dedup);
     padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px;
   }
   #forgot-screen, #reset-screen, #verify-notice-screen { max-width: 380px; margin: 80px auto; }
@@ -139,7 +149,7 @@
     padding: 8px 14px; font-size: 12.5px; font-family: inherit; border-radius: 20px; cursor: pointer;
   }
   .btn:hover { border-color: var(--faint); }
-  .btn.filled { background: var(--signal); color: #2B1400; border-color: var(--signal); font-weight: 700; }
+  .btn.filled { background: var(--signal); color: #2A140C; border-color: var(--signal); font-weight: 700; }
   .btn.filled:hover { background: #FFB85C; }
   .spacer { flex: 1; }
   .ranges { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 3px; }
@@ -152,7 +162,7 @@
 
   /* Reading-sentence stat line, not a card grid */
   .stat-sentence {
-    font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 500; line-height: 1.5;
+    font-family: 'Archivo', sans-serif; font-size: 20px; font-weight: 500; line-height: 1.5;
     margin-bottom: 26px; color: var(--text);
   }
   .stat-sentence .num { font-weight: 700; }
@@ -160,7 +170,7 @@
   .stat-sentence .num.signal { color: var(--signal); }
   .stat-sentence .num.dedup { color: var(--dedup); }
   .stat-sentence .num.alert { color: var(--alert); }
-  .stat-sentence .plain { color: var(--muted); font-size: 14px; font-family: 'Manrope', sans-serif; font-weight: 400; }
+  .stat-sentence .plain { color: var(--muted); font-size: 14px; font-family: 'IBM Plex Sans', sans-serif; font-weight: 400; }
 
   /* Charts */
   .charts-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-bottom: 14px; }
@@ -226,7 +236,7 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
     padding: 26px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto;
   }
-  .modal h3 { font-family: 'Space Grotesk', sans-serif; margin: 0 0 6px; font-size: 17px; }
+  .modal h3 { font-family: 'Archivo', sans-serif; margin: 0 0 6px; font-size: 17px; }
   .modal p.sub { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; }
   .modal select {
     width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
@@ -256,11 +266,11 @@
   .rule-summary-row .info .svc { font-size: 13.5px; font-weight: 600; }
   .rule-summary-row .info .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
   #vr-test-result { font-size: 12.5px; padding: 8px 10px; border-radius: 6px; margin-top: 8px; display: none; }
-  #vr-test-result.pass { background: rgba(0,224,168,0.12); color: var(--signal); display: block; }
+  #vr-test-result.pass { background: rgba(78,139,107,0.12); color: var(--signal); display: block; }
   #vr-test-result.fail { background: rgba(226,88,74,0.12); color: var(--alert); display: block; }
   .admin-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 4px; }
   .admin-stat { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; }
-  .admin-stat-n { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
+  .admin-stat-n { font-family: 'Archivo', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
   .admin-stat-l { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
   .admin-tabs { display: flex; gap: 6px; margin: 16px 0 14px; border-bottom: 1px solid var(--border); }
@@ -273,15 +283,15 @@
   .admin-tab:hover:not(.active) { color: var(--text); }
   .admin-tab-range {
     font-size: 10.5px; font-weight: 600; color: var(--muted); background: var(--panel-2);
-    border-radius: 5px; padding: 2px 6px; font-family: 'Space Grotesk', sans-serif;
+    border-radius: 5px; padding: 2px 6px; font-family: 'Archivo', sans-serif;
   }
   .admin-tab.active .admin-tab-range { color: var(--signal); }
 
   .badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-  .badge.verified { background: rgba(255,165,61,0.14); color: var(--signal); }
+  .badge.verified { background: rgba(226,114,77,0.14); color: var(--signal); }
   .badge.unverified { background: rgba(226,88,74,0.14); color: var(--alert); }
   .badge.admin-role { background: rgba(108,142,239,0.14); color: var(--info); }
-  .badge.role-developer { background: rgba(255,165,61,0.14); color: var(--signal); }
+  .badge.role-developer { background: rgba(226,114,77,0.14); color: var(--signal); }
   .badge.role-auditor { background: rgba(180,180,180,0.14); color: var(--muted); }
   .badge.pro { background: rgba(217,164,65,0.16); color: var(--dedup); }
   .sso-subhead { font-size: 12.5px; color: var(--muted); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -298,7 +308,7 @@
   .user-detail-row b { color: var(--text); }
   .cred-row.clickable { cursor: pointer; }
   .user-id-badge {
-    font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 700; color: var(--muted);
+    font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 700; color: var(--muted);
     background: var(--panel-2); border-radius: 6px; padding: 2px 7px; margin-right: 8px;
   }
 
@@ -311,7 +321,7 @@
   .endpoint-block .row { display: flex; gap: 8px; }
   .endpoint-block code {
     flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-    padding: 10px 12px; font-family: 'Space Grotesk', sans-serif; font-size: 12px; color: var(--text);
+    padding: 10px 12px; font-family: 'Archivo', sans-serif; font-size: 12px; color: var(--text);
     overflow-x: auto; white-space: pre-wrap; word-break: break-all;
   }
   .endpoint-block button.copy {
@@ -329,7 +339,7 @@
   }
   .cred-row:last-child { border-bottom: none; }
   .cred-row .info .svc { font-weight: 600; }
-  .cred-row .info .meta { color: var(--muted); font-family: 'Space Grotesk', sans-serif; margin-top: 2px; }
+  .cred-row .info .meta { color: var(--muted); font-family: 'Archivo', sans-serif; margin-top: 2px; }
   .cred-row button.revoke {
     background: none; border: 1px solid var(--border); color: var(--alert);
     border-radius: 8px; padding: 5px 11px; font-size: 11px; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s;
@@ -397,12 +407,16 @@
 </style>
 </head>
 <body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KMQ7H6W6"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 <div class="wrap">
   <header class="top">
     <div class="brand">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-        <circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFA53D" stroke-width="1.8"/>
-        <circle cx="15.3" cy="12" r="6" fill="#FFA53D"/>
+        <circle cx="8.5" cy="12" r="6" fill="none" stroke="#E2724D" stroke-width="1.8"/>
+        <circle cx="15.3" cy="12" r="6" fill="#E2724D"/>
       </svg>
       <div class="brand-text">
         <h1>AgentRaaS</h1>
@@ -412,7 +426,7 @@
     <div id="user-info">
       <a href="/guide" target="_blank" class="user-email-btn" style="text-decoration:none;">Guide</a>
       <span id="header-plan-badge" class="badge verified" style="display:none;margin-right:8px;"></span>
-      <button type="button" id="header-upgrade-btn" class="badge" style="display:none;margin-right:8px;background:rgba(0,224,168,0.14);color:var(--signal);cursor:pointer;border:none;font-family:inherit;">Upgrade to Agency</button>
+      <button type="button" id="header-upgrade-btn" class="badge" style="display:none;margin-right:8px;background:rgba(78,139,107,0.14);color:var(--signal);cursor:pointer;border:none;font-family:inherit;">Upgrade to Team</button>
       <button type="button" class="user-email-btn" id="account-btn"></button>
       <button id="logout-btn">Log out</button>
     </div>
@@ -488,11 +502,11 @@
       <div class="caption"><span class="pulse-dot"></span> Watching your agents live</div>
       <svg viewBox="0 0 800 46" preserveAspectRatio="none">
         <path d="M0,23 L20,23 L28,8 L36,38 L44,23 L60,23 L68,14 L76,32 L84,23 L110,23 L118,6 L126,40 L134,23 L160,23 L168,17 L176,29 L184,23 L400,23 L420,23 L428,8 L436,38 L444,23 L460,23 L468,14 L476,32 L484,23 L510,23 L518,6 L526,40 L534,23 L560,23 L568,17 L576,29 L584,23 L800,23"
-          fill="none" stroke="#FFA53D" stroke-width="1.4" opacity="0.55"/>
+          fill="none" stroke="#E2724D" stroke-width="1.4" opacity="0.55"/>
       </svg>
     </div>
 
-    <div id="welcome-banner" style="display:none;background:rgba(0,224,168,0.08);border:1px solid rgba(0,224,168,0.3);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div id="welcome-banner" style="display:none;background:rgba(78,139,107,0.08);border:1px solid rgba(78,139,107,0.3);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
       <div>
         <div style="font-weight:700;margin-bottom:3px;">Welcome — let's connect your first agent</div>
         <div style="color:var(--muted);font-size:13.5px;">Click "+ Connect agent" below to get your API key and webhook URL. Need a walkthrough? <a href="/guide" target="_blank" style="color:var(--signal);">Read the guide →</a></div>
@@ -907,6 +921,17 @@
   </div>
 </div>
 
+<!-- Run detail (every step logged under one run_id, in order) -->
+<div class="modal-overlay" id="run-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Run detail">
+    <h3>Run detail</h3>
+    <p class="sub" id="run-modal-sub"></p>
+    <div class="modal-error" id="run-modal-error" style="display:none;">Could not load this run.</div>
+    <div id="run-modal-list"></div>
+    <button class="close-btn" id="run-modal-close">Close</button>
+  </div>
+</div>
+
 <!-- Active monitoring (proactive, opt-in health checks) -->
 <div class="modal-overlay" id="hc-modal-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Active monitoring">
@@ -975,15 +1000,11 @@
     <h3 style="margin-top:8px;font-size:14px;">Plan</h3>
     <div id="billing-current-plan" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:12px;">Loading…</div>
     <div id="billing-error" class="modal-error"></div>
-    <div id="billing-pro-section" style="display:none;margin-bottom:12px;">
-      <p class="sub">Pro: $20/month — HITL approval rules, up to 3 seats.</p>
-      <button type="button" class="btn filled" id="billing-pro-btn" style="width:100%;justify-content:center;">Upgrade to Pro</button>
+    <div id="billing-pro-section" style="display:none;margin-bottom:24px;">
+      <p class="sub">Team: $49/month — HITL approval rules with SLA auto-escalation, up to 3 seats, 10,000 actions/month.</p>
+      <button type="button" class="btn filled" id="billing-pro-btn" style="width:100%;justify-content:center;">Upgrade to Team</button>
     </div>
-    <div id="billing-agency-section" style="display:none;margin-bottom:24px;">
-      <p class="sub">Agency: $100/month — up to 10 client tenants, white-label branding, 50,000 actions/month.</p>
-      <button type="button" class="btn filled" id="billing-agency-btn" style="width:100%;justify-content:center;">Upgrade to Agency</button>
-    </div>
-    <p class="sub" style="margin-bottom:24px;">Need HA clustering, SSO, or DLP? <a href="mailto:hello@agentraas.io">Contact sales about Enterprise</a>.</p>
+    <p class="sub" style="margin-bottom:24px;">Need client tenants, white-label branding, HA clustering, SSO, or DLP? <a href="mailto:hello@agentraas.io">Contact sales about Enterprise</a>.</p>
 
     <div id="license-section" style="display:none;margin-bottom:24px;">
       <h3 style="margin-top:8px;font-size:14px;">Your license</h3>
@@ -994,7 +1015,7 @@
 
     <div id="branding-section" style="display:none;margin-bottom:24px;">
       <h3 style="margin-top:8px;font-size:14px;">White-label branding</h3>
-      <p class="sub">Shown to client tenants viewing a branded org. Agency plan only.</p>
+      <p class="sub">Shown to client tenants viewing a branded org. Enterprise plan only.</p>
       <input type="text" id="branding-org-input" placeholder="Org ID" style="width:100%;margin-bottom:8px;">
       <input type="text" id="branding-name-input" placeholder="Display name" style="width:100%;margin-bottom:8px;">
       <input type="text" id="branding-logo-input" placeholder="Logo URL" style="width:100%;margin-bottom:8px;">
@@ -1018,7 +1039,7 @@
 
     <h3 style="font-size:14px;">Change password</h3>
     <div class="modal-error" id="account-error"></div>
-    <div class="modal-error" id="account-success" style="background:rgba(255,165,61,0.12);border-color:var(--signal);color:#FFD08A;"></div>
+    <div class="modal-error" id="account-success" style="background:rgba(226,114,77,0.12);border-color:var(--signal);color:var(--dedup);"></div>
     <form id="account-form">
       <div class="field"><label for="current-password">Current password</label><input type="password" id="current-password" autocomplete="current-password" required></div>
       <div class="field"><label for="new-password">New password</label><input type="password" id="new-password" autocomplete="new-password" required minlength="8"></div>
@@ -1099,9 +1120,9 @@
   let anyModalOpen = false;
   let activityLimit = 50;
   let activityRows = [];
-  const MUTED = '#7C8AA3';
-  const GRID = '#212A3D';
-  const CHART_FONT = { family: "'Space Grotesk', sans-serif", size: 11 };
+  const MUTED = '#8A9481';
+  const GRID = '#2A3325';
+  const CHART_FONT = { family: "'Archivo', sans-serif", size: 11 };
 
   function setMode(next) {
     mode = next; authError.style.display = 'none';
@@ -1140,6 +1161,8 @@
         authError.textContent = data.error || 'Something went wrong.'; authError.style.display = 'block'; return;
       }
       if (mode === 'register') {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({ event: 'sign_up' });
         authScreen.style.display = 'none';
         document.getElementById('verify-notice-screen').style.display = 'block';
         const devBox = document.getElementById('verify-notice-dev');
@@ -1245,21 +1268,23 @@
     const planBadgeEl = document.getElementById('header-plan-badge');
     const upgradeBtnEl = document.getElementById('header-upgrade-btn');
     planBadgeEl.classList.remove('pro');
-    if (user.plan === 'agency') {
-      planBadgeEl.textContent = 'Agency';
+    // "pro"/"agency" are kept as aliases (see Tier::from_plan_str) for any
+    // self-hosted instance that set users.plan by hand before the tier
+    // rename — Pro collapsed into Team, Agency folded up into Enterprise.
+    const planTier = user.plan === 'agency' ? 'enterprise' : user.plan === 'pro' ? 'team' : user.plan;
+    if (planTier === 'enterprise') {
+      planBadgeEl.textContent = 'Enterprise';
       planBadgeEl.style.display = 'inline-flex';
       upgradeBtnEl.style.display = 'none';
-    } else if (user.plan === 'pro') {
-      planBadgeEl.textContent = 'Pro';
+    } else if (planTier === 'team') {
+      planBadgeEl.textContent = 'Team';
       planBadgeEl.classList.add('pro');
       planBadgeEl.style.display = 'inline-flex';
-      upgradeBtnEl.textContent = 'Upgrade to Agency';
-      upgradeBtnEl.dataset.targetPlan = 'agency';
-      upgradeBtnEl.style.display = 'inline-flex';
+      upgradeBtnEl.style.display = 'none';
     } else {
       planBadgeEl.style.display = 'none';
-      upgradeBtnEl.textContent = 'Upgrade to Pro';
-      upgradeBtnEl.dataset.targetPlan = 'pro';
+      upgradeBtnEl.textContent = 'Upgrade to Team';
+      upgradeBtnEl.dataset.targetPlan = 'team';
       upgradeBtnEl.style.display = 'inline-flex';
     }
     hasEverAuthenticated = true;
@@ -1341,9 +1366,9 @@
         banner.className = data.enforced ? 'cloud' : 'exempt';
         banner.style.display = 'flex';
         if (data.enforced) {
-          banner.innerHTML = `<span>You've reached your ${data.limit.toLocaleString()}/month limit — new actions are being blocked until next month.</span><a href="mailto:hello@agentraas.io">Upgrade</a>`;
+          banner.innerHTML = `<span>You've reached your ${data.limit.toLocaleString()}/month limit — new actions are being blocked until next month.</span><button type="button" class="btn filled" onclick="startCheckout('team', this, null)">Upgrade</button>`;
         } else {
-          banner.innerHTML = `<span>You've passed the free tier's ${data.limit.toLocaleString()}/month limit. Upgrade to Agency, or self-host for free with no limit.</span><a href="mailto:hello@agentraas.io">Contact us</a>`;
+          banner.innerHTML = `<span>You've passed the free tier's ${data.limit.toLocaleString()}/month limit. Upgrade to Team, or self-host for free with no limit.</span><button type="button" class="btn filled" onclick="startCheckout('team', this, null)">Upgrade to Team</button>`;
         }
       }
 
@@ -1411,7 +1436,7 @@
       const data = {
         labels: ['Success', 'Deduplicated', 'Blocked', 'Errors'],
         datasets: [{ data: [Number(s.success)||0, Number(s.deduplicated)||0, Number(s.blocked)||0, Number(s.errors)||0],
-          backgroundColor: ['#FFA53D', '#D9A441', '#E2584A', '#8B3A32'], borderColor: '#131928', borderWidth: 2 }],
+          backgroundColor: ['#4E8B6B', '#D9B54B', '#D9463F', '#6B3226'], borderColor: '#1A1D16', borderWidth: 2 }],
       };
       const ctx = document.getElementById('status-chart');
       if (statusChart) { statusChart.data = data; statusChart.update(); }
@@ -1426,7 +1451,7 @@
       const s = await res.json();
       const labels = s.points.map(p => { const d = new Date(p.bucket); return s.bucket === 'hour' ? d.toLocaleTimeString([], { hour: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' }); });
       const values = s.points.map(p => Number(p.total));
-      const data = { labels, datasets: [{ data: values, backgroundColor: '#FFA53D', borderRadius: 3, barPercentage: 0.5, categoryPercentage: 0.9 }] };
+      const data = { labels, datasets: [{ data: values, backgroundColor: '#E2724D', borderRadius: 3, barPercentage: 0.5, categoryPercentage: 0.9 }] };
       const ctx = document.getElementById('volume-chart');
       if (volumeChart) { volumeChart.data = data; volumeChart.update(); }
       else volumeChart = new Chart(ctx, { type: 'bar', data, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: MUTED, font: CHART_FONT }, grid: { display: false } }, y: { ticks: { color: MUTED, font: CHART_FONT, precision: 0 }, grid: { color: GRID } } } } });
@@ -1440,7 +1465,7 @@
       const s = await res.json();
       const labels = s.services.map(r => r.service);
       const values = s.services.map(r => Number(r.total));
-      const data = { labels, datasets: [{ data: values, backgroundColor: '#6C8EEF', borderRadius: 3, maxBarThickness: 20 }] };
+      const data = { labels, datasets: [{ data: values, backgroundColor: '#6E86A8', borderRadius: 3, maxBarThickness: 20 }] };
       const ctx = document.getElementById('service-chart');
       if (serviceChart) { serviceChart.data = data; serviceChart.update(); }
       else serviceChart = new Chart(ctx, { type: 'bar', data, options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: MUTED, font: CHART_FONT, precision: 0 }, grid: { color: GRID } }, y: { ticks: { color: MUTED, font: CHART_FONT }, grid: { display: false } } } } });
@@ -1512,6 +1537,7 @@
       // shown when present rather than reserving space for it always.
       const runBadge = row.run_id
         ? ` <span class="run-badge" title="Click to filter this activity list to just this run" data-run-id="${escapeHtml(row.run_id)}" style="cursor:pointer;color:var(--muted);font-size:11px;">🔗 ${escapeHtml(row.step_id || row.run_id)}</span>`
+          + ` <a href="#" class="see-run" title="Load the complete, unfiltered step list for this run" data-run-id="${escapeHtml(row.run_id)}" style="font-size:11px;">see full run</a>`
         : '';
       div.innerHTML = `
         <span class="time">${timeOnly(row.created_at)}</span>
@@ -1524,6 +1550,10 @@
           document.getElementById('activity-search').value = badgeEl.dataset.runId;
           renderActivity();
         });
+      }
+      const seeRunEl = div.querySelector('.see-run');
+      if (seeRunEl) {
+        seeRunEl.addEventListener('click', (e) => { e.preventDefault(); openRunModal(seeRunEl.dataset.runId); });
       }
       body.appendChild(div);
     }
@@ -1648,6 +1678,8 @@
       const res = await fetch('/api/v1/agents/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ org_id, agent_id, label: label || undefined }) });
       const data = await res.json();
       if (!res.ok) { connectError.textContent = data.error || 'Could not generate a connection.'; connectError.style.display = 'block'; return; }
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: 'agent_connected' });
       document.getElementById('result-key').textContent = data.api_key;
       document.getElementById('result-webhook').textContent = data.webhook_url;
       document.getElementById('result-mcp').textContent = data.mcp_url;
@@ -2525,10 +2557,43 @@
         const uptimeColor = svc.uptime_pct >= 99.9 ? 'var(--signal)' : svc.uptime_pct >= 99 ? '#E2B24A' : 'var(--alert)';
         const div = document.createElement('div');
         div.className = 'cred-row';
-        div.innerHTML = `<div class="info"><div class="svc">${svc.service.charAt(0).toUpperCase() + svc.service.slice(1)}</div><div class="meta">${svc.total_actions} action${svc.total_actions === 1 ? '' : 's'}${svc.success_rate !== null ? ` · ${svc.success_rate}% success` : ''}${svc.duplicates_prevented > 0 ? ` · ${svc.duplicates_prevented} duplicate${svc.duplicates_prevented === 1 ? '' : 's'} prevented` : ''}</div></div><div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:${uptimeColor};">${svc.uptime_pct}% uptime</div>`;
+        div.innerHTML = `<div class="info"><div class="svc">${svc.service.charAt(0).toUpperCase() + svc.service.slice(1)}</div><div class="meta">${svc.total_actions} action${svc.total_actions === 1 ? '' : 's'}${svc.success_rate !== null ? ` · ${svc.success_rate}% success` : ''}${svc.duplicates_prevented > 0 ? ` · ${svc.duplicates_prevented} duplicate${svc.duplicates_prevented === 1 ? '' : 's'} prevented` : ''}</div></div><div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:15px;color:${uptimeColor};">${svc.uptime_pct}% uptime</div>`;
         list.appendChild(div);
       }
     } catch (err) {}
+  }
+
+  // ─── Run detail (fetches the complete step list for one run_id — the
+  // activity badge above only filters whatever's already loaded into the
+  // top-N recent-activity window, which can miss earlier steps of a run
+  // once enough unrelated org-wide traffic pushes them out; this hits
+  // /api/v1/dashboard/runs/:run_id directly, so it's always complete) ───
+  const runModalOverlay = document.getElementById('run-modal-overlay');
+  document.getElementById('run-modal-close').addEventListener('click', () => { runModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  runModalOverlay.addEventListener('click', (e) => { if (e.target === runModalOverlay) { runModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  async function openRunModal(runId) {
+    document.getElementById('run-modal-sub').textContent = `run_id: ${runId}`;
+    document.getElementById('run-modal-error').style.display = 'none';
+    document.getElementById('run-modal-list').innerHTML = '';
+    runModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    try {
+      const res = await fetch(`/api/v1/dashboard/runs/${encodeURIComponent(runId)}`, { credentials: 'include' });
+      if (res.status === 401) return handleUnauthenticated();
+      if (!res.ok) { document.getElementById('run-modal-error').style.display = 'block'; return; }
+      const data = await res.json();
+      const list = document.getElementById('run-modal-list');
+      for (const step of data.steps) {
+        const div = document.createElement('div');
+        div.className = `log-row ${step.status}`;
+        div.innerHTML = `
+          <span class="time">${timeOnly(step.created_at)}</span>
+          <span class="desc">${escapeHtml(step.service)}.${escapeHtml(step.action)}${step.step_id ? ` <span class="agent">— ${escapeHtml(step.step_id)}</span>` : ''}${step.error_type ? ` <span class="agent">(${escapeHtml(step.error_type)})</span>` : ''}</span>
+          <span class="dur">${formatDuration(step.duration_ms)}</span>
+          <span class="status-word">${step.status}</span>`;
+        list.appendChild(div);
+      }
+    } catch (err) { document.getElementById('run-modal-error').style.display = 'block'; }
   }
 
   // ─── Active monitoring (proactive, opt-in health checks) ───
@@ -2630,7 +2695,7 @@
   }
 
   // Seat usage is member + pending-invite count against the org's tier
-  // limit (Community=1, Pro=3, Agency=10, Enterprise=unlimited) — mirrors
+  // limit (Community=1, Team=3, Enterprise=unlimited) — mirrors
   // agentraas_core::tier::Tier::seat_limit, the same limit require_tier
   // enforces server-side on invite creation.
   async function updateSeatUsage() {
@@ -2859,22 +2924,25 @@
 
   // ─── Billing / plan upgrade ───
   // Mirrors agentraas_core::tier::Tier::seat_limit — null means unlimited.
-  const SEAT_LIMITS = { free: 1, pro: 3, agency: 10, enterprise: null };
-  const PLAN_LABELS = { free: 'Free', pro: 'Pro', agency: 'Agency', enterprise: 'Enterprise' };
+  // "pro"/"agency" kept as aliases for a self-hosted instance whose
+  // users.plan was set by hand before the tier rename (Pro -> Team,
+  // Agency folded into Enterprise) — same aliasing Tier::from_plan_str
+  // does server-side.
+  const SEAT_LIMITS = { free: 1, team: 3, pro: 3, enterprise: null, agency: null };
+  const PLAN_LABELS = { free: 'Free', team: 'Team', pro: 'Team', enterprise: 'Enterprise', agency: 'Enterprise' };
 
   async function loadBillingPlanState() {
     const planEl = document.getElementById('billing-current-plan');
     const proSection = document.getElementById('billing-pro-section');
-    const agencySection = document.getElementById('billing-agency-section');
     const brandingSection = document.getElementById('branding-section');
     try {
       const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
       const data = await res.json();
       const plan = data.user?.plan || 'free';
+      const isEnterprise = plan === 'enterprise' || plan === 'agency';
       planEl.textContent = `You are on the ${escapeHtml(PLAN_LABELS[plan] || 'Free')} plan.`;
-      proSection.style.display = plan === 'free' ? 'block' : 'none';
-      agencySection.style.display = (plan === 'free' || plan === 'pro') ? 'block' : 'none';
-      brandingSection.style.display = plan === 'agency' ? 'block' : 'none';
+      proSection.style.display = (plan === 'free') ? 'block' : 'none';
+      brandingSection.style.display = isEnterprise ? 'block' : 'none';
     } catch (err) {
       planEl.textContent = 'Could not load plan status.';
     }
@@ -2923,11 +2991,11 @@
   }
 
   // Shared checkout trigger - used by the header's quick-access button and
-  // the Account modal's Pro/Agency buttons, so the logic lives in one place.
-  // Pro and Agency are the self-serve paid plans (Enterprise is
-  // sales-assisted). errorBox is optional: pass an element to show errors
-  // inline, or omit to fall back to alert() (used by the header button,
-  // which has no nearby space for an inline error message).
+  // the Account modal's Team button, so the logic lives in one place. Team
+  // is the only self-serve paid plan (Enterprise is sales-assisted).
+  // errorBox is optional: pass an element to show errors inline, or omit
+  // to fall back to alert() (used by the header button, which has no
+  // nearby space for an inline error message).
   async function startCheckout(plan, btn, errorBox) {
     if (errorBox) errorBox.style.display = 'none';
     btn.disabled = true;
@@ -2957,15 +3025,11 @@
   }
 
   document.getElementById('billing-pro-btn').addEventListener('click', () => {
-    startCheckout('pro', document.getElementById('billing-pro-btn'), document.getElementById('billing-error'));
-  });
-
-  document.getElementById('billing-agency-btn').addEventListener('click', () => {
-    startCheckout('agency', document.getElementById('billing-agency-btn'), document.getElementById('billing-error'));
+    startCheckout('team', document.getElementById('billing-pro-btn'), document.getElementById('billing-error'));
   });
 
   document.getElementById('header-upgrade-btn').addEventListener('click', (e) => {
-    startCheckout(e.currentTarget.dataset.targetPlan || 'agency', document.getElementById('header-upgrade-btn'), null);
+    startCheckout(e.currentTarget.dataset.targetPlan || 'team', document.getElementById('header-upgrade-btn'), null);
   });
 
   document.getElementById('branding-save-btn').addEventListener('click', async () => {
@@ -3079,8 +3143,8 @@
       const lastLogin = u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : 'never';
       const orgsLabel = u.org_count === 0 ? 'no orgs yet' : `${u.org_count} org${u.org_count === 1 ? '' : 's'}`;
       const adminBadge = u.is_admin ? '<span class="badge admin-role">Admin</span>' : '';
-      const planBadge = u.plan === 'agency' ? '<span class="badge role-developer">Agency</span>'
-        : u.plan === 'pro' ? '<span class="badge pro">Pro</span>' : '';
+      const planBadge = (u.plan === 'enterprise' || u.plan === 'agency') ? '<span class="badge role-developer">Enterprise</span>'
+        : (u.plan === 'team' || u.plan === 'pro') ? '<span class="badge pro">Team</span>' : '';
       row.innerHTML = `
         <div class="info">
           <div class="svc"><span class="user-id-badge">#${u.id}</span>${escapeHtml(u.email)} ${adminBadge} ${planBadge}</div>

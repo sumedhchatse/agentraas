@@ -163,7 +163,7 @@ async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Va
 
     let fetches = rows.into_iter().map(|row| async move {
         let cache_key = format!("mcp_tools_cache:{org_id}:{}", row.name);
-        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+        if let Ok(mut conn) = state.redis_conn_result() {
             let cached: Option<String> = redis::cmd("GET").arg(&cache_key).query_async(&mut conn).await.ok().flatten();
             if let Some(cached) = cached {
                 if let Ok(tools) = serde_json::from_str::<Vec<Value>>(&cached) {
@@ -174,7 +174,7 @@ async fn fetch_registered_mcp_tools(state: &SharedState, org_id: &str) -> Vec<Va
 
         let tools = probe_mcp_server_tools(state, org_id, &row.name, &row.target_url, &row.auth_type, row.auth_header_name.as_deref()).await;
 
-        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+        if let Ok(mut conn) = state.redis_conn_result() {
             if let Ok(serialized) = serde_json::to_string(&tools) {
                 let _: Result<(), _> = redis::cmd("SET").arg(&cache_key).arg(serialized).arg("EX").arg(MCP_TOOLS_CACHE_TTL_SECONDS).query_async(&mut conn).await;
             }
@@ -305,7 +305,7 @@ async fn handle_mcp(
         // an agent can check before calling instead of burning a turn on a
         // call it could've known would fail. Best-effort: a Redis hiccup
         // here just means every tool goes out unlabeled, not a broken list.
-        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+        if let Ok(mut conn) = state.redis_conn_result() {
             let unique_keys: Vec<String> = circuit_keys_by_index.iter().cloned().collect::<std::collections::HashSet<_>>().into_iter().collect();
             if let Ok((states_map, _)) = circuit_breaker::get_circuit_states_batch(&mut conn, &unique_keys).await {
                 for (tool, key) in tools.iter_mut().zip(circuit_keys_by_index.iter()) {
@@ -419,7 +419,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     let Ok(effective_limit) = get_effective_rate_limit(state, &org_id).await else {
         return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
     };
-    let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await else {
+    let Ok(mut conn) = state.redis_conn_result() else {
         return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
     };
     let bucket_key = format!("ratelimit:agent:{rate_limit_identity}");
@@ -598,7 +598,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     };
     match forward_result {
         Ok(mut result) => {
-            if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
+            if let Ok(mut c2) = state.redis_conn_result() {
                 if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
                     log_circuit_transition(state, t).await;
                 }
@@ -623,7 +623,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         Err(err) => {
             let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
             if !err.circuit_already_recorded {
-                if let Ok(mut c2) = state.redis.get_multiplexed_async_connection().await {
+                if let Ok(mut c2) = state.redis_conn_result() {
                     if let Ok(Some(t)) = circuit_breaker::record_failure(&mut c2, &circuit_key).await {
                         log_circuit_transition(state, t).await;
                     }

@@ -103,8 +103,8 @@ const LOGIN_ATTEMPT_WINDOW_SECONDS: i64 = 15 * 60;
 const REGISTER_ATTEMPT_LIMIT: i64 = 40;
 const REGISTER_ATTEMPT_WINDOW_SECONDS: i64 = 60 * 60;
 
-pub async fn check_register_rate_limit(redis: &redis::Client, ip: &str) -> Result<bool, ApiError> {
-    let mut conn = redis.get_multiplexed_async_connection().await?;
+pub async fn check_register_rate_limit(redis: &redis::aio::MultiplexedConnection, ip: &str) -> Result<bool, ApiError> {
+    let mut conn = redis.clone();
     let key = format!("registerlimit:{ip}");
     let attempts: i64 = redis::cmd("INCR").arg(&key).query_async(&mut conn).await?;
     if attempts == 1 {
@@ -121,11 +121,11 @@ pub async fn check_register_rate_limit(redis: &redis::Client, ip: &str) -> Resul
 /// a deliberate compatibility choice (see auth.js's own comment on the
 /// narrow race), not an oversight.
 pub async fn check_login_rate_limit(
-    redis: &redis::Client,
+    redis: &redis::aio::MultiplexedConnection,
     ip: &str,
     email: &str,
 ) -> Result<bool, ApiError> {
-    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let mut conn = redis.clone();
     let key = format!("loginlimit:{ip}:{email}");
     let attempts: i64 = redis::cmd("INCR").arg(&key).query_async(&mut conn).await?;
     if attempts == 1 {
@@ -139,11 +139,11 @@ pub async fn check_login_rate_limit(
 }
 
 pub async fn clear_login_rate_limit(
-    redis: &redis::Client,
+    redis: &redis::aio::MultiplexedConnection,
     ip: &str,
     email: &str,
 ) -> Result<(), ApiError> {
-    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let mut conn = redis.clone();
     let key = format!("loginlimit:{ip}:{email}");
     let _: () = redis::cmd("DEL").arg(&key).query_async(&mut conn).await?;
     Ok(())
@@ -264,7 +264,7 @@ where
 /// `requireAuthRateLimited`-equivalent handler does:
 /// `let user = AuthUser::from...; check_dashboard_rate_limit(&state, user.sub).await?;`
 pub async fn check_dashboard_rate_limit(state: &SharedState, user_id: i32) -> Result<(), ApiError> {
-    let mut conn = state.redis.get_multiplexed_async_connection().await?;
+    let mut conn = state.redis_conn_result()?;
     let window = chrono::Utc::now().timestamp() / 60;
     let key = format!("ratelimit:dashboard:{user_id}:{window}");
     let count: i64 = redis::cmd("INCR").arg(&key).query_async(&mut conn).await?;
