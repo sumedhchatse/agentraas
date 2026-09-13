@@ -4,18 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AgentRaaS vs Temporal — Comparison</title>
-<meta name="description" content="How AgentRaaS's drop-in exactly-once execution layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
+<meta name="description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="/vs-temporal">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="AgentRaaS">
 <meta property="og:title" content="AgentRaaS vs Temporal — Comparison">
-<meta property="og:description" content="How AgentRaaS's drop-in exactly-once execution layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
+<meta property="og:description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
 <meta property="og:url" content="/vs-temporal">
 <meta property="og:image" content="/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="AgentRaaS vs Temporal — Comparison">
-<meta name="twitter:description" content="How AgentRaaS's drop-in exactly-once execution layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
+<meta name="twitter:description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23E2724D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232A140C' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232A140C'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -447,7 +447,7 @@
           <tr><td class="dim">Idempotency</td><td>Built in — SHA-256 payload hash or client idempotency key, automatic</td><td>You design it yourself, per activity</td></tr>
           <tr><td class="dim">Self-hosted cost</td><td>Free forever, unlimited, MIT/Apache-2.0 core</td><td>Free (OSS), but you run and operate the cluster yourself</td></tr>
           <tr><td class="dim">Cloud entry price</td><td>$49/month (Team)</td><td>Consumption-based (Actions), enterprise-weighted pricing tiers</td></tr>
-          <tr><td class="dim">Scope</td><td>Per-call reliability — exactly-once execution for a single tool/API call</td><td>Arbitrary-duration, stateful, multi-step workflow orchestration (hours to months)</td></tr>
+          <tr><td class="dim">Scope</td><td>Per-call reliability — dedup, circuit breaking, and budget/loop limits for a single tool/API call</td><td>Arbitrary-duration, stateful, multi-step workflow orchestration (hours to months)</td></tr>
         </tbody>
       </table>
     </div>
