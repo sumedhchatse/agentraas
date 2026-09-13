@@ -95,6 +95,31 @@ account (separate, lives on your own server).
 
 ---
 
+## Upgrading a self-hosted instance
+
+How you update depends on how you got the source:
+
+**Cloned from GitHub** (`git clone https://github.com/sumedhchatse/agentraas`):
+```bash
+git pull
+podman-compose build ar-api-rs
+podman-compose up -d --force-recreate ar-api-rs
+for f in infra/migrations/*.sql; do
+  podman exec -i ar-postgres psql -U agentraas -d agentraas -v ON_ERROR_STOP=1 < "$f"
+done
+```
+Every migration file is safe to re-run — already-applied ones just no-op.
+Your `.env`, `data/`, and any local edits you made outside the repo's own
+files are untouched by `git pull`.
+
+**Downloaded the `.zip` from the dashboard's Self-host panel:** there's no
+git remote in that download, so there's currently no in-place upgrade
+path — re-downloading a fresh zip and manually copying your `.env` (and
+any of your own edits) into it is the only option today. If you expect to
+keep upgrading, cloning from GitHub instead is the better starting point.
+
+---
+
 ## Where do I find these values again later?
 
 - **API key** — nowhere. It's shown once, by design (AgentRaaS never
