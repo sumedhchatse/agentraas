@@ -14,29 +14,33 @@ command -v openssl >/dev/null 2>&1 || { echo "✗ openssl is required."; exit 1;
 echo "✓ Prerequisites found"
 
 # ─── 2. Generate secrets (only if not already configured) ───
-ENV_FILE="src/api-gateway/.env"
+# Everything below is read by compose.yaml's `env_file: - .env` — every
+# service reads this one file, so the secrets never appear in a
+# podman-compose command-echo the way `-e KEY=value` mappings would.
+# POSTGRES_PASSWORD and MINIO_ROOT_* are required by ar-postgres/ar-minio
+# themselves; DATABASE_URL is required by ar-api-rs (sqlx reads it
+# directly and fails fast if it's missing).
+ENV_FILE=".env"
 if [ ! -f "$ENV_FILE" ]; then
   echo "→ Generating secrets..."
   JWT_SECRET=$(openssl rand -base64 48)
   CRED_KEY=$(openssl rand -base64 32)
   PG_PASSWORD=$(openssl rand -hex 24)
+  MINIO_PASSWORD=$(openssl rand -hex 24)
 
   cat > "$ENV_FILE" << ENVEOF
-NODE_ENV=development
-PORT=3000
-REDIS_URL=redis://ar-redis:6379
+POSTGRES_PASSWORD=${PG_PASSWORD}
 DATABASE_URL=postgres://agentraas:${PG_PASSWORD}@ar-postgres:5432/agentraas
+REDIS_URL=redis://ar-redis:6379
 JWT_SECRET=${JWT_SECRET}
 CREDENTIALS_ENCRYPTION_KEY=${CRED_KEY}
-PUBLIC_URL=http://localhost:13000
+MINIO_ROOT_USER=agentraas
+MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
+PUBLIC_URL=http://localhost:13001
 DEPLOYMENT_MODE=self-hosted
 SELF_HOST_MONTHLY_LIMIT=100000
 ENVEOF
-
-  # Keep compose.yaml's Postgres password in sync with the one just generated.
-  sed -i.bak "s/POSTGRES_PASSWORD: .*/POSTGRES_PASSWORD: ${PG_PASSWORD}/" compose.yaml
-  sed -i.bak "s#postgres://agentraas:[^@]*@#postgres://agentraas:${PG_PASSWORD}@#g" compose.yaml
-  rm -f compose.yaml.bak
+  chmod 600 "$ENV_FILE"
 
   echo "✓ Secrets generated (saved to $ENV_FILE — back this up, it won't be shown again)"
 else
@@ -51,11 +55,18 @@ if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != "Disabled" ]; t
   echo "✓ SELinux context set"
 fi
 
-# ─── 4. Start the stack ───
+# ─── 4. Build the API image ───
+# A from-source release build (Rust, not a quick npm install) — first run
+# genuinely takes a few minutes, not a hang. Build explicitly (rather than
+# letting it happen silently inside `up -d`) so that wait is visible.
+echo "→ Building the API image (first run compiles from source — a few minutes, not a hang)..."
+podman-compose build ar-api-rs
+
+# ─── 5. Start the stack ───
 echo "→ Starting containers..."
 podman-compose up -d > /dev/null 2>&1
 
-# ─── 4b. Fix Redis data directory ownership ───
+# ─── 5b. Fix Redis data directory ownership ───
 # Rootless Podman's UID namespace mapping doesn't always land where Redis's
 # own process expects on a freshly created volume — this shows up as
 # "MISCONF Errors writing to the AOF file: Permission denied" on the very
@@ -65,7 +76,7 @@ podman unshare chown -R 999:999 "$(pwd)/data/redis" 2>/dev/null || true
 podman restart ar-redis > /dev/null 2>&1 || true
 sleep 2
 
-# ─── 4c. Fix Postgres data directory ownership ───
+# ─── 5c. Fix Postgres data directory ownership ───
 # Same rootless Podman UID-mapping issue as Redis above, just showing up as
 # a different symptom: "could not open file global/pg_filenode.map:
 # Permission denied" the first time Postgres tries to read its own data
@@ -75,7 +86,7 @@ podman unshare chown -R 999:999 "$(pwd)/data/postgres" 2>/dev/null || true
 podman restart ar-postgres > /dev/null 2>&1 || true
 sleep 2
 
-# ─── 5. Wait for Postgres to actually be ready before migrating ───
+# ─── 6. Wait for Postgres to actually be ready before migrating ───
 echo "→ Waiting for the database..."
 for i in $(seq 1 30); do
   if podman exec ar-postgres pg_isready -U agentraas > /dev/null 2>&1; then
@@ -84,27 +95,14 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-# ─── 6. Run every migration, in order ───
+# ─── 7. Run every migration, in order ───
 echo "→ Running database migrations..."
 for f in infra/migrations/*.sql; do
   podman exec -i ar-postgres psql -U agentraas -d agentraas < "$f" > /dev/null
 done
 echo "✓ Migrations complete"
 
-# ─── 7. Install Node dependencies INSIDE the container ───
-# Must happen inside the container, not on the host — native modules need to
-# build for the container's actual OS, not your host's (this bit us hard
-# during development: a bcrypt binary built on the host silently crashed
-# every login once run inside an Alpine container).
-echo "→ Installing dependencies (inside the container)..."
-podman exec ar-api npm install > /dev/null 2>&1 || {
-  echo "⚠ Initial install failed — retrying after a moment (container may still be starting)..."
-  sleep 5
-  podman exec ar-api npm install > /dev/null
-}
-echo "✓ Dependencies installed"
-
-# ─── 8. Recreate cleanly so everything (SELinux labels, fresh install) applies ───
+# ─── 8. Recreate cleanly so SELinux labels/fresh env apply ───
 echo "→ Finalizing..."
 podman-compose down > /dev/null 2>&1
 podman-compose up -d > /dev/null 2>&1
@@ -112,8 +110,8 @@ sleep 3
 
 echo ""
 echo "✅ AgentRaaS is running."
-echo "   Dashboard: http://localhost:13000/dashboard"
+echo "   Dashboard: http://localhost:13001/dashboard"
 echo "   Register an account there to get started."
 echo ""
 echo "   Run the test suite any time with:"
-echo "     podman exec -it ar-api npm test"
+echo "     cd src/api-gateway-rs && npm install && TEST_BASE_URL=http://localhost:13001 npm test"

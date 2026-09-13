@@ -74,7 +74,7 @@ async fn webhook_audit_tool(
     if url.is_empty() || url.chars().count() > 2000 {
         return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "A webhook URL is required."));
     }
-    let under_limit = check_login_rate_limit(&state.redis, &addr.ip().to_string(), "webhook-audit").await?;
+    let under_limit = check_login_rate_limit(&state.redis_conn, &addr.ip().to_string(), "webhook-audit").await?;
     if !under_limit {
         return Err(ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Too many audits from this IP. Try again in 15 minutes."));
     }
@@ -308,11 +308,15 @@ async fn demo_reset(State(state): State<SharedState>, user: AuthUser) -> Result<
     })))
 }
 
-// ─── Paddle billing (agency-tier self-serve upgrade) ───
+// ─── Paddle billing (Team-tier self-serve upgrade) ───
 // NOTE (same caveat as the Node original): exact field names/scheme
 // below have not been verified against a live Paddle sandbox — this
 // deployment has no PADDLE_* env vars configured, so both routes 503
 // "not configured" here, same as Node's own fallback when unconfigured.
+// Enterprise is contact-sales only (custom pricing) — there's no
+// self-serve checkout for it, so "team" is the only plan this endpoint
+// supports; an org's `plan` column is set to "enterprise" by hand once a
+// contract is signed, same as before the tier rename.
 
 #[derive(Deserialize)]
 struct CheckoutQuery {
@@ -321,14 +325,10 @@ struct CheckoutQuery {
 
 async fn billing_checkout_info(State(state): State<SharedState>, user: AuthUser, Query(q): Query<CheckoutQuery>) -> Result<Json<Value>, ApiError> {
     check_dashboard_rate_limit(&state, user.sub).await?;
-    // Defaults to "agency" — the only paid plan this endpoint supported
-    // before Pro existed, so an old frontend build calling this with no
-    // ?plan= param keeps working exactly as it does today.
-    let target_plan = q.plan.unwrap_or_else(|| "agency".to_string());
+    let target_plan = q.plan.unwrap_or_else(|| "team".to_string());
     let price_id_env = match target_plan.as_str() {
-        "pro" => "PADDLE_PRO_PRICE_ID",
-        "agency" => "PADDLE_AGENCY_PRICE_ID",
-        other => return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, format!("plan must be \"pro\" or \"agency\", got \"{other}\"."))),
+        "team" => "PADDLE_TEAM_PRICE_ID",
+        other => return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, format!("plan must be \"team\", got \"{other}\"."))),
     };
     let client_token = configured_env("PADDLE_CLIENT_TOKEN");
     let price_id = configured_env(price_id_env);
@@ -403,7 +403,7 @@ async fn paddle_webhook(State(state): State<SharedState>, headers: HeaderMap, ra
 
     let custom_data = sub.get("customData").or_else(|| sub.get("custom_data"));
     let user_id = custom_data.and_then(|c| c.get("user_id")).and_then(Value::as_i64);
-    let target_plan = custom_data.and_then(|c| c.get("plan")).and_then(Value::as_str).unwrap_or("agency").to_string();
+    let target_plan = custom_data.and_then(|c| c.get("plan")).and_then(Value::as_str).unwrap_or("team").to_string();
 
     if ["subscription.created", "subscription.activated", "subscription.updated"].contains(&event_type.as_str()) {
         if let Some(user_id) = user_id {
@@ -448,7 +448,7 @@ async fn paddle_webhook(State(state): State<SharedState>, headers: HeaderMap, ra
     Ok(Json(json!({ "received": true })))
 }
 
-// ─── Org branding (Agency-tier white-label) ───
+// ─── Org branding (Enterprise-tier white-label) ───
 
 async fn get_org_branding(State(state): State<SharedState>, Path(org_id): Path<String>) -> Result<Json<Value>, ApiError> {
     let row: Option<(Option<String>, Option<String>)> = sqlx::query_as("SELECT display_name, logo_url FROM org_branding WHERE org_id = $1").bind(&org_id).fetch_optional(&state.pg).await?;
@@ -471,8 +471,8 @@ async fn put_org_branding(State(state): State<SharedState>, user: AuthUser, Path
         return Err(ApiError::new(StatusCode::FORBIDDEN, "You do not own this org."));
     }
     let plan: Option<String> = sqlx::query_scalar("SELECT plan FROM users WHERE id = $1").bind(user.sub).fetch_optional(&state.pg).await?;
-    if plan.as_deref() != Some("agency") {
-        return Err(ApiError::new(StatusCode::PAYMENT_REQUIRED, "White-label branding requires the Agency plan."));
+    if plan.as_deref() != Some("enterprise") {
+        return Err(ApiError::new(StatusCode::PAYMENT_REQUIRED, "White-label branding requires the Enterprise plan."));
     }
     if let Some(name) = &body.display_name {
         if name.chars().count() > 255 {

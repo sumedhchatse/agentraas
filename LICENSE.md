@@ -3,14 +3,15 @@ AgentRaaS Enterprise Module License v1.0
 
 Copyright (c) 2026 Sumedh Chatse. All rights reserved except as granted below.
 
-SCOPE: this license covers the enterprise module that implements
-Pro/Agency/Enterprise-tier features (SSO, RBAC, HMAC verification, DLP
-redaction, distributed rate limiting, HA) — its source is not included in
-this repository at all (see README.md's License section for why); it
-lives in the private `agentraas-enterprise` repo under this same license.
-Everything that IS in this repository is dual-licensed under MIT
-(LICENSE-MIT) or Apache-2.0 (LICENSE-APACHE), genuinely open source —
-this document does not restrict any of it.
+SCOPE: this license covers only the enterprise module — `src/ee/`,
+`src/api-gateway-rs/crates/api/src/ee/`,
+`src/api-gateway-rs/crates/core/src/dlp.rs`,
+`src/api-gateway-rs/crates/core/src/hmac_verify.rs`, and
+`compose.ee.yaml` — the code that implements Team/Enterprise-tier
+features (SSO, RBAC, HMAC verification, DLP redaction, distributed rate
+limiting, HA). Everything else in this repository is dual-licensed under
+MIT (LICENSE-MIT) or Apache-2.0 (LICENSE-APACHE), genuinely open source.
+See README.md's License section for the one-sentence version of this split.
 
 This is a source-available license, not a traditional open-source license — it
 is closely modeled on n8n's Sustainable Use License, adapted with a metered
@@ -30,7 +31,7 @@ below.
 2. USAGE LIMIT
 ──────────────────────────────────────────────────────────────────────────
 Self-hosted deployments (running on infrastructure you control) have NO
-usage limit under this license, on any tier — Community, Pro, Agency, or
+usage limit under this license, on any tier — Community, Team, or
 Enterprise. Run as many forwarded agent actions per month as you want, on
 as many self-hosted deployments as you want, for free, regardless of plan.
 
@@ -39,10 +40,10 @@ hosted by the Licensor (i.e. the official AgentRaaS Cloud offering):
 500 forwarded agent actions (as counted by AgentRaaS's own audit log —
 i.e. requests that reach `forwarded: true`) per calendar month, per
 account, on the free Cloud tier. Any use exceeding that limit requires
-a paid Cloud plan (Pro, Agency, or Enterprise) or a commercial license
+a paid Cloud plan (Team or Enterprise) or a commercial license
 from the Licensor. Contact support@agentraas.io.
 
-Paid tiers also carry a team-seat limit (Pro: 3, Agency: 10, Enterprise:
+Paid tiers also carry a team-seat limit (Team: 3, Enterprise:
 unlimited) — this governs how many members can belong to your org, not
 the action-forwarding limit above. On a self-hosted deployment, a paid
 tier's features are unlocked by a signed license token issued by the
@@ -90,7 +91,7 @@ FROM THE SOFTWARE OR ITS USE.
 ──────────────────────────────────────────────────────────────────────────
 For use beyond the Usage Limit in Section 2, or for any use restricted
 under Section 3, contact support@agentraas.io to discuss a commercial
-license. Pro and Agency are available as self-serve subscriptions
+license. Team is available as a self-serve subscription
 without contacting anyone — see the pricing page. Enterprise is
 sales-assisted with custom pricing.
 

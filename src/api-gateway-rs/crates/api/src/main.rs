@@ -64,10 +64,13 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let redis = redis::Client::open(redis_url)?;
-    {
-        let mut conn = redis.get_multiplexed_async_connection().await?;
-        let _: String = redis::cmd("PING").query_async(&mut conn).await?;
-    }
+    // Established ONCE here and cloned (cheap — a handle to a background
+    // task, not a new TCP connection) everywhere else in the app via
+    // AppState::redis_conn_result() — see state.rs's field doc-comment for
+    // why calling redis.get_multiplexed_async_connection() again per
+    // request was a real, previously-unnoticed cost.
+    let mut redis_conn = redis.get_multiplexed_async_connection().await?;
+    let _: String = redis::cmd("PING").query_async(&mut redis_conn).await?;
 
     let default_config_path = PathBuf::from("/config/services.json");
     let services_config = load_config(&default_config_path)
@@ -103,6 +106,7 @@ async fn main() -> anyhow::Result<()> {
     let state: SharedState = Arc::new(AppState {
         pg,
         redis,
+        redis_conn,
         service_routes,
         tool_name_to_route,
         mcp_tools_list,
@@ -122,7 +126,11 @@ async fn main() -> anyhow::Result<()> {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(300),
-        agency_rate_limit_per_min: std::env::var("AGENCY_RATE_LIMIT_PER_MIN")
+        team_rate_limit_per_min: std::env::var("TEAM_RATE_LIMIT_PER_MIN")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1000),
+        enterprise_rate_limit_per_min: std::env::var("ENTERPRISE_RATE_LIMIT_PER_MIN")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(2000),
@@ -130,11 +138,15 @@ async fn main() -> anyhow::Result<()> {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(500),
-        agency_monthly_limit: std::env::var("AGENCY_MONTHLY_LIMIT")
+        team_monthly_limit: std::env::var("TEAM_MONTHLY_LIMIT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(10000),
+        enterprise_monthly_limit: std::env::var("ENTERPRISE_MONTHLY_LIMIT")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(50000),
-        agency_max_client_tenants: std::env::var("AGENCY_MAX_CLIENT_TENANTS")
+        enterprise_max_client_tenants: std::env::var("ENTERPRISE_MAX_CLIENT_TENANTS")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(10),
@@ -226,7 +238,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn health(State(state): State<SharedState>) -> impl IntoResponse {
     let db_ok = sqlx::query("SELECT 1").execute(&state.pg).await.is_ok();
-    let redis_ok = match state.redis.get_multiplexed_async_connection().await {
+    let redis_ok = match state.redis_conn_result() {
         Ok(mut conn) => redis::cmd("PING")
             .query_async::<_, String>(&mut conn)
             .await

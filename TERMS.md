@@ -34,7 +34,7 @@ breaking.
 - **Compliance with the license.** Usage beyond the free tiers described in
   [LICENSE.md](./LICENSE.md), or offering AgentRaaS as a competing hosted
   service, requires a separate commercial agreement.
-- **Paid subscriptions (Pro/Agency).** Billing is handled by Paddle, our
+- **Paid subscriptions (Team).** Billing is handled by Paddle, our
   payment processor and merchant of record; subscribing means you also
   agree to [Paddle's terms](https://www.paddle.com/legal/checkout-buyer-terms).
   A subscription renews automatically each period until you cancel.

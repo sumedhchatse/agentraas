@@ -26,10 +26,12 @@ services:
     networks:
       - agentraas-net
     # POSTGRES_PASSWORD comes from .env via env_file, not an explicit
-    # `environment:` mapping — podman-compose/docker-compose pass env_file
-    # as a bare --env-file <path> to `podman run`/`docker run`, so the
-    # value never appears in a verbose command-echo the way `-e KEY=value`
-    # does. Same reasoning for every other service below with secrets.
+    # `environment:` mapping — podman-compose passes env_file as a bare
+    # --env-file <path> to `podman run`, so the value never appears in its
+    # own (very verbose) command-echo, unlike `-e KEY=value`. Same reasoning
+    # for every other service below with secrets. See the incident this
+    # fixed: a `--force-recreate` command-echo leaked the full production
+    # secret set into an AI session transcript (twice).
     env_file:
       - .env
     environment:
@@ -60,79 +62,10 @@ services:
     command: server /data --console-address ":9001"
     restart: unless-stopped
 
-  ar-api:
-    build:
-      context: ./src/api-gateway
-      dockerfile: Containerfile
-    container_name: ar-api
-    hostname: ar-api
-    networks:
-      - agentraas-net
-    # Secrets (JWT_SECRET, CREDENTIALS_ENCRYPTION_KEY, PADDLE_*,
-    # SMTP_USER/PASS) come from .env via env_file, not an explicit
-    # `environment:` mapping — see ar-postgres above for why. DATABASE_URL
-    # stays an explicit interpolated mapping below rather than a raw
-    # env_file passthrough: it's *derived* from POSTGRES_PASSWORD, so it
-    # has to be reconstructed fresh from the current value at compose-parse
-    # time — a literal DATABASE_URL sitting in .env can silently drift
-    # stale after a password rotation and break the app in a way that's
-    # easy to miss (this happened once in production; see the deploy repo's
-    # history if this file is ever diffed against agentraas-enterprise).
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: "${NODE_ENV:-development}"
-      PORT: 3000
-      REDIS_URL: redis://ar-redis:6379
-      DATABASE_URL: "postgres://agentraas:${POSTGRES_PASSWORD}@ar-postgres:5432/agentraas"
-      DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
-      PUBLIC_URL: "${PUBLIC_URL:-http://localhost:13000}"
-      CLOUD_MONTHLY_LIMIT: "${CLOUD_MONTHLY_LIMIT}"
-      PADDLE_PRO_PRICE_ID: "${PADDLE_PRO_PRICE_ID:-}"
-      PADDLE_ENVIRONMENT: "${PADDLE_ENVIRONMENT:-sandbox}"
-      PRO_MONTHLY_LIMIT: "${PRO_MONTHLY_LIMIT:-10000}"
-      PRO_RATE_LIMIT_PER_MIN: "${PRO_RATE_LIMIT_PER_MIN:-1000}"
-      SMTP_HOST: "${SMTP_HOST:-}"
-      SMTP_PORT: "${SMTP_PORT:-587}"
-      SMTP_FROM: "${SMTP_FROM:-}"
-      MINIO_ENDPOINT: ar-minio:9000
-      # Renamed from MINIO_ROOT_USER/PASSWORD (the app reads
-      # MINIO_ACCESS_KEY/SECRET_KEY) — env_file passes .env's keys through
-      # verbatim, it can't rename, so this one pair still has to go through
-      # `environment:`. Lower-value credential (local object storage, not
-      # billing/auth/license), accepted as a residual gap rather than
-      # duplicating the values into .env under new key names.
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - "127.0.0.1:13000:3000"
-    depends_on:
-      - ar-redis
-      - ar-postgres
-      - ar-minio
-    volumes:
-      - ./config:/config:z
-      - ./src/api-gateway:/app:z
-      - ./src/ee:/app/ee:z
-      - ./src/core:/app/core:z
-      - ./secrets:/app/secrets:ro,z
-      # Read-only mount of the whole project — used by the gated self-host
-      # download (zips this) and the /license, /privacy, /terms, /security,
-      # /readme routes (read these files directly). Not writable from inside
-      # the container, so this doesn't create a path for the app to modify
-      # its own source.
-      - .:/repo:ro,z
-    command: npm run dev
-    restart: unless-stopped
-
-  # Experimental Rust rewrite of ar-api (Community edition — see
-  # src/api-gateway-rs/Cargo.toml's `enterprise` feature, not enabled in
-  # this build). Opt-in: not started by a bare `podman-compose up -d` —
-  # needs `profiles: ["rust"]` opted into explicitly, or start it by name
-  # (`podman-compose up -d ar-api-rs`). Shares the same Postgres/Redis as
-  # ar-api so both can be pointed at side by side against identical data.
+  # The API/dashboard service — Node's ar-api was retired once this fully
+  # took over production traffic; no longer behind a `profiles: ["rust"]`
+  # gate, this is just the default service now.
   ar-api-rs:
-    profiles: ["rust"]
     build:
       context: ./src/api-gateway-rs
       dockerfile: Containerfile
@@ -140,16 +73,15 @@ services:
     hostname: ar-api-rs
     networks:
       - agentraas-net
-    # Secrets (JWT_SECRET, CREDENTIALS_ENCRYPTION_KEY, SMTP_USER/PASS,
-    # PADDLE_*, LICENSE_SIGNING_PRIVATE_KEY, LICENSE_TOKEN) come from .env
-    # via env_file — see ar-api above for why, and for why DATABASE_URL
-    # stays an explicit interpolated mapping instead.
+    # Secrets (DATABASE_URL, JWT_SECRET, CREDENTIALS_ENCRYPTION_KEY,
+    # SMTP_USER/PASS, PADDLE_*, LICENSE_SIGNING_PRIVATE_KEY, LICENSE_TOKEN)
+    # come from .env via env_file, not an explicit `environment:` mapping —
+    # see ar-postgres above for why.
     env_file:
       - .env
     environment:
       RUST_LOG: "info"
       PORT: 3000
-      DATABASE_URL: "postgres://agentraas:${POSTGRES_PASSWORD}@ar-postgres:5432/agentraas"
       REDIS_URL: redis://ar-redis:6379
       # Was missing entirely until 2026-09-06: with no SMTP_HOST, `Mailer::
       # is_configured()` is always false, so every registration/password-
@@ -158,28 +90,54 @@ services:
       # never sent via this service, mirroring ar-api's own SMTP_* block above.
       SMTP_HOST: "${SMTP_HOST:-}"
       SMTP_PORT: "${SMTP_PORT:-587}"
+      # Was missing entirely until the Team-tier work (2026-09-07): ar-api-rs
+      # is the actual public-facing billing endpoint now, but had none of
+      # these — billing_checkout_info/paddle_webhook always 503'd
+      # "not configured" regardless of what was set in .env, since a
+      # podman-compose environment var only reaches the container if it's
+      # declared here, unlike ar-api's own PADDLE_* block above. Real price
+      # IDs get set in .env later — this just wires the plumbing through.
+      PADDLE_TEAM_PRICE_ID: "${PADDLE_TEAM_PRICE_ID:-}"
+      PADDLE_ENVIRONMENT: "${PADDLE_ENVIRONMENT:-sandbox}"
       SMTP_FROM: "${SMTP_FROM:-}"
       EXPOSE_DEV_VERIFY_URL: "${EXPOSE_DEV_VERIFY_URL:-false}"
-      # Paddle billing is a cloud (agentraas.io) concept, not something a
-      # self-hosted Community deployment normally uses — left wired but
-      # unset by default so billing_checkout_info/paddle_webhook cleanly
-      # 503 "not configured" rather than needing to be compiled out.
-      PADDLE_PRO_PRICE_ID: "${PADDLE_PRO_PRICE_ID:-}"
-      PADDLE_AGENCY_PRICE_ID: "${PADDLE_AGENCY_PRICE_ID:-}"
-      PADDLE_ENVIRONMENT: "${PADDLE_ENVIRONMENT:-sandbox}"
-      # DEPLOYMENT_MODE drives the dashboard's cloud-vs-self-hosted UI
-      # (e.g. the 24h history limit on the free self-host tier).
-      # LICENSE_TOKEN is what a paying self-hoster pastes in from the
-      # dashboard's license panel — this Community build has no
-      # Pro/Agency/Enterprise code to unlock either way (see the private
-      # `agentraas-enterprise` repo for that), but the same env var is
-      # wired here so switching to a paid-tier binary later is a drop-in.
+      # DEPLOYMENT_MODE was already ar-api's own convention (cloud vs
+      # self-hosted); ar-api-rs never had it wired through either, same
+      # gap as the PADDLE_* vars above. A self-hosted Team/Enterprise
+      # deployment sets LICENSE_TOKEN (from the dashboard's "your license"
+      # panel, a later task) to unlock paid features; missing/invalid/
+      # expired always degrades gracefully to Community, never blocks
+      # startup.
       DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
+      # Enterprise features (SSO/RBAC/DLP/inbound-webhook HMAC/maintenance)
+      # are compiled out of this Community-edition build entirely (see
+      # Containerfile — no --features enterprise), so this var is a no-op
+      # here regardless of its value. Left wired, default off, only so a
+      # private fork built with the enterprise feature enabled can flip it
+      # without touching this file.
+      ENTERPRISE_MODE: "${ENTERPRISE_MODE:-false}"
     ports:
+      # Kept at 13001 (not the "default" 13000 discussed for fresh setups)
+      # because production's Caddy already reverse_proxy's to :13001 from
+      # the original cutover, and flipping this requires a manual Caddy
+      # edit (sudo-over-SSH is blocked for this harness) — changing it here
+      # without that coordinated edit would take agentraas.io down.
       - "127.0.0.1:13001:3000"
+    # No depends_on: podman-compose 1.5.0 doesn't reliably recognize
+    # ar-redis/ar-postgres as already-satisfied dependencies when starting
+    # this service via --profile — it tries to "ensure" them, hits a name
+    # conflict against the already-running containers, and in doing so
+    # actually restarts them (confirmed: this briefly dropped ar-api's live
+    # Redis connection). ar-redis/ar-postgres are always already up via the
+    # main stack in normal use; ar-api-rs just fails fast with a clear error
+    # on boot if they're genuinely not reachable.
     volumes:
       - ./config:/config:ro,z
-      - ./src/api-gateway/public:/public:ro,z
+      # Static marketing/dashboard pages (landing.html, index.html, vendor
+      # JS) and the source tree the self-host download package/doc pages
+      # are read from — same read-only sharing pattern as ./config above,
+      # never writable from this container.
+      - ./src/api-gateway-rs/public:/public:ro,z
       - .:/repo:ro,z
     restart: "no"
 

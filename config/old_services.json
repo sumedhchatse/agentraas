@@ -1,0 +1,174 @@
+{
+  "stripe": {
+    "baseUrl": "https://api.stripe.com/v1",
+    "authHeader": "Bearer",
+    "contentType": "application/x-www-form-urlencoded",
+    "actions": {
+      "charge.create": {
+        "method": "POST",
+        "path": "/charges",
+        "validation": {
+          "amount": { "type": "number", "min": 1 },
+          "currency": { "type": "string", "required": true },
+          "customer": { "type": "string", "required": true }
+        }
+      },
+      "customer.create": {
+        "method": "POST",
+        "path": "/customers",
+        "validation": {
+          "email": { "type": "string", "format": "email" }
+        }
+      }
+    }
+  },
+  "calendly": {
+    "baseUrl": "https://api.calendly.com",
+    "authHeader": "Bearer",
+    "contentType": "application/json",
+    "actions": {
+      "booking.create": {
+        "method": "POST",
+        "path": "/scheduled_events",
+        "validation": {
+          "start_time": { "type": "string", "required": true }
+        }
+      }
+    }
+  },
+  "hubspot": {
+    "baseUrl": "https://api.hubapi.com/crm/v3",
+    "authHeader": "Bearer",
+    "contentType": "application/json",
+    "actions": {
+      "contact.create": {
+        "method": "POST",
+        "path": "/objects/contacts",
+        "validation": {
+          "email": { "type": "string", "format": "email" }
+        }
+      }
+    }
+  },
+  "mockpay": {
+    "baseUrl": "http://localhost:3000/internal",
+    "internal": true,
+    "contentType": "application/json",
+    "actions": {
+      "payment.create": {
+        "method": "POST",
+        "path": "/mockpay",
+        "validation": {
+          "amount": { "type": "number", "min": 1 }
+        }
+      }
+    }
+  },
+  "shopify": {
+    "baseUrl": "https://YOUR_STORE.myshopify.com/admin/api/2024-01",
+    "authHeader": "X-Shopify-Access-Token",
+    "contentType": "application/json",
+    "actions": {
+      "order.create": {
+        "method": "POST",
+        "path": "/orders.json",
+        "validation": {
+          "line_items": { "type": "array", "required": true, "minLength": 1 }
+        }
+      },
+      "inventory.update": {
+        "method": "PUT",
+        "path": "/inventory_levels/set.json",
+        "validation": {
+          "inventory_item_id": { "type": "number", "required": true },
+          "available": { "type": "number", "min": 0 }
+        }
+      }
+    }
+  },
+  "make": {
+    "baseUrl": "https://hook.make.com",
+    "authHeader": "Bearer",
+    "contentType": "application/json",
+    "actions": {
+      "scenario.trigger": {
+        "method": "POST",
+        "path": "/YOUR_WEBHOOK_PATH",
+        "validation": {}
+      }
+    }
+  },
+  "zapier": {
+    "baseUrl": "https://hooks.zapier.com",
+    "authHeader": null,
+    "contentType": "application/json",
+    "actions": {
+      "action.execute": {
+        "method": "POST",
+        "path": "/hooks/catch/YOUR_ZAPIER_ID",
+        "validation": {}
+      }
+    }
+  },
+  "zoho": {
+    "baseUrl": "https://books.zoho.com/api/v3",
+    "authHeader": "Zoho-oauthtoken",
+    "contentType": "application/json",
+    "actions": {
+      "invoice.create": {
+        "method": "POST",
+        "path": "/invoices",
+        "validation": {
+          "customer_id": { "type": "string", "required": true },
+          "line_items": { "type": "array", "required": true }
+        }
+      }
+    }
+  },
+  "razorpay": {
+    "baseUrl": "https://api.razorpay.com/v1",
+    "authType": "basic",
+    "contentType": "application/json",
+    "actions": {
+      "payment.create": {
+        "method": "POST",
+        "path": "/orders",
+        "validation": {
+          "amount": { "type": "number", "min": 100 },
+          "currency": { "type": "string", "required": true }
+        }
+      }
+    }
+  },
+  "twilio": {
+    "baseUrl": "https://api.twilio.com/2010-04-01",
+    "authType": "basic",
+    "contentType": "application/x-www-form-urlencoded",
+    "actions": {
+      "sms.send": {
+        "method": "POST",
+        "path": "/Accounts/{TWILIO_SID}/Messages.json",
+        "validation": {
+          "To": { "type": "string", "required": true },
+          "Body": { "type": "string", "required": true, "maxLength": 1600 }
+        }
+      }
+    }
+  },
+  "whatsapp": {
+    "baseUrl": "https://graph.facebook.com/v18.0",
+    "authHeader": "Bearer",
+    "contentType": "application/json",
+    "actions": {
+      "message.send": {
+        "method": "POST",
+        "path": "/{PHONE_ID}/messages",
+        "validation": {
+          "messaging_product": { "type": "string", "enum": ["whatsapp"], "required": true },
+          "to": { "type": "string", "required": true },
+          "type": { "type": "string", "enum": ["text", "template"], "required": true }
+        }
+      }
+    }
+  }
+}

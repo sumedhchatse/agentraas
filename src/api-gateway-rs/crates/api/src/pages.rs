@@ -1,9 +1,8 @@
-//! Static landing/dashboard/doc/SEO pages — mirrors the "STATIC LANDING
-//! PAGE"/"STATIC DASHBOARD"/"STATIC GUIDE"/"SEO" sections of `server.js`.
-//! Reads from `/public` (mounted read-only from `src/api-gateway/public`)
-//! and `/repo` (the self-host snapshot source — see `self_host.rs`) at
-//! request time, same as Node reads from disk per-request rather than
-//! embedding at build time.
+//! Static landing/dashboard/doc/SEO pages. Reads from `/public` (mounted
+//! read-only from `src/api-gateway-rs/public`) and `/repo` (the self-host
+//! snapshot source — see `self_host.rs`) at request time rather than
+//! embedding at build time, so an edit to a page shows up on refresh
+//! without a rebuild.
 
 use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse};
@@ -23,6 +22,7 @@ pub fn router() -> Router<SharedState> {
         // `#pricing`. Not a redirect: a real 200 with the pricing content
         // actually in the served HTML.
         .route("/pricing", get(landing))
+        .route("/about", get(about))
         .route("/vs-temporal", get(vs_temporal))
         .route("/vs-composio", get(vs_composio))
         .route("/vs-arcade", get(vs_arcade))
@@ -64,6 +64,10 @@ async fn dashboard() -> axum::response::Response {
 
 async fn guide() -> axum::response::Response {
     serve_html_file(public_file("guide.html"), "Guide not found").await
+}
+
+async fn about() -> axum::response::Response {
+    serve_html_file(public_file("about.html"), "About page not found").await
 }
 
 async fn vs_temporal() -> axum::response::Response {
@@ -149,7 +153,7 @@ async fn robots_txt(axum::extract::State(state): axum::extract::State<SharedStat
     ([(header::CONTENT_TYPE, "text/plain")], body)
 }
 
-const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/vs-temporal", "/vs-composio", "/vs-arcade", "/guide", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
+const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/about", "/vs-temporal", "/vs-composio", "/vs-arcade", "/guide", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
 
 async fn sitemap_xml(axum::extract::State(state): axum::extract::State<SharedState>) -> impl IntoResponse {
     let urls: String = SITEMAP_ROUTES.iter().map(|route| format!("  <url><loc>{}{route}</loc></url>", state.public_url)).collect::<Vec<_>>().join("\n");
@@ -186,7 +190,7 @@ async fn public_status(axum::extract::State(state): axum::extract::State<SharedS
     .await?;
     let open_seconds_map: std::collections::HashMap<String, f64> = uptime_rows.into_iter().collect();
 
-    let mut conn = state.redis.get_multiplexed_async_connection().await?;
+    let mut conn = state.redis_conn_result()?;
     let (circuit_states, _) = agentraas_core::circuit_breaker::get_circuit_states_batch(&mut conn, &services).await?;
 
     const RANGE_SECONDS: f64 = 90.0 * 86400.0;

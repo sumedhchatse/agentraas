@@ -384,10 +384,10 @@ pub async fn get_org_owner_plan(pg: &PgPool, org_id: &str) -> Result<String, sql
 
 pub async fn get_effective_rate_limit(state: &SharedState, org_id: &str) -> Result<u32, sqlx::Error> {
     let plan = get_org_owner_plan(&state.pg, org_id).await?;
-    Ok(if plan == "agency" {
-        state.agency_rate_limit_per_min
-    } else {
-        state.agent_rate_limit_per_min
+    Ok(match agentraas_core::tier::Tier::from_plan_str(&plan) {
+        agentraas_core::tier::Tier::Enterprise => state.enterprise_rate_limit_per_min,
+        agentraas_core::tier::Tier::Team => state.team_rate_limit_per_min,
+        agentraas_core::tier::Tier::Community => state.agent_rate_limit_per_min,
     })
 }
 
@@ -401,10 +401,10 @@ pub async fn get_effective_limit(state: &SharedState, org_id: &str) -> Result<i6
         return Ok(limit as i64);
     }
     let plan = get_org_owner_plan(&state.pg, org_id).await?;
-    Ok(if plan == "agency" {
-        state.agency_monthly_limit
-    } else {
-        state.cloud_monthly_limit
+    Ok(match agentraas_core::tier::Tier::from_plan_str(&plan) {
+        agentraas_core::tier::Tier::Enterprise => state.enterprise_monthly_limit,
+        agentraas_core::tier::Tier::Team => state.team_monthly_limit,
+        agentraas_core::tier::Tier::Community => state.cloud_monthly_limit,
     })
 }
 
@@ -450,7 +450,7 @@ pub fn current_month_key() -> String {
 }
 
 pub async fn increment_monthly_usage(state: &SharedState, org_id: &str) -> redis::RedisResult<i64> {
-    let mut conn = state.redis.get_multiplexed_async_connection().await?;
+    let mut conn = state.redis_conn_result()?;
     let key = format!("usage:{}:{}", org_id, current_month_key());
     let count: i64 = redis::cmd("INCR").arg(&key).query_async(&mut conn).await?;
     if count == 1 {
@@ -469,7 +469,7 @@ pub async fn increment_monthly_usage(state: &SharedState, org_id: &str) -> redis
 }
 
 pub async fn get_monthly_usage(state: &SharedState, org_id: &str) -> redis::RedisResult<i64> {
-    let mut conn = state.redis.get_multiplexed_async_connection().await?;
+    let mut conn = state.redis_conn_result()?;
     let key = format!("usage:{}:{}", org_id, current_month_key());
     let val: Option<String> = redis::cmd("GET").arg(&key).query_async(&mut conn).await?;
     Ok(val.and_then(|v| v.parse().ok()).unwrap_or(0))
@@ -500,7 +500,7 @@ pub struct TenantCapCheck {
     pub limit: i64,
 }
 
-pub async fn check_agency_tenant_cap(
+pub async fn check_enterprise_tenant_cap(
     state: &SharedState,
     user_id: i32,
     org_id: &str,
@@ -513,7 +513,7 @@ pub async fn check_agency_tenant_cap(
     let Some((plan, own_org_id)) = row else {
         return Ok(TenantCapCheck { ok: true, limit: 0 });
     };
-    if plan != "agency" {
+    if agentraas_core::tier::Tier::from_plan_str(&plan) != agentraas_core::tier::Tier::Enterprise {
         return Ok(TenantCapCheck { ok: true, limit: 0 });
     }
     if own_org_id.as_deref() == Some(org_id) {
@@ -527,10 +527,10 @@ pub async fn check_agency_tenant_cap(
     if client_tenant_ids.iter().any(|id| id == org_id) {
         return Ok(TenantCapCheck { ok: true, limit: 0 });
     }
-    if client_tenant_ids.len() as i64 >= state.agency_max_client_tenants {
+    if client_tenant_ids.len() as i64 >= state.enterprise_max_client_tenants {
         return Ok(TenantCapCheck {
             ok: false,
-            limit: state.agency_max_client_tenants,
+            limit: state.enterprise_max_client_tenants,
         });
     }
     Ok(TenantCapCheck { ok: true, limit: 0 })
@@ -591,8 +591,8 @@ pub async fn effective_tier(state: &SharedState, org_id: &str) -> agentraas_core
 }
 
 /// Runtime replacement for `require_enterprise_mode` on features that
-/// moved from pure Enterprise gating to a graduated tier (HITL → Pro+,
-/// Inbound Webhooks → Agency+). These stay exactly as `ee/`-gated as
+/// moved from pure Enterprise gating to a graduated tier (HITL → Team+,
+/// Inbound Webhooks → Enterprise+). These stay exactly as `ee/`-gated as
 /// before — Community self-hosters (the public repo) never compile them
 /// in either way, so nothing here needs to be reachable from the
 /// Community binary. What changed is only the runtime check *within*

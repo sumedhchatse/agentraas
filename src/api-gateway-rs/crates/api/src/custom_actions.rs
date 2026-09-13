@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::agent::db::{check_agency_tenant_cap, check_org_write_permission};
+use crate::agent::db::{check_enterprise_tenant_cap, check_org_write_permission};
 use crate::auth::{check_dashboard_rate_limit, is_valid_identifier, AuthUser};
 use crate::credentials::save_credential;
 use crate::state::{ApiError, SharedState};
@@ -109,11 +109,11 @@ async fn create_custom_action(
     if !check_org_write_permission(&state.pg, user.sub, &org_id).await? {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Auditors have read-only access to this org."));
     }
-    let tenant_cap = check_agency_tenant_cap(&state, user.sub, &org_id).await?;
+    let tenant_cap = check_enterprise_tenant_cap(&state, user.sub, &org_id).await?;
     if !tenant_cap.ok {
         return Err(ApiError::new(
             StatusCode::PAYMENT_REQUIRED,
-            format!("Agency plan is limited to {} client tenants. Contact hello@agentraas.io to increase this.", tenant_cap.limit),
+            format!("Enterprise plan is limited to {} client tenants. Contact hello@agentraas.io to increase this.", tenant_cap.limit),
         ));
     }
 

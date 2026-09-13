@@ -139,10 +139,10 @@ d3q+rjmNxLCEkFdc0ZvvPbs=
 
     #[test]
     fn valid_token_verifies_and_carries_the_right_tier() {
-        let token = sign("cust_123", Tier::Agency, 3600, TEST_PRIVATE_KEY_PEM).unwrap();
+        let token = sign("cust_123", Tier::Enterprise, 3600, TEST_PRIVATE_KEY_PEM).unwrap();
         let license = verify(&token).expect("a freshly-signed, unexpired token must verify");
         assert_eq!(license.customer_id, "cust_123");
-        assert_eq!(license.tier, Tier::Agency);
+        assert_eq!(license.tier, Tier::Enterprise);
     }
 
     #[test]
@@ -159,7 +159,7 @@ d3q+rjmNxLCEkFdc0ZvvPbs=
 
     #[test]
     fn expired_token_fails_verification() {
-        let token = sign("cust_123", Tier::Pro, 0, TEST_PRIVATE_KEY_PEM).unwrap();
+        let token = sign("cust_123", Tier::Team, 0, TEST_PRIVATE_KEY_PEM).unwrap();
         std::thread::sleep(std::time::Duration::from_secs(2));
         assert!(verify(&token).is_none());
     }

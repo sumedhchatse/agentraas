@@ -456,7 +456,7 @@ pub async fn forward_with_retry_streaming(
             Ok(result) => return Ok(result),
             Err(mut err) => {
                 err.circuit_already_recorded = true;
-                if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                if let Ok(mut conn) = state.redis_conn_result() {
                     if let Ok(Some(transition)) = circuit_breaker::record_failure(&mut conn, circuit_key).await {
                         log_circuit_transition(state, transition).await;
                     }
@@ -471,7 +471,7 @@ pub async fn forward_with_retry_streaming(
                 }
 
                 let circuit_open = {
-                    if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                    if let Ok(mut conn) = state.redis_conn_result() {
                         circuit_breaker::get_circuit_state(&mut conn, circuit_key)
                             .await
                             .map(|(s, _)| s == "open")
@@ -569,7 +569,7 @@ pub async fn forward_with_retry(
             }
             Err(mut err) => {
                 err.circuit_already_recorded = true;
-                if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                if let Ok(mut conn) = state.redis_conn_result() {
                     if let Ok(Some(transition)) = circuit_breaker::record_failure(&mut conn, circuit_key).await {
                         log_circuit_transition(state, transition).await;
                     }
@@ -584,7 +584,7 @@ pub async fn forward_with_retry(
                 }
 
                 let circuit_open = {
-                    if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                    if let Ok(mut conn) = state.redis_conn_result() {
                         circuit_breaker::get_circuit_state(&mut conn, circuit_key)
                             .await
                             .map(|(s, _)| s == "open")
@@ -669,7 +669,7 @@ pub async fn forward_mcp_with_retry(
             }
             Err(mut err) => {
                 err.circuit_already_recorded = true;
-                if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                if let Ok(mut conn) = state.redis_conn_result() {
                     if let Ok(Some(transition)) = circuit_breaker::record_failure(&mut conn, circuit_key).await {
                         log_circuit_transition(state, transition).await;
                     }
@@ -684,7 +684,7 @@ pub async fn forward_mcp_with_retry(
                 }
 
                 let circuit_open = {
-                    if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+                    if let Ok(mut conn) = state.redis_conn_result() {
                         circuit_breaker::get_circuit_state(&mut conn, circuit_key)
                             .await
                             .map(|(s, _)| s == "open")

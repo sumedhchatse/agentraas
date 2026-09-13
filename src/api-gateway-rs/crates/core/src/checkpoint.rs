@@ -31,3 +31,17 @@ pub async fn read_checkpoint(conn: &mut redis::aio::MultiplexedConnection, key: 
 pub async fn write_checkpoint(conn: &mut redis::aio::MultiplexedConnection, key: &str, result: &Value, ttl_seconds: i64) -> redis::RedisResult<()> {
     complete_dedup_slot_with_ttl(conn, key, result, Some(ttl_seconds)).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn step_key_is_scoped_by_both_run_and_step() {
+        // A replay is identified by the (run_id, step_id) PAIR — either one
+        // alone must not collide with a different run/step.
+        assert_eq!(step_key("run_1", "step-1"), "checkpoint:run_1:step-1");
+        assert_ne!(step_key("run_1", "step-1"), step_key("run_1", "step-2"));
+        assert_ne!(step_key("run_1", "step-1"), step_key("run_2", "step-1"));
+    }
+}

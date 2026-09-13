@@ -1,0 +1,35 @@
+name: Rust tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: src/api-gateway-rs
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Both editions get built and tested — the public/community repo
+        # ships without --features enterprise, so a change that only
+        # compiles with it enabled would break that build silently.
+        features: ["", "--features enterprise"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends pkg-config libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/api-gateway-rs
+
+      - name: cargo test
+        run: cargo test --workspace ${{ matrix.features }}

@@ -24,7 +24,7 @@ The rest of this guide explains each piece in more detail.
 |---|---|---|
 | Where it runs | Our servers | Your own server |
 | Setup | Register, log in, done | Register, download, run `install.sh` |
-| Monthly limit | 500 actions on the free tier, enforced (Agency/Enterprise raise it) | None — unlimited, on any tier |
+| Monthly limit | 500 actions on the free tier, enforced (Team/Enterprise raise it) | None — unlimited, on any tier |
 | Good for | Trying it out, no infra to manage | Your own data residency, unlimited volume |
 
 You can do both — try it on Cloud first, and self-host later if you want
@@ -83,7 +83,7 @@ account (separate, lives on your own server).
    ```
    This generates fresh secrets, runs the database migrations, and starts
    the stack.
-4. Once it's running, go to `http://your-server:13000/dashboard` (or
+4. Once it's running, go to `http://your-server:13001/dashboard` (or
    whatever host/port you configured). Your account is already pre-seeded
    with the email you used on Cloud — click **Forgot password** and enter
    that same email to set a password for *this* instance (see

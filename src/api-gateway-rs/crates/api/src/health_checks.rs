@@ -265,7 +265,7 @@ async fn run_one_health_check(state: &SharedState, org_id: &str, service: &str, 
     }
 
     let notified_key = format!("healthcheck-notified:{org_id}:{service}");
-    let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await else { return };
+    let Ok(mut conn) = state.redis_conn_result() else { return };
     if !ok {
         let claimed: Option<String> = redis::cmd("SET").arg(&notified_key).arg("1").arg("EX").arg(1800).arg("NX").query_async(&mut conn).await.unwrap_or(None);
         if claimed.as_deref() == Some("OK") {
