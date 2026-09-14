@@ -71,6 +71,19 @@ your first agent, then download the self-host package from the
 dashboard's Account menu (unlocks once you've connected an agent). Same
 `install.sh`, just packaged with your Cloud account already wired up.
 
+**Option 3 — one-click cloud deploy (Render):**
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sumedhchatse/agentraas)
+
+Provisions the Community edition (web service + managed Postgres + Redis)
+from [`render.yaml`](./render.yaml) — no server of your own needed. Uses
+[`Containerfile.render`](./src/api-gateway-rs/Containerfile.render), a
+variant that bakes `public/` and `config/` into the image instead of the
+bind-mounts `compose.yaml` uses locally, since Render doesn't support
+those. Verified locally end-to-end (build, boot, `/health`, and the
+landing page all serving from the built image) before this button
+shipped.
+
 `install.sh` handles everything that used to be a manual multi-step
 process: generating `JWT_SECRET` and `CREDENTIALS_ENCRYPTION_KEY`, building
 the API image, starting the stack, running every migration in order,
@@ -295,7 +308,8 @@ started or self-host from `/dashboard`, or contact
 - [x] Enterprise — multi-tenant, white-label dashboard branding
 - [x] Official Python SDK package (`src/sdk` — published to PyPI as `agentraas`)
 - [x] Custom validation rule builder (UI) — per-org, per-service.action rules, including Custom Actions (which previously had no validation at all)
-- [x] n8n/Flowise/Langflow integrations (`integrations/`) — n8n community node (compiles against real `n8n-workflow` types; full live-registration unverified, see `integrations/templates/README.md`), Flowise custom tool, Langflow custom component
+- [x] n8n/Flowise/Langflow integrations (`integrations/`) — n8n community node (builds clean, `npm pack --dry-run` confirms a correct, publish-ready tarball; actual publish is still blocked on npm 2FA, not a code issue), Flowise custom tool, Langflow custom component
+- [x] One-click cloud deploy (Render) — `render.yaml` Blueprint + `Containerfile.render` (bakes in `public/`/`config/` since Render has no bind-mounts), verified end-to-end locally (build, boot, health check, landing page)
 - [x] "Pause & Buffer" maintenance mode (Enterprise) — safely queues incoming webhooks during planned downtime or a downstream outage, auto-flushes on resume
 - [x] Multi-Destination Fan-Out (event broadcasting) — a Custom Action can broadcast the same payload to up to 5 extra `fanout_urls` as a best-effort copy, without affecting the primary response
 - [x] Dynamic Header & Secret Injection — a Custom Action can set up to 10 custom outbound headers, each optionally encrypted at rest as a secret (e.g. a signing key)
@@ -308,8 +322,8 @@ started or self-host from `/dashboard`, or contact
 - [x] Stateful Human-in-the-Loop Gateway (Enterprise) — freezes a matching action, posts an interactive Slack approval card, resumes on approval/denial, with SLA-based auto-escalation (`crates/api/src/ee/hitl.rs`)
 - [x] Fuzzy/semantic similarity dedup (Team+) — catches near-duplicate payloads a strict hash-match would miss, on top of the existing per-field dedup rules
 - [x] Agent Identity & Agent Passport (Enterprise) — short-lived, scope-restricted tokens (`art_live_...`) for an already-connected agent, checked at request time before any action is forwarded; minting one returns both the identity and the reliability guarantees (dedup mode, rate limit) already applied to it (`crates/api/src/ee/identity.rs`)
-- [ ] Publish the JS SDK and n8n community node to npm — blocked on npm 2FA
-- [ ] Resolve n8n community-node live-registration issue and get it listed in the n8n community nodes directory
+- [ ] Publish the JS SDK and n8n community node to npm — blocked on npm 2FA (account action, not a code fix; both packages build and pack cleanly today)
+- [ ] Get the n8n node listed in n8n's community nodes directory — requires the npm publish above first
 - [ ] CLI local tunneling / local dev relay (ngrok-style) — scoped but not started; this is a separate hosted relay service, not an addition to the existing proxy, see the discussion in this repo's history for what it'd need
 
 ---

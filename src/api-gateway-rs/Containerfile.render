@@ -1,0 +1,24 @@
+# Self-hosted deploys (compose.yaml) bind-mount ./public and ./config
+# into the container so a static-file edit needs no rebuild. Render (and
+# similarly, Railway/Fly) run a plain container image with no volumes —
+# this variant bakes both directories in instead, since that's the only
+# way they're present at all otherwise.
+#
+# Build context is the REPO ROOT, not this directory: config/ lives at
+# the root, public/ lives under src/api-gateway-rs/ — a context scoped
+# to just this directory can't reach both. See render.yaml's
+# dockerContext.
+FROM docker.io/library/rust:1-slim-bookworm AS builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+COPY src/api-gateway-rs/Cargo.toml ./
+COPY src/api-gateway-rs/crates ./crates
+RUN cargo build --release -p api
+
+FROM docker.io/library/debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/ar-api-rs /usr/local/bin/ar-api-rs
+COPY src/api-gateway-rs/public /public
+COPY config /config
+EXPOSE 3000
+CMD ["ar-api-rs"]

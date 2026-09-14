@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: agentraas
+    runtime: docker
+    dockerfilePath: ./src/api-gateway-rs/Containerfile.render
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: DEPLOYMENT_MODE
+        value: self-hosted
+      - key: PUBLIC_URL
+        fromService:
+          type: web
+          name: agentraas
+          property: host
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agentraas-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: agentraas-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CREDENTIALS_ENCRYPTION_KEY
+        generateValue: true
+
+  - type: redis
+    name: agentraas-redis
+    plan: starter
+    ipAllowList: []
+
+databases:
+  - name: agentraas-db
+    plan: starter
+    postgresMajorVersion: "15"
