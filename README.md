@@ -1,8 +1,10 @@
-# AgentRaaS 🛡️
+<img src="src/api-gateway-rs/public/logo.svg" width="32" height="32" alt="AgentRaaS logo" align="left">
 
-**The exactly-once execution layer for AI agents.**
+# AgentRaaS
 
-Prevent your agents from double-charging customers, double-booking appointments, or sending duplicate emails. AgentRaaS sits between your agent and any API — connect it via webhook, SDK-style headers, or native MCP.
+**The reliability layer for autonomous agent fleets.**
+
+AgentRaaS sits between your AI agents and every real-world action — exactly-once execution, budget/loop limits, circuit breaking, agent identity with scope-restricted credentials, and human approval on the calls that matter, proven under real concurrent load, not just claimed. Connect it via webhook, SDK-style headers, or native MCP. Self-hosted or cloud.
 
 ---
 
@@ -256,12 +258,14 @@ export) is source-available under a separate commercial license — see
 | **Actions/month, cloud-hosted** | n/a (not offered) | 10,000 | Unlimited |
 | **Team seats** | 1 | 3 | Unlimited |
 | **Payload dedup, MCP gateway, dashboard** | ✅ | ✅ | ✅ |
+| **Fuzzy/semantic similarity dedup** | — | ✅ | ✅ |
 | **Human-in-the-Loop approval gateway (Slack + SLA auto-escalation)** | — | ✅ | ✅ |
 | **Audit log** | Local Postgres, tamper-evident | Local Postgres, tamper-evident | + SIEM export |
 | **Client tenants / white-label** | — | — | ✅ unlimited |
 | **Inbound webhook receivers** | — | — | ✅ |
 | **Inbound HMAC verification, PII/DLP redaction** | — | — | ✅ |
 | **SSO (OIDC), RBAC** | — | — | ✅ |
+| **Agent Identity / Agent Passport (scoped, short-lived agent tokens)** | — | — | ✅ |
 | **HA clustering** | — | — | ✅ |
 | **Support** | GitHub & Discord | GitHub & Discord | Priority, SLA-backed |
 
@@ -300,6 +304,10 @@ started or self-host from `/dashboard`, or contact
 - [x] Semantic/entity-level idempotency keys — a dedup rule can set its own dedup window and normalize field values so trivially different-looking duplicates still count as one
 - [x] Tool Output Sanitization (Enterprise) — redacts leaked PII and heuristic prompt-injection markers from a tool's response before your agent sees it (`src/api-gateway-rs/crates/api/src/ee/output_sanitization.rs`)
 - [x] Rust rewrite of the API gateway (`src/api-gateway-rs`) — Axum/Tokio/sqlx, feature-complete port of every Node route including Enterprise, now serving `agentraas.io` live (opt-in via `ENTERPRISE_MODE`/`--features enterprise` for the Enterprise build)
+- [x] Tool Result & Context Pruner (Community + Enterprise) — auto-strips a raw tool response down before it reaches the model, opt-in per org (`crates/core/src/pruner.rs`)
+- [x] Stateful Human-in-the-Loop Gateway (Enterprise) — freezes a matching action, posts an interactive Slack approval card, resumes on approval/denial, with SLA-based auto-escalation (`crates/api/src/ee/hitl.rs`)
+- [x] Fuzzy/semantic similarity dedup (Team+) — catches near-duplicate payloads a strict hash-match would miss, on top of the existing per-field dedup rules
+- [x] Agent Identity & Agent Passport (Enterprise) — short-lived, scope-restricted tokens (`art_live_...`) for an already-connected agent, checked at request time before any action is forwarded; minting one returns both the identity and the reliability guarantees (dedup mode, rate limit) already applied to it (`crates/api/src/ee/identity.rs`)
 - [ ] Publish the JS SDK and n8n community node to npm — blocked on npm 2FA
 - [ ] Resolve n8n community-node live-registration issue and get it listed in the n8n community nodes directory
 - [ ] CLI local tunneling / local dev relay (ngrok-style) — scoped but not started; this is a separate hosted relay service, not an addition to the existing proxy, see the discussion in this repo's history for what it'd need
