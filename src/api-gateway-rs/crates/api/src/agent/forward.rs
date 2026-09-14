@@ -162,6 +162,21 @@ pub async fn forward_action(
     req_id: &str,
     end_user_id: Option<&str>,
 ) -> Result<Value, ForwardError> {
+    // Chaos mode — checked before the real call, once per attempt (not
+    // once per top-level request), so a fail_rate under 1.0 lets a retry
+    // legitimately succeed. Off (no Redis key) for every org/service by
+    // default; see agentraas_core::chaos.
+    if let Ok(mut conn) = state.redis_conn_result() {
+        if agentraas_core::chaos::should_fail(&mut conn, org_id, service_name).await {
+            return Err(ForwardError {
+                message: "Chaos mode: synthetic upstream failure injected for resilience testing".to_string(),
+                upstream_status: Some(503),
+                upstream_body: None,
+                circuit_already_recorded: false,
+            });
+        }
+    }
+
     let builder = build_request(state, route, service_name, org_id, payload, req_id, end_user_id).await?;
 
     let response = builder.send().await.map_err(|err| ForwardError {
