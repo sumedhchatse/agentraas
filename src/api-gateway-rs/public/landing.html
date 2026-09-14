@@ -1095,7 +1095,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     for (var i = 0; i < NODE_COUNT; i++) {
       nodes.push({
         x: Math.random() * W, y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.12, vy: (Math.random() - 0.5) * 0.12,
+        vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
         r: 2 + Math.random() * 2,
       });
     }
@@ -1140,7 +1140,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     if (now - lastSpawn > 700) { spawnPacket(); lastSpawn = now; }
     packets = packets.filter(function(pk) { return pk.p < 1; });
     packets.forEach(function(pk) {
-      pk.p += 0.012;
+      pk.p += 0.025;
       var x = pk.from.x + (core.x - pk.from.x) * pk.p;
       var y = pk.from.y + (core.y - pk.from.y) * pk.p;
       ctx.beginPath(); ctx.fillStyle = '#E2724D'; ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
