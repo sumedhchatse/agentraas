@@ -117,7 +117,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
      it read as one composition, not two unrelated blocks. */
   .hero-grid { display: flex; gap: 32px; align-items: flex-start; }
   .hero-copy { flex: 1 1 auto; min-width: 0; max-width: 520px; }
-  .hero-visual { flex: 1 1 300px; min-width: 240px; height: 560px; align-self: flex-start; position: relative; }
+  .hero-visual { flex: 1 1 300px; min-width: 240px; height: 680px; align-self: flex-start; position: relative; }
   @media (max-width: 860px) { .hero-visual { display: none; } .hero-grid { display: block; } .hero-copy { max-width: none; } }
   /* Agent-network canvas — nodes drifting toward a glowing core, with
      packets pulsing along the connections. Cheap by design: plain
@@ -1085,7 +1085,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   var ctx = canvas.getContext('2d');
   var visualEl = canvas.closest('.hero-visual');
   var motionOk = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
-  var NODE_COUNT = 16;
+  var NODE_COUNT = 28;
   var W = 0, H = 0, dpr = 1;
   var nodes = [];
   var core = { x: 0, y: 0 };
