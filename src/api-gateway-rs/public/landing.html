@@ -100,6 +100,17 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     padding: 140px 0 80px; overflow: hidden;
     background: radial-gradient(ellipse 1100px 700px at 70% 20%, rgba(110,134,168,0.10), transparent 65%);
   }
+  /* Real two-column layout, not a background graphic guessed to avoid
+     the text: .hero-copy has a hard max-width so .hero-visual always
+     gets genuine dedicated space rather than the graphic being placed
+     wherever happened to be empty (that overlapped the copy on common
+     viewport widths — see git history). Below the breakpoint there
+     isn't room for a second column at all, so it's dropped, not shrunk
+     into an overlap. */
+  .hero-grid { display: flex; gap: 48px; align-items: center; }
+  .hero-copy { flex: 1 1 auto; min-width: 0; max-width: 640px; }
+  .hero-visual { flex: 1 1 380px; min-width: 300px; height: 480px; align-self: center; position: relative; }
+  @media (max-width: 1080px) { .hero-visual { display: none; } .hero-grid { display: block; } .hero-copy { max-width: none; } }
   /* Agent-network canvas — nodes drifting toward a glowing core, with
      packets pulsing along the connections. Cheap by design: plain
      canvas fill/stroke (no CSS filters or blend modes), a low node
@@ -107,7 +118,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
      when the hero isn't on screen, and a single static frame (no rAF
      loop at all) under prefers-reduced-motion. See the script near the
      end of the page for the implementation. */
-  #agent-network { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; display: block; }
+  #agent-network { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .hero .wrap { position: relative; z-index: 2; }
   .hero .eyebrow-pill, .hero h1, .hero p.sub, .hero-ctas, .hero .no-list, .hero-panel {
     opacity: 0; animation: heroIn 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
@@ -430,6 +441,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     .reveal.revealed { opacity: 1; transform: translateY(0); }
   }
 
+  /* Pricing has 4 real columns of substantial content (each with its own
+     feature checklist) — squeezing that into 4 equal columns anywhere
+     below ~1200px leaves each card too narrow to read (every line
+     wrapping mid-word). Common laptop/tablet widths sit exactly in that
+     861-1200px gap the single max-width:860px breakpoint below misses. */
+  @media (max-width: 1200px) {
+    .pricing-grid { grid-template-columns: 1fr 1fr; }
+  }
+
   @media (max-width: 860px) {
     .hero h1 { font-size: 42px; }
     .hero-stat-grid, .problem-grid, .flow-grid, .feature-grid, .pricing-grid { grid-template-columns: 1fr; }
@@ -477,8 +497,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </header>
 
 <section class="hero">
-  <canvas id="agent-network" aria-hidden="true"></canvas>
-  <div class="wrap">
+  <div class="wrap hero-grid">
+  <div class="hero-copy">
     <div class="eyebrow-pill"><span class="dot"></span> The reliability layer for autonomous agent fleets</div>
     <h1>Stop shipping agents that <span class="accent">double-charge</span> your customers.</h1>
     <p class="sub">AgentRaaS sits between your AI agents and every real-world action — exactly-once execution, budget/loop limits, circuit breaking, and human approval on the calls that matter, proven under real concurrent load, not just claimed. Self-hosted or cloud.</p>
@@ -516,6 +536,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div class="hero-stat" id="ledger-stat-avg"><div class="n">—</div><div class="l">avg ms per action</div></div>
       </div>
     </div>
+  </div>
+  <div class="hero-visual" aria-hidden="true"><canvas id="agent-network"></canvas></div>
   </div>
 </section>
 
@@ -1026,10 +1048,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   // the renderer in an earlier attempt at a grain-texture overlay — see
   // git history), capped devicePixelRatio, and the rAF loop is stopped
   // entirely while the hero is scrolled out of view.
+  //
+  // Lives in its own dedicated .hero-visual column (see CSS) rather than
+  // spanning the full hero behind the text — an earlier version placed
+  // nodes wherever seemed empty at runtime, which overlapped the copy on
+  // common viewport widths, and hiding it below a measured clear-space
+  // threshold then meant it didn't render on most real screens at all.
+  // A real reserved column means it always renders above the hero's own
+  // max-width breakpoint, never overlaps below it.
   var canvas = document.getElementById('agent-network');
   if (!canvas || !canvas.getContext) return;
   var ctx = canvas.getContext('2d');
-  var heroEl = canvas.closest('section.hero');
+  var visualEl = canvas.closest('.hero-visual');
   var motionOk = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
   var NODE_COUNT = 16;
   var W = 0, H = 0, dpr = 1;
@@ -1038,46 +1068,31 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   var packets = [];
   var lastSpawn = 0;
 
-  // Where the network is actually allowed to live: strictly to the right
-  // of the real copy block (heading/paragraph/buttons), measured live
-  // rather than guessed as a fixed percentage — the copy's width varies
-  // by viewport and by how the heading wraps. If there isn't at least
-  // 140px of clear width (narrow/mobile), the graphic is skipped
-  // entirely rather than drawn on top of the text.
-  var safe = null;
-  function computeSafeZone() {
-    var heroRect = heroEl.getBoundingClientRect();
-    // Whichever line is widest — heading, paragraph, or the button row —
-    // sets the real edge of the copy column. Checking only one of these
-    // (e.g. just the buttons) risks the graphic tucking in right next to
-    // a wider line above/below it.
-    var copyEls = heroEl.querySelectorAll('.eyebrow-pill, h1, p.sub, .hero-ctas, .no-list');
-    var maxRight = 0;
-    copyEls.forEach(function(el) {
-      maxRight = Math.max(maxRight, el.getBoundingClientRect().right - heroRect.left);
-    });
-    var x0 = Math.max(maxRight + 40, W * 0.5);
-    if (W - x0 < 140) return null;
-    return { x0: x0, x1: W };
+  function visible() {
+    // display:none below the layout's breakpoint (see CSS) collapses
+    // the column to 0×0 — that's the signal to skip drawing entirely,
+    // rather than a separate measured-text check.
+    var rect = visualEl.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
   }
 
   function resize() {
-    var rect = heroEl.getBoundingClientRect();
+    if (!visible()) { W = 0; H = 0; return; }
+    var rect = visualEl.getBoundingClientRect();
     W = rect.width; H = rect.height;
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    safe = computeSafeZone();
-    if (safe) { core.x = safe.x0 + (safe.x1 - safe.x0) * 0.6; core.y = H * 0.42; }
+    core.x = W * 0.6; core.y = H * 0.42;
   }
 
   function initNodes() {
     nodes = [];
-    if (!safe) return;
+    if (!W || !H) return;
     for (var i = 0; i < NODE_COUNT; i++) {
       nodes.push({
-        x: safe.x0 + Math.random() * (safe.x1 - safe.x0), y: Math.random() * H,
+        x: Math.random() * W, y: Math.random() * H,
         vx: (Math.random() - 0.5) * 0.12, vy: (Math.random() - 0.5) * 0.12,
         r: 2 + Math.random() * 2,
       });
@@ -1089,8 +1104,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   }
 
   function draw(now, animate) {
+    if (!W || !H) return;
     ctx.clearRect(0, 0, W, H);
-    if (!safe) return;
 
     ctx.lineWidth = 1;
     nodes.forEach(function(n) {
@@ -1104,7 +1119,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     nodes.forEach(function(n) {
       if (animate) {
         n.x += n.vx; n.y += n.vy;
-        if (n.x < safe.x0 || n.x > safe.x1) n.vx *= -1;
+        if (n.x < 0 || n.x > W) n.vx *= -1;
         if (n.y < 0 || n.y > H) n.vy *= -1;
       }
       ctx.beginPath();
@@ -1146,9 +1161,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   function stop() { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
 
   var io = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) { if (entry.isIntersecting) start(); else stop(); });
+    entries.forEach(function(entry) { if (entry.isIntersecting && visible()) start(); else stop(); });
   }, { threshold: 0 });
-  io.observe(heroEl);
+  io.observe(visualEl);
 })();
 </script>
 <script>
