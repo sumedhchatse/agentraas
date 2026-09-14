@@ -2,9 +2,9 @@
 
 # AgentRaaS
 
-**The reliability layer for autonomous agent fleets.**
+**The agent reliability platform.**
 
-AgentRaaS sits between your AI agents and every real-world action — exactly-once execution, budget/loop limits, circuit breaking, agent identity with scope-restricted credentials, and human approval on the calls that matter, proven under real concurrent load, not just claimed. Connect it via webhook, SDK-style headers, or native MCP. Self-hosted or cloud.
+AgentRaaS sits between your AI agents and every real-world action, giving you three things at once, not one trick: **reliability** (exactly-once execution, circuit breaking, proven under real concurrent load, not just claimed), **responsibility** (budget/loop limits and human-in-the-loop approval before the calls that matter), and **accountability** (a full audit trail and per-agent identity — scope-restricted credentials — for every action taken). Connect it via webhook, SDK-style headers, or native MCP. Self-hosted or cloud.
 
 ---
 
