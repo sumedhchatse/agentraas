@@ -1016,6 +1016,29 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   var packets = [];
   var lastSpawn = 0;
 
+  // Where the network is actually allowed to live: strictly to the right
+  // of the real copy block (heading/paragraph/buttons), measured live
+  // rather than guessed as a fixed percentage — the copy's width varies
+  // by viewport and by how the heading wraps. If there isn't at least
+  // 140px of clear width (narrow/mobile), the graphic is skipped
+  // entirely rather than drawn on top of the text.
+  var safe = null;
+  function computeSafeZone() {
+    var heroRect = heroEl.getBoundingClientRect();
+    // Whichever line is widest — heading, paragraph, or the button row —
+    // sets the real edge of the copy column. Checking only one of these
+    // (e.g. just the buttons) risks the graphic tucking in right next to
+    // a wider line above/below it.
+    var copyEls = heroEl.querySelectorAll('.eyebrow-pill, h1, p.sub, .hero-ctas, .no-list');
+    var maxRight = 0;
+    copyEls.forEach(function(el) {
+      maxRight = Math.max(maxRight, el.getBoundingClientRect().right - heroRect.left);
+    });
+    var x0 = Math.max(maxRight + 40, W * 0.5);
+    if (W - x0 < 140) return null;
+    return { x0: x0, x1: W };
+  }
+
   function resize() {
     var rect = heroEl.getBoundingClientRect();
     W = rect.width; H = rect.height;
@@ -1023,14 +1046,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    core.x = W * 0.78; core.y = H * 0.38;
+    safe = computeSafeZone();
+    if (safe) { core.x = safe.x0 + (safe.x1 - safe.x0) * 0.6; core.y = H * 0.42; }
   }
 
   function initNodes() {
     nodes = [];
+    if (!safe) return;
     for (var i = 0; i < NODE_COUNT; i++) {
       nodes.push({
-        x: Math.random() * W, y: Math.random() * H,
+        x: safe.x0 + Math.random() * (safe.x1 - safe.x0), y: Math.random() * H,
         vx: (Math.random() - 0.5) * 0.12, vy: (Math.random() - 0.5) * 0.12,
         r: 2 + Math.random() * 2,
       });
@@ -1043,6 +1068,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
   function draw(now, animate) {
     ctx.clearRect(0, 0, W, H);
+    if (!safe) return;
 
     ctx.lineWidth = 1;
     nodes.forEach(function(n) {
@@ -1056,7 +1082,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     nodes.forEach(function(n) {
       if (animate) {
         n.x += n.vx; n.y += n.vy;
-        if (n.x < 0 || n.x > W) n.vx *= -1;
+        if (n.x < safe.x0 || n.x > safe.x1) n.vx *= -1;
         if (n.y < 0 || n.y > H) n.vy *= -1;
       }
       ctx.beginPath();
@@ -1085,7 +1111,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
   resize();
   initNodes();
-  window.addEventListener('resize', function() { resize(); }, { passive: true });
+  window.addEventListener('resize', function() { resize(); initNodes(); }, { passive: true });
 
   if (!motionOk) {
     draw(0, false);
