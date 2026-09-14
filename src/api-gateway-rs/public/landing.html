@@ -33,11 +33,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* "Settlement ledger" identity: every write is a claim ticket with a
-     durable receipt, so the visual language borrows from claim stubs,
-     postmark stamps, and greenbar accounting paper instead of generic
-     SaaS gradients. --signal/--alert/--dedup/--info names are kept as-is
-     (many call sites reference them) but repointed to this palette. */
+  /* Agent-network identity (2026-09-14 rebrand): AgentRaaS sits at the
+     center of a live fleet of autonomous agents, so the visual language
+     is a network graph — nodes, pulsing connections, a glowing core —
+     instead of the earlier claim-stub/ledger paper motif.
+     --signal/--alert/--dedup/--info/--claim names are kept as-is (many
+     call sites reference them) but repointed to this palette. */
   :root {
     --ink: #12140F; --ink-2: #1A1D16;
     --paper: #F1F3E9; --paper-panel: #FFFFFF;
@@ -97,28 +98,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .hero {
     position: relative; min-height: 96vh; display: flex; align-items: center;
     padding: 140px 0 80px; overflow: hidden;
-    background:
-      radial-gradient(ellipse 900px 500px at 30% -10%, rgba(226,114,77,0.16), transparent 60%),
-      radial-gradient(ellipse 700px 400px at 90% 20%, rgba(124,156,255,0.10), transparent 60%);
+    background: radial-gradient(ellipse 1100px 700px at 70% 20%, rgba(110,134,168,0.10), transparent 65%);
   }
-  /* Slow-drifting aurora blobs behind the hero copy — purely decorative,
-     frozen (but still visible) under prefers-reduced-motion. */
-  .hero::before, .hero::after {
-    content: ''; position: absolute; z-index: 0; border-radius: 50%; filter: blur(90px); pointer-events: none;
-  }
-  .hero::before {
-    width: 520px; height: 520px; top: -140px; left: 6%;
-    background: radial-gradient(circle, rgba(226,114,77,0.22), transparent 70%);
-    animation: auroraA 20s ease-in-out infinite alternate;
-  }
-  .hero::after {
-    width: 440px; height: 440px; bottom: -160px; right: 4%;
-    background: radial-gradient(circle, rgba(124,156,255,0.18), transparent 70%);
-    animation: auroraB 24s ease-in-out infinite alternate;
-  }
-  @keyframes auroraA { from { transform: translate(0,0) scale(1); } to { transform: translate(70px, 50px) scale(1.15); } }
-  @keyframes auroraB { from { transform: translate(0,0) scale(1); } to { transform: translate(-60px, -40px) scale(1.1); } }
-  @media (prefers-reduced-motion: reduce) { .hero::before, .hero::after { animation: none; } }
+  /* Agent-network canvas — nodes drifting toward a glowing core, with
+     packets pulsing along the connections. Cheap by design: plain
+     canvas fill/stroke (no CSS filters or blend modes), a low node
+     count, capped devicePixelRatio, paused via IntersectionObserver
+     when the hero isn't on screen, and a single static frame (no rAF
+     loop at all) under prefers-reduced-motion. See the script near the
+     end of the page for the implementation. */
+  #agent-network { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; display: block; }
   .hero .wrap { position: relative; z-index: 2; }
   .hero .eyebrow-pill, .hero h1, .hero p.sub, .hero-ctas, .hero .no-list, .hero-panel {
     opacity: 0; animation: heroIn 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
@@ -177,13 +166,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     padding: 28px; margin-top: 56px; backdrop-filter: blur(6px);
     position: relative;
   }
-  /* Torn-ticket edge — these two panels are the page's proof (a live claim
-     ticket for the dedup test), so they get the strongest signature detail. */
+  /* Scan-line accent — these two panels are the page's proof (a live
+     concurrency test / real production ledger), so they get the
+     strongest signature detail: a slow light sweep along the top edge. */
   .hero-panel::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 9px;
-    background-image: radial-gradient(circle 5.5px at 5px 0, var(--ink) 5.5px, transparent 6px);
-    background-repeat: repeat-x; background-position: 8px 0; background-size: 22px 100%;
+    content: ""; position: absolute; top: -1px; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--signal), transparent);
+    background-size: 200% 100%; animation: scan 4s linear infinite;
   }
+  @keyframes scan { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .hero-panel::after { animation: none; background-position: 0 0; } }
   .hero-panel .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
   .hero-panel .tag { font-size: 12px; font-weight: 800; letter-spacing: 0.03em; color: var(--muted); }
   .hero-panel .live { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--signal); }
@@ -294,18 +286,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
   .feature-card {
     background: var(--paper-panel); border: 1px solid var(--border-light); border-radius: 5px; padding: 28px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease; position: relative; overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; position: relative;
   }
-  /* Stamp-style accent — a claim-stub perforation line that "prints in"
-     across the top on hover, rather than a generic glow, to match the
-     ledger/claim-ticket visual language instead of a stock SaaS effect. */
-  .feature-card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--signal), var(--dedup));
-    transform: scaleX(0); transform-origin: left; transition: transform 0.3s ease;
+  /* HUD-style corner brackets — fade in on hover instead of a generic
+     glow, the same "targeting reticle" language a live systems display
+     uses to highlight a selected node. */
+  .feature-card::before, .feature-card::after {
+    content: ''; position: absolute; width: 14px; height: 14px; opacity: 0; transition: opacity 0.2s ease;
+    border-color: var(--signal); border-style: solid; border-width: 0;
   }
-  .feature-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
-  .feature-card:hover::before { transform: scaleX(1); }
+  .feature-card::before { top: 8px; left: 8px; border-top-width: 2px; border-left-width: 2px; }
+  .feature-card::after { bottom: 8px; right: 8px; border-bottom-width: 2px; border-right-width: 2px; }
+  .feature-card:hover {
+    transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-color: rgba(226,114,77,0.4);
+  }
+  .feature-card:hover::before, .feature-card:hover::after { opacity: 1; }
   .feature-card .icon {
     width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
     font-size: 20px; margin-bottom: 18px; transition: transform 0.25s ease;
@@ -353,15 +348,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .pricing-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; }
   .price-card {
     background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 38px;
-    transition: transform 0.2s ease, border-color 0.2s ease; position: relative; overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease; position: relative;
   }
-  .price-card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--signal), var(--dedup));
-    transform: scaleX(0); transform-origin: left; transition: transform 0.3s ease;
+  .price-card::before, .price-card::after {
+    content: ''; position: absolute; width: 14px; height: 14px; opacity: 0; transition: opacity 0.2s ease;
+    border-color: var(--signal); border-style: solid; border-width: 0;
   }
+  .price-card::before { top: 8px; left: 8px; border-top-width: 2px; border-left-width: 2px; }
+  .price-card::after { bottom: 8px; right: 8px; border-bottom-width: 2px; border-right-width: 2px; }
   .price-card:hover { transform: translateY(-3px); border-color: rgba(226,114,77,0.35); }
-  .price-card:hover::before { transform: scaleX(1); }
+  .price-card:hover::before, .price-card:hover::after { opacity: 1; }
   .price-card.featured { border-color: var(--signal); background: linear-gradient(180deg, rgba(226,114,77,0.06), transparent 40%), var(--ink-2); }
   .price-card h3 { font-size: 21px; margin-bottom: 6px; }
   .price-card .tagline { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
@@ -459,6 +455,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </header>
 
 <section class="hero">
+  <canvas id="agent-network" aria-hidden="true"></canvas>
   <div class="wrap">
     <div class="eyebrow-pill"><span class="dot"></span> The reliability layer for autonomous agent fleets</div>
     <h1>Stop shipping agents that <span class="accent">double-charge</span> your customers.</h1>
@@ -996,6 +993,114 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     proofNums.forEach(function(el) { countObserver.observe(el); });
   }
 
+})();
+</script>
+<script>
+(function() {
+  // Agent-network hero graphic — a live-updating visualization of what
+  // the product actually does: a fleet of agents (nodes) sending actions
+  // (packets) through a single reliability core. Deliberately simple:
+  // fixed low node count, no CSS filters/blend-modes (that's what froze
+  // the renderer in an earlier attempt at a grain-texture overlay — see
+  // git history), capped devicePixelRatio, and the rAF loop is stopped
+  // entirely while the hero is scrolled out of view.
+  var canvas = document.getElementById('agent-network');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var heroEl = canvas.closest('section.hero');
+  var motionOk = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+  var NODE_COUNT = 16;
+  var W = 0, H = 0, dpr = 1;
+  var nodes = [];
+  var core = { x: 0, y: 0 };
+  var packets = [];
+  var lastSpawn = 0;
+
+  function resize() {
+    var rect = heroEl.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    core.x = W * 0.78; core.y = H * 0.38;
+  }
+
+  function initNodes() {
+    nodes = [];
+    for (var i = 0; i < NODE_COUNT; i++) {
+      nodes.push({
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.12, vy: (Math.random() - 0.5) * 0.12,
+        r: 2 + Math.random() * 2,
+      });
+    }
+  }
+
+  function spawnPacket() {
+    packets.push({ from: nodes[Math.floor(Math.random() * nodes.length)], p: 0 });
+  }
+
+  function draw(now, animate) {
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.lineWidth = 1;
+    nodes.forEach(function(n) {
+      var dx = core.x - n.x, dy = core.y - n.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var alpha = Math.max(0, 1 - dist / (Math.max(W, H) * 0.95)) * 0.28;
+      ctx.strokeStyle = 'rgba(110,134,168,' + alpha + ')';
+      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(core.x, core.y); ctx.stroke();
+    });
+
+    nodes.forEach(function(n) {
+      if (animate) {
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0 || n.x > W) n.vx *= -1;
+        if (n.y < 0 || n.y > H) n.vy *= -1;
+      }
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(110,134,168,0.6)';
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    var grad = ctx.createRadialGradient(core.x, core.y, 0, core.x, core.y, 28);
+    grad.addColorStop(0, 'rgba(226,114,77,0.85)');
+    grad.addColorStop(1, 'rgba(226,114,77,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(core.x, core.y, 28, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.fillStyle = '#E2724D'; ctx.arc(core.x, core.y, 5, 0, Math.PI * 2); ctx.fill();
+
+    if (!animate) return;
+    if (now - lastSpawn > 900) { spawnPacket(); lastSpawn = now; }
+    packets = packets.filter(function(pk) { return pk.p < 1; });
+    packets.forEach(function(pk) {
+      pk.p += 0.014;
+      var x = pk.from.x + (core.x - pk.from.x) * pk.p;
+      var y = pk.from.y + (core.y - pk.from.y) * pk.p;
+      ctx.beginPath(); ctx.fillStyle = '#E2724D'; ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
+  resize();
+  initNodes();
+  window.addEventListener('resize', function() { resize(); }, { passive: true });
+
+  if (!motionOk) {
+    draw(0, false);
+    return;
+  }
+
+  var rafId = null;
+  function loop(now) { draw(now, true); rafId = requestAnimationFrame(loop); }
+  function start() { if (!rafId) rafId = requestAnimationFrame(loop); }
+  function stop() { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
+
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) { if (entry.isIntersecting) start(); else stop(); });
+  }, { threshold: 0 });
+  io.observe(heroEl);
 })();
 </script>
 <script>
