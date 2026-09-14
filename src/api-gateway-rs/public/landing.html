@@ -110,9 +110,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
      mobile breakpoint (520+32+240+64px padding = 856px minimum) rather
      than an arbitrary wider cutoff — the first version needed 1080px,
      which hid the graphic on most real, non-maximized browser windows. */
-  .hero-grid { display: flex; gap: 32px; align-items: center; }
+  /* flex-start, not center: centering against the FULL copy column
+     (headline through both proof panels, much taller than the visual)
+     floated the graphic in the middle of nowhere instead of reading as
+     part of the hero — starting level with the headline is what makes
+     it read as one composition, not two unrelated blocks. */
+  .hero-grid { display: flex; gap: 32px; align-items: flex-start; }
   .hero-copy { flex: 1 1 auto; min-width: 0; max-width: 520px; }
-  .hero-visual { flex: 1 1 300px; min-width: 240px; height: 420px; align-self: center; position: relative; }
+  .hero-visual { flex: 1 1 300px; min-width: 240px; height: 560px; align-self: flex-start; position: relative; }
   @media (max-width: 860px) { .hero-visual { display: none; } .hero-grid { display: block; } .hero-copy { max-width: none; } }
   /* Agent-network canvas — nodes drifting toward a glowing core, with
      packets pulsing along the connections. Cheap by design: plain
