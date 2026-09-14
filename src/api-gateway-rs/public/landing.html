@@ -12,21 +12,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AgentRaaS — The Reliability Layer for Autonomous Agent Fleets</title>
-<meta name="description" content="AgentRaaS: the reliability layer for autonomous agent fleets. Dedup, circuit breaking, budget/loop limits, and human-in-the-loop approval for AI agents taking real-world actions. Self-hosted (unlimited, free, forever) or cloud.">
+<meta name="description" content="AgentRaaS: the agent reliability platform — reliability (exactly-once execution, circuit breaking), responsibility (budget/loop limits, human-in-the-loop approval), and accountability (full audit trail, per-agent identity) for AI agents taking real-world actions. Self-hosted (unlimited, free, forever) or cloud.">
 <meta name="robots" content="index, follow">
 <meta name="google-site-verification" content="EBZLmjcSMe4ZXaxSA-BnE5nll_5LwF2SqKCPTSiO-U8" />
 <link rel="canonical" href="/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="AgentRaaS">
 <meta property="og:title" content="AgentRaaS — The Reliability Layer for Autonomous Agent Fleets">
-<meta property="og:description" content="Dedup, circuit breaking, budget/loop limits, and human-in-the-loop approval for AI agents taking real-world actions. Self-hosted is unlimited and free, forever.">
+<meta property="og:description" content="The agent reliability platform: reliability, responsibility, and accountability for every action your AI agents take. Self-hosted is unlimited and free, forever.">
 <meta property="og:url" content="/">
 <meta property="og:image" content="/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="AgentRaaS — The Reliability Layer for Autonomous Agent Fleets">
-<meta name="twitter:description" content="Reliability infrastructure for AI agents — dedup, circuit breaking, budget/loop limits, human-in-the-loop approval, and audit logging. Self-hosted is unlimited and free, forever.">
+<meta name="twitter:description" content="The agent reliability platform — reliability, responsibility, and accountability for every action your AI agents take. Self-hosted is unlimited and free, forever.">
 <meta name="twitter:image" content="/og-image.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23E2724D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232A140C' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232A140C'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -120,19 +120,30 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
      end of the page for the implementation. */
   #agent-network { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .hero .wrap { position: relative; z-index: 2; }
-  .hero .eyebrow-pill, .hero h1, .hero p.sub, .hero-ctas, .hero .no-list, .hero-panel {
+  .hero .eyebrow-pill, .hero h1, .hero p.sub, .pillar-row, .hero-ctas, .hero .no-list, .hero-panel {
     opacity: 0; animation: heroIn 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
   }
   .hero .eyebrow-pill { animation-delay: 0.05s; }
   .hero h1 { animation-delay: 0.15s; }
   .hero p.sub { animation-delay: 0.28s; }
+  .pillar-row { animation-delay: 0.34s; }
   .hero-ctas { animation-delay: 0.4s; }
   .hero .no-list { animation-delay: 0.5s; }
   .hero-panel { animation-delay: 0.6s; }
   @keyframes heroIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
   @media (prefers-reduced-motion: reduce) {
-    .hero .eyebrow-pill, .hero h1, .hero p.sub, .hero-ctas, .hero .no-list, .hero-panel { animation: none; opacity: 1; }
+    .hero .eyebrow-pill, .hero h1, .hero p.sub, .pillar-row, .hero-ctas, .hero .no-list, .hero-panel { animation: none; opacity: 1; }
   }
+  /* Reliability / Responsibility / Accountability — the platform's three
+     pillars, each mapped to real shipped features rather than left as
+     marketing words. Bordered, not filled, to match the HUD/schematic
+     card language used elsewhere on the page. */
+  .pillar-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0; }
+  .pillar {
+    flex: 1 1 200px; border: 1px solid var(--border-dark); border-radius: 4px; padding: 12px 16px;
+    font-size: 13px; color: var(--muted); background: rgba(255,255,255,0.02);
+  }
+  .pillar-name { display: block; font-family: 'Archivo', sans-serif; font-weight: 800; color: var(--signal); font-size: 14px; margin-bottom: 4px; }
   .eyebrow-pill {
     display: inline-flex; align-items: center; gap: 8px; background: rgba(226,114,77,0.1);
     border: 1px solid rgba(226,114,77,0.35); color: var(--signal); font-size: 13px; font-weight: 700;
@@ -501,7 +512,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <div class="hero-copy">
     <div class="eyebrow-pill"><span class="dot"></span> The reliability layer for autonomous agent fleets</div>
     <h1>Stop shipping agents that <span class="accent">double-charge</span> your customers.</h1>
-    <p class="sub">AgentRaaS sits between your AI agents and every real-world action — exactly-once execution, budget/loop limits, circuit breaking, and human approval on the calls that matter, proven under real concurrent load, not just claimed. Self-hosted or cloud.</p>
+    <p class="sub">AgentRaaS is an agent reliability platform, not a single trick: <strong>reliability</strong> (exactly-once execution, proven under real concurrent load, not just claimed), <strong>responsibility</strong> (budget/loop limits and human approval before the calls that matter), and <strong>accountability</strong> (a full audit trail and per-agent identity for every action taken). Self-hosted or cloud.</p>
+    <div class="pillar-row">
+      <div class="pillar"><span class="pillar-name">Reliability</span>Exactly-once execution, circuit breaking, rate limiting</div>
+      <div class="pillar"><span class="pillar-name">Responsibility</span>Budget/loop limits, human-in-the-loop approval</div>
+      <div class="pillar"><span class="pillar-name">Accountability</span>Full audit trail, per-agent identity &amp; scope</div>
+    </div>
     <div class="hero-ctas">
       <a href="/dashboard" class="btn primary" data-gtm-event="cta_click" data-gtm-label="hero_get_started_free">Get started free →</a>
       <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="btn secondary" data-gtm-event="cta_click" data-gtm-label="hero_star_github">⭐ Star on GitHub — clone &amp; self-host</a>
