@@ -33,6 +33,7 @@ pub fn router() -> Router<SharedState> {
         .route("/status", get(status_page))
         .route("/vendor/chart.umd.min.js", get(vendor_chart_js))
         .route("/og-image.png", get(og_image))
+        .route("/logo.svg", get(logo_svg))
         .route("/robots.txt", get(robots_txt))
         .route("/sitemap.xml", get(sitemap_xml))
         .route("/api/v1/public/status", get(public_status))
@@ -145,6 +146,14 @@ async fn og_image() -> axum::response::Response {
     match tokio::fs::read(&path).await {
         Ok(bytes) => ([(header::CONTENT_TYPE, "image/png")], bytes).into_response(),
         Err(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "og-image.png not found on this deployment." }))).into_response(),
+    }
+}
+
+async fn logo_svg() -> axum::response::Response {
+    let path = public_file("logo.svg");
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => ([(header::CONTENT_TYPE, "image/svg+xml")], bytes).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "logo.svg not found on this deployment." }))).into_response(),
     }
 }
 
