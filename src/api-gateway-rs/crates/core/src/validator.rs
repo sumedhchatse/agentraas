@@ -44,6 +44,27 @@ pub fn validate_fields(payload: &Value, fields: &Value) -> Option<String> {
                         return Some(format!("{field_name} must be at most {}", fmt_num(max)));
                     }
                 }
+                // Preconditions referencing another field in the SAME
+                // payload, not a fixed literal — e.g. "refund_amount must
+                // not exceed balance" where balance is only known per
+                // request. A missing/non-numeric referenced field is
+                // silently skipped (nothing to compare against), not an
+                // error — same "can't be checked, so don't block" stance
+                // as every other rule here when a value is absent.
+                if let Some(max_field) = field_rules.get("maxField").and_then(Value::as_str) {
+                    if let Some(other) = payload.get(max_field).and_then(Value::as_f64) {
+                        if v > other {
+                            return Some(format!("{field_name} ({}) must not exceed {max_field} ({})", fmt_num(v), fmt_num(other)));
+                        }
+                    }
+                }
+                if let Some(min_field) = field_rules.get("minField").and_then(Value::as_str) {
+                    if let Some(other) = payload.get(min_field).and_then(Value::as_f64) {
+                        if v < other {
+                            return Some(format!("{field_name} ({}) must be at least {min_field} ({})", fmt_num(v), fmt_num(other)));
+                        }
+                    }
+                }
             }
         }
 
@@ -158,6 +179,14 @@ pub fn is_valid_rule_definition(fields: &Value) -> Option<String> {
                 return Some(format!("Field \"{field_name}\": min cannot be greater than max."));
             }
         }
+        for key in ["minField", "maxField"] {
+            if let Some(v) = rules.get(key).filter(|v| !v.is_null()) {
+                let valid_name = v.as_str().is_some_and(|s| !s.is_empty() && s.len() <= 100);
+                if !valid_name {
+                    return Some(format!("Field \"{field_name}\": {key} must be a non-empty field name."));
+                }
+            }
+        }
         let min_len = rules.get("minLength").filter(|v| !v.is_null());
         let max_len = rules.get("maxLength").filter(|v| !v.is_null());
         if min_len.is_some_and(|v| !v.as_f64().is_some_and(|n| n >= 0.0)) {
@@ -265,5 +294,43 @@ mod tests {
     #[test]
     fn normal_field_list_is_valid() {
         assert_eq!(is_valid_dedup_rule_definition(&json!(["order_id", "customer_id"])), None);
+    }
+
+    #[test]
+    fn max_field_precondition_rejects_when_over() {
+        let fields = json!({ "refund_amount": { "type": "number", "maxField": "balance" } });
+        let payload = json!({ "refund_amount": 150, "balance": 100 });
+        let err = validate_fields(&payload, &fields).unwrap();
+        assert!(err.contains("refund_amount"));
+        assert!(err.contains("balance"));
+    }
+
+    #[test]
+    fn max_field_precondition_passes_when_within() {
+        let fields = json!({ "refund_amount": { "type": "number", "maxField": "balance" } });
+        let payload = json!({ "refund_amount": 50, "balance": 100 });
+        assert_eq!(validate_fields(&payload, &fields), None);
+    }
+
+    #[test]
+    fn min_field_precondition_rejects_when_under() {
+        let fields = json!({ "deposit": { "type": "number", "minField": "minimum_required" } });
+        let payload = json!({ "deposit": 5, "minimum_required": 10 });
+        assert!(validate_fields(&payload, &fields).is_some());
+    }
+
+    #[test]
+    fn field_precondition_skipped_when_referenced_field_missing() {
+        // Nothing to compare against — same "can't check it, don't block"
+        // stance as every other rule when a value is absent.
+        let fields = json!({ "refund_amount": { "type": "number", "maxField": "balance" } });
+        let payload = json!({ "refund_amount": 150 });
+        assert_eq!(validate_fields(&payload, &fields), None);
+    }
+
+    #[test]
+    fn max_field_definition_requires_non_empty_string() {
+        assert!(is_valid_rule_definition(&json!({ "amount": { "type": "number", "maxField": "" } })).is_some());
+        assert!(is_valid_rule_definition(&json!({ "amount": { "type": "number", "maxField": "balance" } })).is_none());
     }
 }
