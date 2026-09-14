@@ -142,8 +142,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .hero p.sub { color: var(--muted); font-size: 19px; max-width: 580px; margin-bottom: 40px; line-height: 1.55; }
   .hero-ctas { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px; padding: 15px 28px; border-radius: 4px;
+    display: inline-flex; align-items: center; gap: 8px; padding: 15px 28px;
     font-weight: 800; font-size: 16px; font-family: 'Archivo', sans-serif;
+    /* A cut top-right corner instead of a rounded rect — a small,
+       recognizable "connector/HUD panel" shape rather than a generic
+       button, echoing the corner brackets already on the cards. */
+    clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%);
     transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease;
   }
   .btn.primary { background: var(--signal); color: var(--signal-deep); }
@@ -243,8 +247,22 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   @media (max-width: 980px) { .mcp-grid { grid-template-columns: 1fr; } }
 
   /* ─── Problem (dark) ─── */
-  section.problem { padding: 100px 0; }
-  .eyebrow { color: var(--signal); font-size: 13px; font-weight: 800; margin-bottom: 14px; }
+  /* Faint circuit-grid backdrop — plain repeating-linear-gradient lines,
+     not a filter or blend-mode (an SVG feTurbulence grain overlay froze
+     the renderer earlier in this project; flat gradients don't have
+     that cost). */
+  section.problem {
+    padding: 100px 0;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(110,134,168,0.05) 0px, rgba(110,134,168,0.05) 1px, transparent 1px, transparent 64px),
+      repeating-linear-gradient(90deg, rgba(110,134,168,0.05) 0px, rgba(110,134,168,0.05) 1px, transparent 1px, transparent 64px);
+  }
+  /* Terminal-cursor blink — reads as a live system readout rather than a
+     static section label. Respects reduced-motion via the existing
+     `pulse` keyframe's own rule (kept solid, no flashing, if disabled). */
+  .eyebrow { color: var(--signal); font-size: 13px; font-weight: 800; margin-bottom: 14px; font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .eyebrow::after { content: '_'; animation: pulse 1s step-end infinite; }
+  @media (prefers-reduced-motion: reduce) { .eyebrow::after { animation: none; } }
   section.problem h2 { font-size: 42px; line-height: 1.1; max-width: 760px; margin-bottom: 46px; }
   .problem-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   .problem-card { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 30px; transition: transform 0.2s ease, border-color 0.2s ease; }
@@ -301,17 +319,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-color: rgba(226,114,77,0.4);
   }
   .feature-card:hover::before, .feature-card:hover::after { opacity: 1; }
+  /* Schematic "node" icon — a bordered, mostly-empty square rather than a
+     soft filled badge, reading as a circuit component instead of a
+     friendly app-icon tile. */
   .feature-card .icon {
-    width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
-    font-size: 20px; margin-bottom: 18px; transition: transform 0.25s ease;
+    width: 42px; height: 42px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 18px; transition: transform 0.25s ease, box-shadow 0.25s ease;
+    background: transparent; border: 1.5px solid currentColor;
   }
-  .feature-card:hover .icon { transform: scale(1.12) rotate(-4deg); }
-  .feature-card.c1 .icon { background: rgba(226,114,77,0.14); }
-  .feature-card.c2 .icon { background: rgba(124,156,255,0.14); }
-  .feature-card.c3 .icon { background: rgba(255,194,75,0.14); }
-  .feature-card.c4 .icon { background: rgba(255,92,108,0.14); }
-  .feature-card.c5 .icon { background: rgba(226,114,77,0.14); }
-  .feature-card.c6 .icon { background: rgba(124,156,255,0.14); }
+  .feature-card:hover .icon { transform: scale(1.08); box-shadow: 0 0 0 4px rgba(226,114,77,0.12); }
+  .feature-card.c1 .icon { color: var(--signal); }
+  .feature-card.c2 .icon { color: var(--info); }
+  .feature-card.c3 .icon { color: var(--dedup); }
+  .feature-card.c4 .icon { color: var(--alert); }
+  .feature-card.c5 .icon { color: var(--signal); }
+  .feature-card.c6 .icon { color: var(--info); }
   .feature-card h3 { font-size: 17px; color: var(--text-dark); margin-bottom: 8px; }
   .feature-card p { color: var(--muted-dark); font-size: 14.5px; }
 
