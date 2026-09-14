@@ -95,8 +95,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .nav-cta:hover { filter: brightness(1.08); }
 
   /* ─── Hero ─── */
+  /* Plain block, not flex: .hero now holds two stacked .wrap children
+     (the two-column intro, then the full-width proof panels below it —
+     see the HTML). It used to be flex+align-items:center to vertically
+     center one single .wrap; with two, that treated them as side-by-side
+     flex items in a row instead of stacked blocks — a real bug, found
+     via a user's screenshot from an actual wide monitor: the panels'
+     own .wrap sat at x≈849 instead of starting at the left edge. */
   .hero {
-    position: relative; min-height: 96vh; display: flex; align-items: center;
+    position: relative; min-height: 96vh;
     padding: 140px 0 80px; overflow: hidden;
     background: radial-gradient(ellipse 1100px 700px at 70% 20%, rgba(110,134,168,0.10), transparent 65%);
   }
@@ -117,7 +124,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
      it read as one composition, not two unrelated blocks. */
   .hero-grid { display: flex; gap: 32px; align-items: flex-start; }
   .hero-copy { flex: 1 1 auto; min-width: 0; max-width: 520px; }
-  .hero-visual { flex: 1 1 300px; min-width: 240px; height: 680px; align-self: flex-start; position: relative; }
+  /* max-width caps how far this grows on a wide monitor — without it,
+     flex-grow:1 stretched this to fill ALL leftover width (well over
+     800px on a real wide screen, confirmed from a user screenshot),
+     scattering the same 28 nodes across a much bigger area and leaving
+     a big empty gap between the copy column and wherever the sparse
+     result happened to cluster. */
+  .hero-visual { flex: 1 1 300px; min-width: 240px; max-width: 480px; height: 680px; align-self: flex-start; position: relative; }
   @media (max-width: 860px) { .hero-visual { display: none; } .hero-grid { display: block; } .hero-copy { max-width: none; } }
   /* Agent-network canvas — nodes drifting toward a glowing core, with
      packets pulsing along the connections. Cheap by design: plain
@@ -397,7 +410,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   section.pricing .section-head { text-align: center; margin-bottom: 54px; }
   section.pricing h2 { font-size: 42px; margin-bottom: 12px; }
   section.pricing p { color: var(--muted); font-size: 17px; }
-  .pricing-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; }
+  /* 3 real tiers (Community/Team/Enterprise) — 4 equal column tracks
+     left a permanent dead 4th column on any viewport wide enough not
+     to wrap, visible as empty space to the right of the cards. */
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   .price-card {
     background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 38px;
     transition: transform 0.2s ease, border-color 0.2s ease; position: relative;
@@ -535,7 +551,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <span>✓ No vendor lock-in</span>
       <span>✓ Self-hosted is unlimited and free, forever</span>
     </div>
-
+  </div>
+  <div class="hero-visual" aria-hidden="true"><canvas id="agent-network"></canvas></div>
+  </div>
+  <div class="wrap">
+    <!-- Full-width below the two-column area, not squeezed into the
+         520px copy column — these have their own 3-column stat grids
+         and read better spanning the whole hero, and keeping them out
+         of .hero-grid means the row's height is just the short intro
+         block, not intro+both-panels (which is what created a large
+         empty gap under the shorter, fixed-height graphic column on
+         wide screens — see git history). -->
     <div class="hero-panel">
       <div class="row">
         <span class="tag">CONCURRENCY PROOF</span>
@@ -560,8 +586,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <div class="hero-stat" id="ledger-stat-avg"><div class="n">—</div><div class="l">avg ms per action</div></div>
       </div>
     </div>
-  </div>
-  <div class="hero-visual" aria-hidden="true"><canvas id="agent-network"></canvas></div>
   </div>
 </section>
 
