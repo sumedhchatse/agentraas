@@ -95,50 +95,29 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .nav-cta:hover { filter: brightness(1.08); }
 
   /* ─── Hero ─── */
-  /* Plain block, not flex: .hero now holds two stacked .wrap children
-     (the two-column intro, then the full-width proof panels below it —
-     see the HTML). It used to be flex+align-items:center to vertically
-     center one single .wrap; with two, that treated them as side-by-side
-     flex items in a row instead of stacked blocks — a real bug, found
-     via a user's screenshot from an actual wide monitor: the panels'
-     own .wrap sat at x≈849 instead of starting at the left edge. */
+  /* Back to a single full-width column — the two-column layout (copy
+     capped at 520px beside a boxed graphic) is retired. Per request,
+     the network graphic is now a full-page fixed background (see
+     #agent-network below), not confined to a column next to the text,
+     so there's no second column left to reserve space for. */
   .hero {
-    position: relative; min-height: 96vh;
+    position: relative; min-height: 96vh; display: flex; align-items: center;
     padding: 140px 0 80px; overflow: hidden;
-    background: radial-gradient(ellipse 1100px 700px at 70% 20%, rgba(110,134,168,0.10), transparent 65%);
   }
-  /* Real two-column layout, not a background graphic guessed to avoid
-     the text: .hero-copy has a hard max-width so .hero-visual always
-     gets genuine dedicated space rather than the graphic being placed
-     wherever happened to be empty (that overlapped the copy on common
-     viewport widths — see git history). Below the breakpoint there
-     isn't room for a second column at all, so it's dropped, not shrunk
-     into an overlap. Sized to fit above the site's existing 860px
-     mobile breakpoint (520+32+240+64px padding = 856px minimum) rather
-     than an arbitrary wider cutoff — the first version needed 1080px,
-     which hid the graphic on most real, non-maximized browser windows. */
-  /* flex-start, not center: centering against the FULL copy column
-     (headline through both proof panels, much taller than the visual)
-     floated the graphic in the middle of nowhere instead of reading as
-     part of the hero — starting level with the headline is what makes
-     it read as one composition, not two unrelated blocks. */
-  .hero-grid { display: flex; gap: 32px; align-items: flex-start; }
-  .hero-copy { flex: 1 1 auto; min-width: 0; max-width: 520px; }
-  /* max-width caps how far this grows on a wide monitor — without it,
-     flex-grow:1 stretched this to fill ALL leftover width (well over
-     800px on a real wide screen, confirmed from a user screenshot),
-     scattering the same 28 nodes across a much bigger area and leaving
-     a big empty gap between the copy column and wherever the sparse
-     result happened to cluster. */
-  .hero-visual { flex: 1 1 300px; min-width: 240px; max-width: 480px; height: 680px; align-self: flex-start; position: relative; }
-  @media (max-width: 860px) { .hero-visual { display: none; } .hero-grid { display: block; } .hero-copy { max-width: none; } }
   /* Agent-network canvas — nodes drifting toward a glowing core, with
-     packets pulsing along the connections. Cheap by design: plain
-     canvas fill/stroke (no CSS filters or blend modes), a low node
-     count, capped devicePixelRatio, paused via IntersectionObserver
-     when the hero isn't on screen, and a single static frame (no rAF
+     packets pulsing along the connections, now spanning the full page
+     as a fixed background layer rather than one boxed-in section, so
+     lines read as genuinely long instead of confined to a small area.
+     z-index:-1 (not a negative-margin trick) keeps it below every
+     section's own background — sections with an opaque background
+     (features, pricing, ...) simply paint over it; the hero and any
+     other section without one shows it through. Cheap by design: plain
+     canvas fill/stroke (no CSS filters or blend modes), a moderate node
+     count, capped devicePixelRatio, paused via the page visibility API
+     when the tab itself is hidden, and a single static frame (no rAF
      loop at all) under prefers-reduced-motion. See the script near the
      end of the page for the implementation. */
+  #agent-network { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; display: block; }
   #agent-network { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .hero .wrap { position: relative; z-index: 2; }
   .hero .eyebrow-pill, .hero h1, .hero p.sub, .pillar-row, .hero-ctas, .hero .no-list, .hero-panel {
@@ -500,6 +479,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
 
 <div id="scroll-progress"></div>
+<canvas id="agent-network" aria-hidden="true"></canvas>
 
 <header class="nav">
   <div class="wrap">
@@ -532,8 +512,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </header>
 
 <section class="hero">
-  <div class="wrap hero-grid">
-  <div class="hero-copy">
+  <div class="wrap">
     <div class="eyebrow-pill"><span class="dot"></span> The reliability layer for autonomous agent fleets</div>
     <h1>Stop shipping agents that <span class="accent">double-charge</span> your customers.</h1>
     <p class="sub">AgentRaaS is an agent reliability platform, not a single trick: <strong>reliability</strong> (exactly-once execution, proven under real concurrent load, not just claimed), <strong>responsibility</strong> (budget/loop limits and human approval before the calls that matter), and <strong>accountability</strong> (a full audit trail and per-agent identity for every action taken). Self-hosted or cloud.</p>
@@ -551,17 +530,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <span>✓ No vendor lock-in</span>
       <span>✓ Self-hosted is unlimited and free, forever</span>
     </div>
-  </div>
-  <div class="hero-visual" aria-hidden="true"><canvas id="agent-network"></canvas></div>
-  </div>
-  <div class="wrap">
-    <!-- Full-width below the two-column area, not squeezed into the
-         520px copy column — these have their own 3-column stat grids
-         and read better spanning the whole hero, and keeping them out
-         of .hero-grid means the row's height is just the short intro
-         block, not intro+both-panels (which is what created a large
-         empty gap under the shorter, fixed-height graphic column on
-         wide screens — see git history). -->
+
     <div class="hero-panel">
       <div class="row">
         <span class="tag">CONCURRENCY PROOF</span>
@@ -1089,55 +1058,40 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 </script>
 <script>
 (function() {
-  // Agent-network hero graphic — a live-updating visualization of what
-  // the product actually does: a fleet of agents (nodes) sending actions
-  // (packets) through a single reliability core. Deliberately simple:
-  // fixed low node count, no CSS filters/blend-modes (that's what froze
-  // the renderer in an earlier attempt at a grain-texture overlay — see
-  // git history), capped devicePixelRatio, and the rAF loop is stopped
-  // entirely while the hero is scrolled out of view.
-  //
-  // Lives in its own dedicated .hero-visual column (see CSS) rather than
-  // spanning the full hero behind the text — an earlier version placed
-  // nodes wherever seemed empty at runtime, which overlapped the copy on
-  // common viewport widths, and hiding it below a measured clear-space
-  // threshold then meant it didn't render on most real screens at all.
-  // A real reserved column means it always renders above the hero's own
-  // max-width breakpoint, never overlaps below it.
+  // Agent-network background — a live-updating visualization of what the
+  // product actually does: a fleet of agents (nodes) sending actions
+  // (packets) through a single reliability core. Now a fixed full-page
+  // layer (see CSS: position:fixed, z-index:-1) rather than boxed into
+  // one hero column — per request, for genuinely long connecting lines
+  // instead of a small confined cluster, and so it shows behind every
+  // section without its own opaque background, not just the hero.
+  // Deliberately still simple: no CSS filters/blend-modes (that's what
+  // froze the renderer in an earlier attempt at a grain-texture overlay
+  // — see git history), capped devicePixelRatio, and the rAF loop stops
+  // entirely when the tab itself isn't visible (Page Visibility API —
+  // there's no single "offscreen" section to watch anymore).
   var canvas = document.getElementById('agent-network');
   if (!canvas || !canvas.getContext) return;
   var ctx = canvas.getContext('2d');
-  var visualEl = canvas.closest('.hero-visual');
   var motionOk = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
-  var NODE_COUNT = 28;
+  var NODE_COUNT = 42;
   var W = 0, H = 0, dpr = 1;
   var nodes = [];
   var core = { x: 0, y: 0 };
   var packets = [];
   var lastSpawn = 0;
 
-  function visible() {
-    // display:none below the layout's breakpoint (see CSS) collapses
-    // the column to 0×0 — that's the signal to skip drawing entirely,
-    // rather than a separate measured-text check.
-    var rect = visualEl.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
-  }
-
   function resize() {
-    if (!visible()) { W = 0; H = 0; return; }
-    var rect = visualEl.getBoundingClientRect();
-    W = rect.width; H = rect.height;
+    W = window.innerWidth; H = window.innerHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    core.x = W * 0.6; core.y = H * 0.42;
+    core.x = W * 0.68; core.y = H * 0.32;
   }
 
   function initNodes() {
     nodes = [];
-    if (!W || !H) return;
     for (var i = 0; i < NODE_COUNT; i++) {
       nodes.push({
         x: Math.random() * W, y: Math.random() * H,
@@ -1152,14 +1106,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   }
 
   function draw(now, animate) {
-    if (!W || !H) return;
     ctx.clearRect(0, 0, W, H);
 
     ctx.lineWidth = 1;
     nodes.forEach(function(n) {
       var dx = core.x - n.x, dy = core.y - n.y;
       var dist = Math.sqrt(dx * dx + dy * dy);
-      var alpha = Math.max(0, 1 - dist / (Math.max(W, H) * 0.95)) * 0.28;
+      var alpha = Math.max(0, 1 - dist / (Math.max(W, H) * 0.95)) * 0.22;
       ctx.strokeStyle = 'rgba(110,134,168,' + alpha + ')';
       ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(core.x, core.y); ctx.stroke();
     });
@@ -1171,7 +1124,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         if (n.y < 0 || n.y > H) n.vy *= -1;
       }
       ctx.beginPath();
-      ctx.fillStyle = 'rgba(110,134,168,0.6)';
+      ctx.fillStyle = 'rgba(110,134,168,0.5)';
       ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
       ctx.fill();
     });
@@ -1184,10 +1137,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     ctx.beginPath(); ctx.fillStyle = '#E2724D'; ctx.arc(core.x, core.y, 5, 0, Math.PI * 2); ctx.fill();
 
     if (!animate) return;
-    if (now - lastSpawn > 900) { spawnPacket(); lastSpawn = now; }
+    if (now - lastSpawn > 700) { spawnPacket(); lastSpawn = now; }
     packets = packets.filter(function(pk) { return pk.p < 1; });
     packets.forEach(function(pk) {
-      pk.p += 0.014;
+      pk.p += 0.012;
       var x = pk.from.x + (core.x - pk.from.x) * pk.p;
       var y = pk.from.y + (core.y - pk.from.y) * pk.p;
       ctx.beginPath(); ctx.fillStyle = '#E2724D'; ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
@@ -1208,10 +1161,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   function start() { if (!rafId) rafId = requestAnimationFrame(loop); }
   function stop() { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
 
-  var io = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) { if (entry.isIntersecting && visible()) start(); else stop(); });
-  }, { threshold: 0 });
-  io.observe(visualEl);
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') start(); else stop();
+  });
+  start();
 })();
 </script>
 <script>
