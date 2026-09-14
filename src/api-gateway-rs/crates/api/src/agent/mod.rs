@@ -107,6 +107,11 @@ struct RequestIdentity {
     /// a shared org-wide credential) and the dedup hash, so a caller who
     /// never sends this sees no behavior change at all.
     end_user_id: Option<String>,
+    /// Cross-agent resource lock — optional, additive. When present, a
+    /// second concurrent request naming the same resource_id is rejected
+    /// (409) rather than allowed to race with this one. See
+    /// `agentraas_core::resource_lock`.
+    resource_id: Option<String>,
 }
 
 async fn webhook_handler(
@@ -129,6 +134,7 @@ async fn webhook_handler(
     let action = body.get("action").and_then(Value::as_str).unwrap_or_default().to_string();
     let payload = body.get("payload").cloned().unwrap_or(json!({}));
     let end_user_id = body.get("end_user_id").and_then(Value::as_str).map(String::from);
+    let resource_id = body.get("resource_id").and_then(Value::as_str).map(String::from);
 
     handle_request(
         &state,
@@ -144,6 +150,7 @@ async fn webhook_handler(
             run_id,
             step_id,
             end_user_id,
+            resource_id,
         },
     )
     .await
@@ -162,6 +169,7 @@ async fn sdk_handler(
     let run_id = header_value(&headers, "x-agentraas-run-id");
     let step_id = header_value(&headers, "x-agentraas-step-id");
     let end_user_id = header_value(&headers, "x-agentraas-end-user");
+    let resource_id = header_value(&headers, "x-agentraas-resource-id");
 
     handle_request(
         &state,
@@ -177,6 +185,7 @@ async fn sdk_handler(
             run_id,
             step_id,
             end_user_id,
+            resource_id,
         },
     )
     .await
@@ -286,7 +295,7 @@ pub async fn replay_webhook(
     handle_request(
         state,
         Source::Webhook,
-        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None, end_user_id: None },
+        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None, end_user_id: None, resource_id: None },
     )
     .await
 }
@@ -308,6 +317,7 @@ async fn handle_request(
         run_id,
         step_id,
         end_user_id,
+        resource_id,
     } = identity;
 
     if service.is_empty() || action.is_empty() {
@@ -584,6 +594,22 @@ async fn handle_request(
     }
 
     // ─── claimed: do the real work ───
+
+    // Cross-agent resource lock — a different concern from the dedup
+    // claim just above: dedup catches a retry of THIS exact request,
+    // this catches a second, genuinely different request (this agent or
+    // another) racing to act on the same declared resource_id right now.
+    if let Some(resource_id) = &resource_id {
+        match agentraas_core::resource_lock::acquire(&mut conn, &org_id, resource_id, agentraas_core::resource_lock::DEFAULT_TTL_SECONDS).await {
+            Ok(lock) if !lock.acquired => {
+                let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("resource_locked"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+                return err_response(StatusCode::CONFLICT, &req_id, "Another in-flight request is already acting on this resource_id. Retry shortly.");
+            }
+            Ok(_) => {}
+            Err(err) => tracing::error!(?err, "resource_lock acquire failed, continuing without it"),
+        }
+    }
 
     if let Some((scope, text)) = semantic_record {
         if let Err(err) = agentraas_core::semantic_dedup::record_window(&mut conn, &scope, &text, &dedup_hash, dedup_ttl_seconds).await {
@@ -1092,6 +1118,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             run_id: None,
             step_id: None,
             end_user_id: None,
+            resource_id: None,
         },
     )
     .await;
@@ -1112,6 +1139,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             run_id: None,
             step_id: None,
             end_user_id: None,
+            resource_id: None,
         };
         handles.push(tokio::spawn(async move { handle_request(&state, Source::Sdk, identity).await }));
     }
