@@ -325,19 +325,40 @@ async fn handle_request(
         Err(resp) => return resp,
     };
 
-    match verify_api_key(&state.pg, &api_key, &org_id, &agent_id).await {
-        Ok(v) if !v.ok => {
-            return err_response(
-                StatusCode::UNAUTHORIZED,
-                &req_id,
-                "Invalid or missing API key for this agent. Generate one from the dashboard's Connect Agent panel.",
-            )
+    // Agent Identity (Enterprise) — an `art_live_`-prefixed credential is a
+    // short-lived, scope-restricted token, checked here instead of the
+    // normal api_keys lookup below. Anything else (including every
+    // existing api_keys credential) falls through unchanged.
+    #[cfg_attr(not(feature = "enterprise"), allow(unused_mut))]
+    let mut identity_authenticated = false;
+    #[cfg(feature = "enterprise")]
+    if state.enterprise_mode {
+        match crate::ee::identity::authenticate(&state.pg, &api_key, &org_id, &agent_id, &service, &action).await {
+            Ok(crate::ee::identity::AuthOutcome::Ok) => identity_authenticated = true,
+            Ok(crate::ee::identity::AuthOutcome::NotIdentityToken) => {}
+            Ok(crate::ee::identity::AuthOutcome::Unauthorized(msg)) => return err_response(StatusCode::UNAUTHORIZED, &req_id, msg),
+            Ok(crate::ee::identity::AuthOutcome::Forbidden(msg)) => return err_response(StatusCode::FORBIDDEN, &req_id, msg),
+            Err(err) => {
+                tracing::error!(?err, "agent identity token check failed");
+                return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
+            }
         }
-        Err(err) => {
-            tracing::error!(?err, "verify_api_key failed");
-            return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
+    }
+    if !identity_authenticated {
+        match verify_api_key(&state.pg, &api_key, &org_id, &agent_id).await {
+            Ok(v) if !v.ok => {
+                return err_response(
+                    StatusCode::UNAUTHORIZED,
+                    &req_id,
+                    "Invalid or missing API key for this agent. Generate one from the dashboard's Connect Agent panel.",
+                )
+            }
+            Err(err) => {
+                tracing::error!(?err, "verify_api_key failed");
+                return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
+            }
+            _ => {}
         }
-        _ => {}
     }
     // Pause & Buffer (Enterprise) — while maintenance mode is on, incoming
     // webhooks are queued instead of forwarded, so upstream callers see a
