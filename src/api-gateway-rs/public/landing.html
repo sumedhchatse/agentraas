@@ -106,11 +106,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
      wherever happened to be empty (that overlapped the copy on common
      viewport widths — see git history). Below the breakpoint there
      isn't room for a second column at all, so it's dropped, not shrunk
-     into an overlap. */
-  .hero-grid { display: flex; gap: 48px; align-items: center; }
-  .hero-copy { flex: 1 1 auto; min-width: 0; max-width: 640px; }
-  .hero-visual { flex: 1 1 380px; min-width: 300px; height: 480px; align-self: center; position: relative; }
-  @media (max-width: 1080px) { .hero-visual { display: none; } .hero-grid { display: block; } .hero-copy { max-width: none; } }
+     into an overlap. Sized to fit above the site's existing 860px
+     mobile breakpoint (520+32+240+64px padding = 856px minimum) rather
+     than an arbitrary wider cutoff — the first version needed 1080px,
+     which hid the graphic on most real, non-maximized browser windows. */
+  .hero-grid { display: flex; gap: 32px; align-items: center; }
+  .hero-copy { flex: 1 1 auto; min-width: 0; max-width: 520px; }
+  .hero-visual { flex: 1 1 300px; min-width: 240px; height: 420px; align-self: center; position: relative; }
+  @media (max-width: 860px) { .hero-visual { display: none; } .hero-grid { display: block; } .hero-copy { max-width: none; } }
   /* Agent-network canvas — nodes drifting toward a glowing core, with
      packets pulsing along the connections. Cheap by design: plain
      canvas fill/stroke (no CSS filters or blend modes), a low node
