@@ -73,6 +73,14 @@ test('scoped token: allows the scoped action, denies an unscoped one, and a norm
   const scopedToken = issueRes.data.token;
   assert.match(scopedToken, /^art_live_/);
 
+  // "Agent Passport" framing: minting returns identity + the reliability
+  // guarantees already in effect for these scopes, not just a bare token.
+  assert.equal(issueRes.data.passport.identity.org_id, orgId);
+  assert.equal(issueRes.data.passport.identity.agent_id, agentId);
+  assert.equal(typeof issueRes.data.passport.reliability.rate_limit_per_minute, 'number');
+  assert.equal(issueRes.data.passport.reliability.dedup[0].service, 'mockpay');
+  assert.equal(issueRes.data.passport.reliability.dedup[0].mode, 'whole-payload');
+
   // In-scope call succeeds.
   const okRes = await client.post(
     `/v1/webhook/${orgId}/${agentId}`,
