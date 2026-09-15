@@ -104,21 +104,17 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     position: relative; min-height: 96vh; display: flex; align-items: center;
     padding: 140px 0 80px; overflow: hidden;
   }
-  /* Agent-network canvas — nodes drifting toward a glowing core, with
-     packets pulsing along the connections, now spanning the full page
-     as a fixed background layer rather than one boxed-in section, so
-     lines read as genuinely long instead of confined to a small area.
-     z-index:-1 (not a negative-margin trick) keeps it below every
-     section's own background — sections with an opaque background
-     (features, pricing, ...) simply paint over it; the hero and any
-     other section without one shows it through. Cheap by design: plain
-     canvas fill/stroke (no CSS filters or blend modes), a moderate node
-     count, capped devicePixelRatio, paused via the page visibility API
-     when the tab itself is hidden, and a single static frame (no rAF
-     loop at all) under prefers-reduced-motion. See the script near the
-     end of the page for the implementation. */
-  #agent-network { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; display: block; }
-  #agent-network { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  /* Agent-network canvas — a handful of drifting dots with the occasional
+     packet pulsing toward a small glowing core, scoped to the hero
+     section only (z-index:-1 keeps it below the hero's own content).
+     Deliberately sparse and quiet rather than a dense radiating node
+     graph — it's a small accent, not the page's main visual. Cheap by
+     design: plain canvas fill/stroke (no CSS filters or blend modes), a
+     small node count, capped devicePixelRatio, paused via the page
+     visibility API when the tab itself is hidden, and a single static
+     frame (no rAF loop at all) under prefers-reduced-motion. See the
+     script near the end of the page for the implementation. */
+  #agent-network { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: block; }
   .hero .wrap { position: relative; z-index: 2; }
   .hero .eyebrow-pill, .hero h1, .hero p.sub, .pillar-row, .hero-ctas, .hero .no-list, .hero-panel {
     opacity: 0; animation: heroIn 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
@@ -1036,7 +1032,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   if (!canvas || !canvas.getContext) return;
   var ctx = canvas.getContext('2d');
   var motionOk = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
-  var NODE_COUNT = 42;
+  var NODE_COUNT = 16;
   var W = 0, H = 0, dpr = 1;
   var nodes = [];
   var core = { x: 0, y: 0 };
@@ -1070,15 +1066,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   function draw(now, animate) {
     ctx.clearRect(0, 0, W, H);
 
-    ctx.lineWidth = 1;
-    nodes.forEach(function(n) {
-      var dx = core.x - n.x, dy = core.y - n.y;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      var alpha = Math.max(0, 1 - dist / (Math.max(W, H) * 0.95)) * 0.22;
-      ctx.strokeStyle = 'rgba(110,134,168,' + alpha + ')';
-      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(core.x, core.y); ctx.stroke();
-    });
-
     nodes.forEach(function(n) {
       if (animate) {
         n.x += n.vx; n.y += n.vy;
@@ -1086,17 +1073,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         if (n.y < 0 || n.y > H) n.vy *= -1;
       }
       ctx.beginPath();
-      ctx.fillStyle = 'rgba(110,134,168,0.5)';
+      ctx.fillStyle = 'rgba(110,134,168,0.35)';
       ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    var grad = ctx.createRadialGradient(core.x, core.y, 0, core.x, core.y, 28);
-    grad.addColorStop(0, 'rgba(226,114,77,0.85)');
+    var grad = ctx.createRadialGradient(core.x, core.y, 0, core.x, core.y, 20);
+    grad.addColorStop(0, 'rgba(226,114,77,0.7)');
     grad.addColorStop(1, 'rgba(226,114,77,0)');
     ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(core.x, core.y, 28, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.fillStyle = '#E2724D'; ctx.arc(core.x, core.y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(core.x, core.y, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.fillStyle = '#E2724D'; ctx.arc(core.x, core.y, 4, 0, Math.PI * 2); ctx.fill();
 
     if (!animate) return;
     if (now - lastSpawn > 700) { spawnPacket(); lastSpawn = now; }
