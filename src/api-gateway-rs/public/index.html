@@ -17,16 +17,19 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="/vendor/chart.umd.min.js"></script>
 <style>
-  /* Same "settlement ledger" identity as the landing page — one system,
-     one palette, across the whole product. */
+  /* Same identity as the landing page — one system, one palette, across
+     the whole product. Neutrals were still the old khaki-tinted "paper
+     ledger" values until 2026-09-15; swapped for a plain neutral
+     cool-dark scale (see landing.html's :root comment). Accent colors
+     unchanged. */
   :root {
-    --bg: #12140F;
-    --panel: #1A1D16;
-    --panel-2: #212B1A;
-    --border: #2A3325;
-    --text: #ECEEE3;
-    --muted: #8A9481;
-    --faint: #57624F;
+    --bg: #0D0F12;
+    --panel: #161920;
+    --panel-2: #1E222B;
+    --border: #262B35;
+    --text: #F3F4F6;
+    --muted: #8B93A3;
+    --faint: #3A4150;
     --signal: #E2724D;
     --signal-dim: #3A2015;
     --claim: #4E8B6B;
@@ -1142,8 +1145,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   let anyModalOpen = false;
   let activityLimit = 50;
   let activityRows = [];
-  const MUTED = '#8A9481';
-  const GRID = '#2A3325';
+  const MUTED = '#8B93A3';
+  const GRID = '#262B35';
   const CHART_FONT = { family: "'Archivo', sans-serif", size: 11 };
 
   function setMode(next) {
@@ -1458,7 +1461,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       const data = {
         labels: ['Success', 'Deduplicated', 'Blocked', 'Errors'],
         datasets: [{ data: [Number(s.success)||0, Number(s.deduplicated)||0, Number(s.blocked)||0, Number(s.errors)||0],
-          backgroundColor: ['#4E8B6B', '#D9B54B', '#D9463F', '#6B3226'], borderColor: '#1A1D16', borderWidth: 2 }],
+          backgroundColor: ['#4E8B6B', '#D9B54B', '#D9463F', '#6B3226'], borderColor: '#161920', borderWidth: 2 }],
       };
       const ctx = document.getElementById('status-chart');
       if (statusChart) { statusChart.data = data; statusChart.update(); }
