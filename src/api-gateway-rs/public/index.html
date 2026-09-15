@@ -1140,7 +1140,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   let hasEverAuthenticated = false;
   let currentUserEmail = '';
   let currentUserOrgId = '';
-  let currentDeploymentMode = 'cloud';
   let refreshTimer = null;
   let anyModalOpen = false;
   let activityLimit = 50;
@@ -1288,7 +1287,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     authScreen.style.display = 'none'; dashboard.style.display = 'block'; userInfo.style.display = 'flex';
     currentUserEmail = user.email;
     currentUserOrgId = user.org_id;
-    currentDeploymentMode = user.deployment_mode;
     accountBtn.textContent = user.email;
     const planBadgeEl = document.getElementById('header-plan-badge');
     const upgradeBtnEl = document.getElementById('header-upgrade-btn');
@@ -2974,13 +2972,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     loadLicensePanel();
   }
 
-  // Self-host only: the dashboard fetch is what a self-host admin uses to
-  // get the LICENSE_TOKEN to paste into their deployment (Task 13's
-  // issuance endpoint). Cloud deployments never need one — cloud reads
-  // users.plan directly, so this section stays hidden there.
+  // Billing always happens on agentraas.io (cloud) even for a self-host
+  // customer — a self-hosted deployment holds no LICENSE_SIGNING_PRIVATE_KEY
+  // and no subscriptions row of its own, so this panel must render on the
+  // *cloud* account. This used to be gated on the server's own
+  // deployment_mode ("cloud" vs self-hosted), which reflects which server
+  // you're looking at, not whether the signed-in customer intends to
+  // self-host — since agentraas.io is always deployment_mode=cloud, that
+  // gate meant a paying self-host customer could never actually see their
+  // own token here. Free-tier accounts just see "no license needed"
+  // below; harmless either way.
   async function loadLicensePanel() {
     const section = document.getElementById('license-section');
-    if (currentDeploymentMode === 'cloud') { section.style.display = 'none'; return; }
     const panel = document.getElementById('license-panel');
     const errorBox = document.getElementById('license-error');
     section.style.display = 'block';
