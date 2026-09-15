@@ -142,7 +142,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   #usage-bar-fill.over-limit { background: var(--alert); }
   #usage-bar-label { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 
-  .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+  .controls-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+  .controls-groups { display: flex; flex-direction: column; gap: 10px; }
+  .control-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .control-group-label {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted); min-width: 64px;
+  }
   .btn {
     display: flex; align-items: center; gap: 6px;
     background: var(--panel); border: 1px solid var(--border); color: var(--text);
@@ -151,7 +157,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .btn:hover { border-color: var(--faint); }
   .btn.filled { background: var(--signal); color: #2A140C; border-color: var(--signal); font-weight: 700; }
   .btn.filled:hover { background: #FFB85C; }
-  .spacer { flex: 1; }
   .ranges { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 3px; }
   .ranges button {
     background: none; border: none; color: var(--muted); font-family: inherit; font-size: 12px;
@@ -398,8 +403,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     #user-info { align-self: stretch; justify-content: space-between; }
     .user-email-btn { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .stat-sentence { font-size: 16px; }
-    .controls { gap: 8px; }
-    .controls .btn { padding: 8px 12px; font-size: 12.5px; }
+    .control-group { gap: 6px; }
+    .control-group-label { min-width: 0; width: 100%; }
+    .btn { padding: 8px 12px; font-size: 12.5px; }
     #usage-bar-row { flex-direction: column; align-items: flex-start; gap: 6px; }
     .modal { padding: 20px; border-radius: 12px; }
     .modal-overlay { padding: 14px; }
@@ -519,28 +525,44 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div id="usage-bar-label"></div>
     </div>
 
-    <div class="controls">
-      <button class="btn filled" id="connect-agent-btn">+ Connect agent</button>
-      <button class="btn" id="credentials-btn">Credentials</button>
-      <button class="btn" id="custom-actions-btn">Custom actions</button>
-      <button class="btn" id="mcpsvr-btn">MCP servers</button>
-      <button class="btn" id="validation-rules-btn">Validation rules</button>
-      <button class="btn" id="dedup-rules-btn">Dedup rules</button>
-      <button class="btn filled" id="live-test-btn" title="Fires 8 identical requests at a sandbox endpoint through the real dedup pipeline and shows what happened">Run live dedup test</button>
-      <button class="btn" id="pruning-btn">Output pruning</button>
-      <button class="btn" id="hitl-rules-btn">HITL rules</button>
-      <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
-      <button class="btn" id="dlq-btn">Failed requests</button>
-      <button class="btn" id="reliability-btn">Reliability report</button>
-      <button class="btn" id="health-checks-btn">Active monitoring</button>
-      <button class="btn" id="plugins-btn">Plugins</button>
-      <button class="btn" id="admin-btn" style="display:none;">Admin</button>
-      <button class="btn" id="enterprise-btn">Enterprise</button>
-      <button class="btn" id="seed-btn">Seed demo data</button>
-      <button class="btn" id="reset-demo-btn">Reset demo data</button>
-      <button class="btn" id="export-btn">Export CSV</button>
-      <button class="btn" id="refresh-btn">Refresh</button>
-      <div class="spacer"></div>
+    <div class="controls-top">
+      <div class="controls-groups">
+        <div class="control-group">
+          <span class="control-group-label">Agent</span>
+          <button class="btn filled" id="connect-agent-btn">+ Connect agent</button>
+          <button class="btn filled" id="live-test-btn" title="Fires 8 identical requests at a sandbox endpoint through the real dedup pipeline and shows what happened">Run live dedup test</button>
+        </div>
+        <div class="control-group">
+          <span class="control-group-label">Configure</span>
+          <button class="btn" id="credentials-btn">Credentials</button>
+          <button class="btn" id="custom-actions-btn">Custom actions</button>
+          <button class="btn" id="mcpsvr-btn">MCP servers</button>
+          <button class="btn" id="plugins-btn">Plugins</button>
+        </div>
+        <div class="control-group">
+          <span class="control-group-label">Rules</span>
+          <button class="btn" id="validation-rules-btn">Validation rules</button>
+          <button class="btn" id="dedup-rules-btn">Dedup rules</button>
+          <button class="btn" id="hitl-rules-btn">HITL rules</button>
+          <button class="btn" id="pruning-btn">Output pruning</button>
+        </div>
+        <div class="control-group">
+          <span class="control-group-label">Monitor</span>
+          <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
+          <button class="btn" id="dlq-btn">Failed requests</button>
+          <button class="btn" id="health-checks-btn">Active monitoring</button>
+          <button class="btn" id="reliability-btn">Reliability report</button>
+        </div>
+        <div class="control-group">
+          <span class="control-group-label">Account</span>
+          <button class="btn" id="admin-btn" style="display:none;">Admin</button>
+          <button class="btn" id="enterprise-btn">Enterprise</button>
+          <button class="btn" id="seed-btn">Seed demo data</button>
+          <button class="btn" id="reset-demo-btn">Reset demo data</button>
+          <button class="btn" id="export-btn">Export CSV</button>
+          <button class="btn" id="refresh-btn">Refresh</button>
+        </div>
+      </div>
       <div class="ranges">
         <button data-range="24h" class="active">24h</button>
         <button data-range="7d">7d</button>
