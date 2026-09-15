@@ -447,14 +447,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .footer-col a:hover { color: var(--signal); }
   .footer-bottom { color: #4A5245; font-size: 13px; padding-top: 26px; border-top: 1px solid var(--border-dark); }
 
-  /* Scroll-reveal — sections fade/lift into view as they're scrolled to.
-     Entirely skipped for prefers-reduced-motion: elements just render at
-     their natural opacity with no animation, rather than staying hidden. */
-  @media (prefers-reduced-motion: no-preference) {
-    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
-    .reveal.revealed { opacity: 1; transform: translateY(0); }
-  }
-
   /* Pricing has 4 real columns of substantial content (each with its own
      feature checklist) — squeezing that into 4 equal columns anywhere
      below ~1200px leaves each card too narrow to read (every line
@@ -564,11 +556,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <h2>Not another SaaS gateway. A drop-in layer for the stack you already run.</h2>
     <p class="section-lead">Thousands of teams run n8n, Flowise, Langflow, Dify, Ollama, and LocalAI on their own Docker infrastructure — to cut SaaS fees, and to stay inside GDPR / EU AI Act data-residency rules. AgentRaaS is built to sit inside that stack, not replace it: one more Docker Compose service, zero data leaving infrastructure you control.</p>
     <div class="stack-badges">
-      <span class="stack-badge">🔒 Air-gapped capable</span>
-      <span class="stack-badge">🇪🇺 GDPR / EU AI Act friendly</span>
-      <span class="stack-badge">🐳 One Docker Compose service</span>
-      <span class="stack-badge">💸 No per-seat SaaS fees</span>
-      <span class="stack-badge">🔌 agentgateway-compatible</span>
+      <span class="stack-badge">✓ Air-gapped capable</span>
+      <span class="stack-badge">✓ GDPR / EU AI Act friendly</span>
+      <span class="stack-badge">✓ One Docker Compose service</span>
+      <span class="stack-badge">✓ No per-seat SaaS fees</span>
+      <span class="stack-badge">✓ agentgateway-compatible</span>
     </div>
     <div class="marquee">
       <div class="marquee-track">
@@ -1000,36 +992,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   onScroll();
 
   if (motionOk) {
-    // Scroll-reveal: fade + lift cards and section headings into view as the
-    // page is scrolled, instead of everything just sitting there static.
-    var revealTargets = document.querySelectorAll(
-      '.problem-card, .flow-step, .feature-card, .price-card, .faq-item, .integration-path, .terminal, ' +
-      'section.problem h2, section.solution h2, section.features h2, section.pricing h2, section.faq h2, ' +
-      'section.stack h2, section.mcp h2'
-    );
-    revealTargets.forEach(function(el) { el.classList.add('reveal'); });
-
-    // Stagger cards within the same grid/row so a section cascades in
-    // card-by-card instead of every element popping in on the same frame —
-    // grouped by parent so each grid restarts its own 0,1,2... count.
-    var staggerGroups = new Map();
-    revealTargets.forEach(function(el) {
-      var parent = el.parentElement;
-      var i = staggerGroups.get(parent) || 0;
-      el.style.transitionDelay = Math.min(i * 70, 420) + 'ms';
-      staggerGroups.set(parent, i + 1);
-    });
-
-    var observer = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('revealed');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.15 });
-    revealTargets.forEach(function(el) { observer.observe(el); });
-
     // Count up the concurrency-proof numbers like a ledger ticker settling,
     // once that panel scrolls into view — same "watch it happen" idea as
     // the live execution ledger below it.
