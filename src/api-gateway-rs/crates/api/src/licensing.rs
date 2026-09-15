@@ -109,8 +109,15 @@ async fn get_license_token(State(state): State<SharedState>, user: AuthUser, Que
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Not a member of this org."));
     }
 
-    let owner: Option<(i32, String)> = sqlx::query_as("SELECT id, plan FROM users WHERE org_id = $1").bind(&q.org_id).fetch_optional(&state.pg).await?;
-    let Some((owner_id, plan)) = owner else {
+    // Same "which row wins" hazard as `get_org_owner_plan` in agent/db.rs:
+    // an org with an invited teammate has 2+ user rows sharing this
+    // org_id with divergent `plan` values, so this can't just take
+    // whichever row `fetch_optional` happens to return first. Fetch every
+    // match and keep the highest-tier one — its `id` is also the one to
+    // look up a real `subscriptions` row for below, since that's the
+    // specific user the Paddle webhook set `plan` on.
+    let owners: Vec<(i32, String)> = sqlx::query_as("SELECT id, plan FROM users WHERE org_id = $1").bind(&q.org_id).fetch_all(&state.pg).await?;
+    let Some((owner_id, plan)) = owners.into_iter().max_by_key(|(_, plan)| agentraas_core::tier::Tier::from_plan_str(plan)) else {
         return Err(ApiError::new(StatusCode::NOT_FOUND, "Org not found."));
     };
     let tier = agentraas_core::tier::Tier::from_plan_str(&plan);
