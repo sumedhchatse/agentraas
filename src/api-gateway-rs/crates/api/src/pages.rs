@@ -29,6 +29,7 @@ pub fn router() -> Router<SharedState> {
         .route("/dashboard", get(dashboard))
         .route("/dashboard/", get(dashboard))
         .route("/guide", get(guide))
+        .route("/docs", get(docs))
         .route("/webhook-audit", get(webhook_audit_page))
         .route("/status", get(status_page))
         .route("/vendor/chart.umd.min.js", get(vendor_chart_js))
@@ -65,6 +66,10 @@ async fn dashboard() -> axum::response::Response {
 
 async fn guide() -> axum::response::Response {
     serve_html_file(public_file("guide.html"), "Guide not found").await
+}
+
+async fn docs() -> axum::response::Response {
+    serve_html_file(public_file("docs.html"), "Documentation not found").await
 }
 
 async fn about() -> axum::response::Response {
@@ -162,7 +167,7 @@ async fn robots_txt(axum::extract::State(state): axum::extract::State<SharedStat
     ([(header::CONTENT_TYPE, "text/plain")], body)
 }
 
-const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/about", "/vs-temporal", "/vs-composio", "/vs-arcade", "/guide", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
+const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/about", "/vs-temporal", "/vs-composio", "/vs-arcade", "/guide", "/docs", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
 
 async fn sitemap_xml(axum::extract::State(state): axum::extract::State<SharedState>) -> impl IntoResponse {
     let urls: String = SITEMAP_ROUTES.iter().map(|route| format!("  <url><loc>{}{route}</loc></url>", state.public_url)).collect::<Vec<_>>().join("\n");
