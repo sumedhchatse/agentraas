@@ -380,18 +380,29 @@ pub async fn verify_api_key(
     Ok(ApiKeyVerification { ok: true })
 }
 
+/// Highest paid tier found among any user row tied to this org. An org's
+/// real plan lives on whichever user actually completed Paddle checkout
+/// (the webhook sets `plan` by that user's id, not by `org_id`) — every
+/// other member sharing the same `org_id` (invited teammates, SSO
+/// auto-provisioned users) gets their own row defaulting to `plan =
+/// 'free'`. A plain `LIMIT 1`/`fetch_optional` here would pick whichever
+/// row Postgres happens to scan first — undefined once an org has more
+/// than one user row — and could silently read a teammate's free-tier
+/// row instead of the paying owner's. Fetching every match and keeping
+/// the highest tier means an org is never accidentally downgraded no
+/// matter which row an unordered scan would have preferred.
 pub async fn get_org_owner_plan(pg: &PgPool, org_id: &str) -> Result<String, sqlx::Error> {
-    let plan: Option<String> = sqlx::query_scalar(
+    let plans: Vec<String> = sqlx::query_scalar(
         "SELECT plan FROM users WHERE org_id = $1
          UNION SELECT u.plan FROM users u JOIN api_keys a ON a.user_id = u.id WHERE a.org_id = $1
          UNION SELECT u.plan FROM users u JOIN custom_actions c ON c.user_id = u.id WHERE c.org_id = $1
-         UNION SELECT u.plan FROM users u JOIN service_credentials s ON s.user_id = u.id WHERE s.org_id = $1
-         LIMIT 1",
+         UNION SELECT u.plan FROM users u JOIN service_credentials s ON s.user_id = u.id WHERE s.org_id = $1",
     )
     .bind(org_id)
-    .fetch_optional(pg)
+    .fetch_all(pg)
     .await?;
-    Ok(plan.unwrap_or_else(|| "free".to_string()))
+    let best = plans.iter().map(|p| agentraas_core::tier::Tier::from_plan_str(p)).max().unwrap_or(agentraas_core::tier::Tier::Community);
+    Ok(best.as_plan_str().to_string())
 }
 
 pub async fn get_effective_rate_limit(state: &SharedState, org_id: &str) -> Result<u32, sqlx::Error> {
@@ -593,13 +604,8 @@ pub async fn effective_tier(state: &SharedState, org_id: &str) -> agentraas_core
     if state.deployment_mode != "cloud" {
         return *state.license_tier.read().unwrap_or_else(|poisoned| poisoned.into_inner());
     }
-    let plan: Option<String> = sqlx::query_scalar("SELECT plan FROM users WHERE org_id = $1")
-        .bind(org_id)
-        .fetch_optional(&state.pg)
-        .await
-        .ok()
-        .flatten();
-    plan.as_deref().map(agentraas_core::tier::Tier::from_plan_str).unwrap_or(agentraas_core::tier::Tier::Community)
+    let plan = get_org_owner_plan(&state.pg, org_id).await.unwrap_or_else(|_| "free".to_string());
+    agentraas_core::tier::Tier::from_plan_str(&plan)
 }
 
 /// Runtime replacement for `require_enterprise_mode` on features that
