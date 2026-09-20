@@ -59,8 +59,19 @@ fi
 # A from-source release build (Rust, not a quick npm install) — first run
 # genuinely takes a few minutes, not a hang. Build explicitly (rather than
 # letting it happen silently inside `up -d`) so that wait is visible.
-echo "→ Building the API image (first run compiles from source — a few minutes, not a hang)..."
-podman-compose build ar-api-rs
+#
+# A paid-tier self-host package (from agentraas.io, not this public
+# clone) ships a compose.yaml referencing a prebuilt `image:` instead of
+# a `build:` block - no source in that package at all to build from.
+# `podman-compose up` pulls/loads that instead, so skip this step
+# entirely rather than fail on a missing Containerfile.
+if grep -q "^\s*image: agentraas-enterprise" compose.yaml 2>/dev/null; then
+  echo "→ Prebuilt Enterprise image detected in compose.yaml — skipping build."
+  echo "  Make sure you've already run: podman load -i agentraas-enterprise.tar"
+else
+  echo "→ Building the API image (first run compiles from source — a few minutes, not a hang)..."
+  podman-compose build ar-api-rs
+fi
 
 # ─── 5. Start the stack ───
 echo "→ Starting containers..."

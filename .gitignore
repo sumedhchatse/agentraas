@@ -7,6 +7,9 @@ __pycache__/
 # Data & secrets
 data/
 secrets/
+# M7 (SPEC-M7.md): the prebuilt Enterprise-image tarball, exported by the
+# deploy host - a build artifact, not source. See project_plan/deploy.md.
+self-host-artifacts/
 *.env
 *.env.local
 
