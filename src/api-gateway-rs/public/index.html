@@ -554,6 +554,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <button class="btn" id="validation-rules-btn">Validation rules</button>
           <button class="btn" id="dedup-rules-btn">Dedup rules</button>
           <button class="btn" id="hitl-rules-btn">HITL rules</button>
+          <button class="btn" id="spendcap-rules-btn">Spend caps</button>
           <button class="btn" id="pruning-btn">Output pruning</button>
         </div>
         <div class="control-group">
@@ -562,6 +563,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <button class="btn" id="dlq-btn">Failed requests</button>
           <button class="btn" id="health-checks-btn">Active monitoring</button>
           <button class="btn" id="reliability-btn">Reliability report</button>
+          <button class="btn" id="tunnel-btn">Dev tunnel</button>
         </div>
         <div class="control-group">
           <span class="control-group-label">Account</span>
@@ -883,6 +885,52 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <h3 style="margin-top:26px;">Saved rules</h3>
     <div id="hitl-list"></div>
     <button class="close-btn" id="hitl-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Spend Cap Rules modal -->
+<div class="modal-overlay" id="spendcap-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Spend caps">
+    <h3>Per-agent spend caps</h3>
+    <p class="sub">Caps how many times an agent can call a service.action within a time window — catches an agent that's legitimately busy (not looping) but burning through a paid API faster than expected. Leave Agent ID blank to apply to every agent in the org. "Route to approval" requires the Team plan and a configured HITL Slack destination; otherwise the call is rejected outright once the cap is hit.</p>
+    <div class="modal-error" id="spendcap-error"></div>
+    <form id="spendcap-form">
+      <div class="field"><label for="spendcap-org">Org ID</label><input type="text" id="spendcap-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="spendcap-agent">Agent ID (optional)</label><input type="text" id="spendcap-agent" placeholder="leave blank for every agent"></div>
+      <div class="field"><label for="spendcap-service">Service</label><input type="text" id="spendcap-service" placeholder="stripe (or custom)" required></div>
+      <div class="field"><label for="spendcap-action">Action</label><input type="text" id="spendcap-action" placeholder="charge.create" required></div>
+      <div class="field"><label for="spendcap-window">Window</label>
+        <select id="spendcap-window">
+          <option value="hour">Per hour</option>
+          <option value="day">Per day</option>
+        </select>
+      </div>
+      <div class="field"><label for="spendcap-max">Max calls</label><input type="number" min="1" step="1" id="spendcap-max" placeholder="100" required></div>
+      <div class="field"><label for="spendcap-exceed">When exceeded</label>
+        <select id="spendcap-exceed">
+          <option value="block">Block the call</option>
+          <option value="hitl">Route to approval (Team+)</option>
+        </select>
+      </div>
+      <button type="submit" class="primary" id="spendcap-submit">Save rule</button>
+    </form>
+    <h3 style="margin-top:26px;">Saved rules</h3>
+    <div id="spendcap-list"></div>
+    <button class="close-btn" id="spendcap-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Dev Tunnel inspector modal -->
+<div class="modal-overlay" id="tunnel-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Dev tunnel">
+    <h3>Local dev tunnel</h3>
+    <p class="sub">Receive a real inbound webhook (Stripe, WhatsApp, etc.) on your local machine while you build — open a tunnel from your terminal with <code>node infra/scripts/tunnel-cli/index.js --port &lt;local-port&gt; --org &lt;org_id&gt; --agent &lt;agent_id&gt; --key &lt;api_key&gt;</code>, then watch requests here as they arrive. One active tunnel per org; it auto-expires after 2 hours.</p>
+    <div class="modal-error" id="tunnel-error"></div>
+    <div class="field"><label for="tunnel-org">Org ID</label><input type="text" id="tunnel-org" placeholder="org_acme"></div>
+    <button type="button" class="btn" id="tunnel-watch-btn">Watch</button>
+    <h3 style="margin-top:26px;">Live requests</h3>
+    <div id="tunnel-list"><div style="color:var(--muted);font-size:13px;padding:8px 0;">Not watching yet.</div></div>
+    <button class="close-btn" id="tunnel-modal-close">Close</button>
   </div>
 </div>
 
@@ -2393,6 +2441,115 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       });
     } catch (err) {}
   }
+
+  // ─── Spend Cap Rules modal ───
+  const spendcapModalOverlay = document.getElementById('spendcap-modal-overlay');
+  const spendcapForm = document.getElementById('spendcap-form');
+  const spendcapError = document.getElementById('spendcap-error');
+  const spendcapSubmit = document.getElementById('spendcap-submit');
+
+  document.getElementById('spendcap-rules-btn').addEventListener('click', () => {
+    spendcapError.style.display = 'none'; spendcapForm.reset();
+    spendcapModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('spendcap-org').focus();
+    loadSpendcapRulesList();
+  });
+  document.getElementById('spendcap-modal-close').addEventListener('click', () => { spendcapModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  spendcapModalOverlay.addEventListener('click', (e) => { if (e.target === spendcapModalOverlay) { spendcapModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  spendcapForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); spendcapError.style.display = 'none'; spendcapSubmit.disabled = true;
+    const restoreText = withLoadingText(spendcapSubmit, 'Saving…');
+    const org_id = document.getElementById('spendcap-org').value.trim();
+    const agent_id = document.getElementById('spendcap-agent').value.trim() || null;
+    const service = document.getElementById('spendcap-service').value.trim();
+    const action = document.getElementById('spendcap-action').value.trim();
+    const capWindow = document.getElementById('spendcap-window').value;
+    const max_calls = Number(document.getElementById('spendcap-max').value);
+    const on_exceed = document.getElementById('spendcap-exceed').value;
+    try {
+      const res = await fetch('/api/v1/spend-cap-rules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ org_id, agent_id, service, action, window: capWindow, max_calls, on_exceed }),
+      });
+      const data = await res.json();
+      if (!res.ok) { spendcapError.textContent = data.error || 'Could not save rule.'; spendcapError.style.display = 'block'; return; }
+      spendcapForm.reset(); loadSpendcapRulesList();
+    } catch (err) { spendcapError.textContent = 'Could not reach the server.'; spendcapError.style.display = 'block'; }
+    finally { spendcapSubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadSpendcapRulesList() {
+    const list = document.getElementById('spendcap-list');
+    try {
+      const res = await fetch('/api/v1/spend-cap-rules', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const rows = data.rules || [];
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No spend-cap rules yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const scope = row.agent_id ? `agent ${escapeHtml(row.agent_id)}` : 'every agent';
+        const exceedLabel = row.on_exceed === 'hitl' ? 'route to approval' : 'block';
+        const div = document.createElement('div');
+        div.className = 'rule-summary-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.service)}.${escapeHtml(row.action)} — ${escapeHtml(row.org_id)}</div><div class="meta">${row.max_calls}/${escapeHtml(row.window)} for ${scope}, then ${exceedLabel}</div></div><button class="revoke delete-spendcap-rule" data-id="${row.id}">Delete</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.delete-spendcap-rule').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/spend-cap-rules/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadSpendcapRulesList(); });
+      });
+    } catch (err) {}
+  }
+
+  // ─── Dev Tunnel inspector modal ───
+  const tunnelModalOverlay = document.getElementById('tunnel-modal-overlay');
+  const tunnelError = document.getElementById('tunnel-error');
+  const tunnelList = document.getElementById('tunnel-list');
+  let tunnelEventSource = null;
+
+  function stopWatchingTunnel() {
+    if (tunnelEventSource) { tunnelEventSource.close(); tunnelEventSource = null; }
+  }
+
+  document.getElementById('tunnel-btn').addEventListener('click', () => {
+    tunnelError.style.display = 'none';
+    tunnelModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('tunnel-org').focus();
+  });
+  document.getElementById('tunnel-modal-close').addEventListener('click', () => {
+    stopWatchingTunnel();
+    tunnelModalOverlay.style.display = 'none'; anyModalOpen = false;
+  });
+  tunnelModalOverlay.addEventListener('click', (e) => {
+    if (e.target === tunnelModalOverlay) { stopWatchingTunnel(); tunnelModalOverlay.style.display = 'none'; anyModalOpen = false; }
+  });
+
+  document.getElementById('tunnel-watch-btn').addEventListener('click', () => {
+    const orgId = document.getElementById('tunnel-org').value.trim();
+    if (!orgId) { tunnelError.textContent = 'Enter an Org ID first.'; tunnelError.style.display = 'block'; return; }
+    tunnelError.style.display = 'none';
+    stopWatchingTunnel();
+    tunnelList.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">Watching — waiting for requests…</div>';
+
+    tunnelEventSource = new EventSource(`/api/v1/tunnel/stream?org_id=${encodeURIComponent(orgId)}`);
+    let firstEntry = true;
+    tunnelEventSource.onmessage = (ev) => {
+      let entry;
+      try { entry = JSON.parse(ev.data); } catch { return; }
+      if (firstEntry) { tunnelList.innerHTML = ''; firstEntry = false; }
+      const div = document.createElement('div');
+      div.className = 'rule-summary-row';
+      const time = entry.at ? new Date(entry.at).toLocaleTimeString() : '';
+      div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(entry.method || '')} ${escapeHtml(entry.path || '')} → ${escapeHtml(String(entry.status || ''))}</div><div class="meta">${escapeHtml(time)}</div></div>`;
+      tunnelList.prepend(div);
+    };
+    tunnelEventSource.onerror = () => {
+      tunnelError.textContent = 'No active tunnel for this org (or it disconnected) — open one from your terminal first.';
+      tunnelError.style.display = 'block';
+      stopWatchingTunnel();
+    };
+  });
 
   // ─── Plugins modal (Agentgateway) ───
   const pluginsModalOverlay = document.getElementById('plugins-modal-overlay');

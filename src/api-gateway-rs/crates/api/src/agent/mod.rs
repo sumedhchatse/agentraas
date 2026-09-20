@@ -672,6 +672,42 @@ async fn handle_request(
         );
     }
 
+    // Per-agent spend/call caps (SPEC-SPEND-CAPS.md) — call-count based,
+    // checked for every request regardless of tier/build (block-only caps
+    // work on Community too; see spend_caps.rs's module doc for why this
+    // isn't under ee/ the way HITL is).
+    match crate::spend_caps::check_and_increment(state, &org_id, &agent_id, &service, &action).await {
+        Ok(check) if !check.allowed => {
+            let rule = check.rule.expect("allowed=false implies a matched rule");
+            if rule.on_exceed == "hitl" && cfg!(feature = "enterprise") {
+                #[cfg(feature = "enterprise")]
+                return crate::ee::hitl::freeze_and_notify(
+                    state, &req_id, &org_id, &agent_id, &api_key, &service, &action, &payload, &dedup_hash, dedup_ttl_seconds,
+                    crate::ee::hitl::MatchedRule, run_id.as_deref(), step_id.as_deref(),
+                )
+                .await
+                .into();
+            }
+            // "block", or an "hitl" rule somehow present without the
+            // enterprise feature compiled in (can't happen via the normal
+            // create_rule path, which rejects that combination - fails
+            // closed to block rather than silently letting the call
+            // through if it ever does).
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("spend_cap_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            return err_response(
+                StatusCode::TOO_MANY_REQUESTS,
+                &req_id,
+                format!("Spend cap exceeded for {service}.{action}: {}/{} calls this {} (rule #{}).", check.count, rule.max_calls, rule.window, rule.id),
+            );
+        }
+        Ok(_) => {}
+        Err(err) => {
+            tracing::error!(err = %err.message, "spend cap check failed");
+            return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
+        }
+    }
+
     // Stateful Human-in-the-Loop (HITL) Gateway — the last gate before an
     // action that actually costs money/does something irreversible
     // fires. Webhook-only (an SDK/MCP caller is waiting synchronously and
@@ -798,6 +834,20 @@ async fn handle_request(
                 }
             }
             forward::broadcast_fanout(state, &resolved_route, &payload, &req_id);
+
+            // Schema drift detection (SPEC-SCHEMA-DRIFT.md) - background,
+            // best-effort, never adds latency to the actual response.
+            {
+                let state = state.clone();
+                let org_id = org_id.clone();
+                let req_id = req_id.clone();
+                let service = service.clone();
+                let action = action.clone();
+                let result_for_drift = result.clone();
+                tokio::spawn(async move {
+                    crate::schema_drift::check_and_record(&state, &org_id, &req_id, &service, &action, &result_for_drift).await;
+                });
+            }
 
             let mut stored = result.clone();
             if let (Some(idem), Value::Object(ref mut map)) = (&idempotency_key, &mut stored) {

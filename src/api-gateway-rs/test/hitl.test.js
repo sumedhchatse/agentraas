@@ -56,7 +56,7 @@ test('Community-tier org cannot create a HITL rule', async () => {
     { headers: { Cookie: sessionCookie } }
   );
   assert.equal(res.status, 403, JSON.stringify(res.data));
-  assert.match(res.data.error, /Pro plan/);
+  assert.match(res.data.error, /Team plan/);
 });
 
 test('Pro-tier org can create a rule and have it actually freeze a matching call; downgrading stops it without deleting the rule', async () => {

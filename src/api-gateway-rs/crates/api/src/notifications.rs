@@ -48,6 +48,33 @@ pub async fn notify_circuit_open(state: &SharedState, org_id: &str, service: &st
     .await;
 }
 
+/// Fires when `crate::schema_drift` detects a real change (a field
+/// removed or its type changed) in a service's response shape — see
+/// SPEC-SCHEMA-DRIFT.md. Same claim-key rate-limit shape as
+/// `notify_circuit_open` above, 1 hour instead of 60s since a shape
+/// change is a slower-moving signal than an outage.
+pub async fn notify_schema_drift(state: &SharedState, org_id: &str, service: &str, action: &str, removed: &[String], type_changed: &[String]) {
+    let Ok(mut conn) = state.redis_conn_result() else { return };
+    let key = format!("schema-drift-notified:{service}:{action}");
+    let claimed: Option<String> = redis::cmd("SET").arg(&key).arg("1").arg("EX").arg(3600).arg("NX").query_async(&mut conn).await.unwrap_or(None);
+    if claimed.as_deref() != Some("OK") {
+        return;
+    }
+    let mut details = Vec::new();
+    if !removed.is_empty() {
+        details.push(format!("removed: {}", removed.join(", ")));
+    }
+    if !type_changed.is_empty() {
+        details.push(format!("type changed: {}", type_changed.join(", ")));
+    }
+    send_outage_notification(
+        state,
+        org_id,
+        &format!("🔧 AgentRaaS Schema Drift Detected: {service}.{action}'s response shape changed ({}). Code that reads fields from this response may be affected.", details.join("; ")),
+    )
+    .await;
+}
+
 pub async fn send_outage_notification(state: &SharedState, org_id: &str, message: &str) {
     #[derive(sqlx::FromRow)]
     struct Row {
