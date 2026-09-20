@@ -48,8 +48,14 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          # Points at the Rust Containerfile (moved here in the Node -> Rust
+          # rewrite; a root-level Dockerfile hasn't existed since, which is
+          # why this workflow had been failing on every push). This repo's
+          # own Containerfile has no --features enterprise flag - it can't,
+          # since ee/ source isn't in this repo - so this always builds
+          # the Community edition.
+          context: ./src/api-gateway-rs
+          file: ./src/api-gateway-rs/Containerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
