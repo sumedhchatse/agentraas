@@ -290,48 +290,6 @@ started or self-host from `/dashboard`, or contact
 
 ---
 
-## Roadmap
-
-- [x] Exactly-once proxy engine — automated-test-verified under real concurrency
-- [x] Validation rules, circuit breaker, rate limiting
-- [x] Audit logging + real-time dashboard
-- [x] MCP gateway
-- [x] Self-serve encrypted credentials — real forwarding to Stripe/Twilio/etc. with your own keys
-- [x] Custom Actions — call any endpoint, not just curated services
-- [x] Dashboard auth (register/login, session management, change password)
-- [x] Hosted AgentRaaS Cloud offering
-- [x] Enterprise SSO (OIDC) + per-org RBAC (`crates/api/src/ee/sso.rs`)
-- [x] Inbound webhook HMAC verification — 10+ providers (`crates/core/src/hmac_verify.rs`)
-- [x] PII/DLP redaction engine (`crates/core/src/dlp.rs`)
-- [x] Distributed token-bucket rate limiter (`crates/core/src/token_bucket.rs`)
-- [x] Tamper-evident audit logs + SIEM export
-- [x] Enterprise — multi-tenant, white-label dashboard branding
-- [x] Official Python SDK package (`src/sdk` — published to PyPI as `agentraas`)
-- [x] Custom validation rule builder (UI) — per-org, per-service.action rules, including Custom Actions (which previously had no validation at all)
-- [x] n8n/Flowise/Langflow integrations (`integrations/`) — n8n community node (builds clean, `npm pack --dry-run` confirms a correct, publish-ready tarball; actual publish is still blocked on npm 2FA, not a code issue), Flowise custom tool, Langflow custom component
-- [x] One-click cloud deploy (Render) — `render.yaml` Blueprint + `Containerfile.render` (bakes in `public/`/`config/` since Render has no bind-mounts), verified end-to-end locally (build, boot, health check, landing page)
-- [x] "Pause & Buffer" maintenance mode (Enterprise) — safely queues incoming webhooks during planned downtime or a downstream outage, auto-flushes on resume
-- [x] Multi-Destination Fan-Out (event broadcasting) — a Custom Action can broadcast the same payload to up to 5 extra `fanout_urls` as a best-effort copy, without affecting the primary response
-- [x] Dynamic Header & Secret Injection — a Custom Action can set up to 10 custom outbound headers, each optionally encrypted at rest as a secret (e.g. a signing key)
-- [x] Agent Run Budgeting & Loop Detection — an optional `X-AgentRaaS-Run-Id` header halts a tool call repeated too many times with no state change
-- [x] State Checkpointing — an optional `X-AgentRaaS-Step-Id` (with Run-Id) replays a completed step's result instead of re-executing it, so a retried multi-step task resumes past what already succeeded
-- [x] Semantic/entity-level idempotency keys — a dedup rule can set its own dedup window and normalize field values so trivially different-looking duplicates still count as one
-- [x] Tool Output Sanitization (Enterprise) — redacts leaked PII and heuristic prompt-injection markers from a tool's response before your agent sees it (`src/api-gateway-rs/crates/api/src/ee/output_sanitization.rs`)
-- [x] Rust rewrite of the API gateway (`src/api-gateway-rs`) — Axum/Tokio/sqlx, feature-complete port of every Node route including Enterprise, now serving `agentraas.io` live (opt-in via `ENTERPRISE_MODE`/`--features enterprise` for the Enterprise build)
-- [x] Tool Result & Context Pruner (Community + Enterprise) — auto-strips a raw tool response down before it reaches the model, opt-in per org (`crates/core/src/pruner.rs`)
-- [x] Stateful Human-in-the-Loop Gateway (Enterprise) — freezes a matching action, posts an interactive Slack approval card, resumes on approval/denial, with SLA-based auto-escalation (`crates/api/src/ee/hitl.rs`)
-- [x] Fuzzy/semantic similarity dedup (Team+) — catches near-duplicate payloads a strict hash-match would miss, on top of the existing per-field dedup rules
-- [x] Agent Identity & Agent Passport (Enterprise) — short-lived, scope-restricted tokens (`art_live_...`) for an already-connected agent, checked at request time before any action is forwarded; minting one returns both the identity and the reliability guarantees (dedup mode, rate limit) already applied to it (`crates/api/src/ee/identity.rs`)
-- [x] Cross-agent resource lock — optional `resource_id` field; a second concurrent request naming the same one gets 409 instead of racing with it (`crates/core/src/resource_lock.rs`)
-- [x] Chaos mode — opt-in, per-org-per-service synthetic failure rate for testing an agent's own retry/circuit-breaker resilience against a real service, `GET/PUT /api/v1/chaos` (`crates/core/src/chaos.rs`)
-- [x] Traffic-replay tool (`infra/scripts/replay-traffic.js`) — runs a curated/captured request set through a target instance for regression testing. Not a replay of real historical production traffic: `audit_log` only ever stores a payload hash and, for Enterprise+DLP orgs, a redacted preview — never the raw payload bytes, by design (see `020_audit_log_redacted_payload.sql`). A genuine "replay real traffic" tool needs a separate, explicitly opt-in raw-payload capture mechanism — not built here.
-- [x] Cross-field validation preconditions — a rule's `maxField`/`minField` compares a payload field against another field in the *same* payload (e.g. "refund_amount must not exceed balance"), not just a fixed literal threshold (`crates/core/src/validator.rs`)
-- [ ] Publish the JS SDK and n8n community node to npm — blocked on npm 2FA (account action, not a code fix; both packages build and pack cleanly today)
-- [ ] Get the n8n node listed in n8n's community nodes directory — requires the npm publish above first
-- [ ] CLI local tunneling / local dev relay (ngrok-style) — scoped but not started; this is a separate hosted relay service, not an addition to the existing proxy, see the discussion in this repo's history for what it'd need
-
----
-
 ## License
 
 **One sentence:** everything in this repo is dual-licensed MIT/Apache-2.0

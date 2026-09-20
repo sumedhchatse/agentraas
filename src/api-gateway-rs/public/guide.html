@@ -17,16 +17,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <meta property="og:description" content="Get AgentRaaS running in minutes: connect an agent, add service credentials, and register a Custom Action.">
 <meta property="og:image" content="/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23E2724D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232A140C' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232A140C'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #0D0F12; --ink-2: #161920;
-    --border-dark: #262B35;
-    --text: #F3F4F6; --muted: #8B93A3;
-    --signal: #E2724D; --signal-deep: #2A140C;
+    --ink: #F5FAFD; --ink-2: #FFFFFF;
+    --border-dark: #DCE7EF;
+    --text: #12283A; --muted: #5A7387;
+    --signal: #2B7FB8; --signal-deep: #FFFFFF;
     --info: #6E86A8;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,12 +43,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   h2 { font-family: 'Archivo', sans-serif; font-size: 28px; margin: 44px 0 16px; }
   h2:first-child { margin-top: 0; }
   h3 { font-family: 'Archivo', sans-serif; font-size: 17px; margin: 28px 0 10px; color: var(--signal); }
-  p { margin-bottom: 14px; color: #C5CAD6; }
-  ol, ul { margin: 0 0 16px 22px; color: #C5CAD6; }
+  p { margin-bottom: 14px; color: var(--text); }
+  ol, ul { margin: 0 0 16px 22px; color: var(--text); }
   li { margin-bottom: 8px; }
   code { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 2px 6px; font-size: 14px; font-family: 'Archivo', monospace; color: var(--signal); }
   pre { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 10px; padding: 18px 20px; overflow-x: auto; margin-bottom: 16px; }
-  pre code { background: none; border: none; padding: 0; color: #C5CAD6; }
+  pre code { background: none; border: none; padding: 0; color: var(--text); }
   hr { border: none; border-top: 1px solid var(--border-dark); margin: 40px 0; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-dark); font-size: 14.5px; }
@@ -70,7 +70,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <header class="nav">
   <a href="/" class="brand">
-    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#2A140C" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#2A140C"/></svg></span>
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#FFFFFF"/></svg></span>
     <div><h1>AgentRaaS</h1><span>The reliability layer for autonomous agent fleets</span></div>
   </a>
   <a href="/dashboard" class="back-link">← Back to dashboard</a>

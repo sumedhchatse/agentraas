@@ -6,16 +6,16 @@
 <title>AgentRaaS Status</title>
 <meta name="description" content="Live uptime for every service AgentRaaS protects, computed from real circuit-breaker history — not a marketing number.">
 <meta name="robots" content="index, follow">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23E2724D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232A140C' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232A140C'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #0D0F12; --ink-2: #161920;
-    --border-dark: #262B35;
-    --text: #F3F4F6; --muted: #8B93A3;
-    --signal: #E2724D; --signal-deep: #2A140C;
+    --ink: #F5FAFD; --ink-2: #FFFFFF;
+    --border-dark: #DCE7EF;
+    --text: #12283A; --muted: #5A7387;
+    --signal: #2B7FB8; --signal-deep: #FFFFFF;
     --alert: #D9463F; --warn: #D9B54B; --info: #6E86A8;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,11 +34,11 @@
     border-radius: 16px; padding: 24px 28px; margin-bottom: 32px; display: flex; align-items: center; gap: 16px;
     border: 1px solid var(--border-dark);
   }
-  .banner.operational { background: rgba(226,114,77,0.08); border-color: rgba(226,114,77,0.3); }
+  .banner.operational { background: rgba(43,127,184,0.08); border-color: rgba(43,127,184,0.3); }
   .banner.degraded { background: rgba(255,194,75,0.08); border-color: rgba(255,194,75,0.3); }
   .banner.major_outage { background: rgba(255,92,108,0.08); border-color: rgba(255,92,108,0.3); }
   .banner .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-  .banner.operational .dot { background: var(--signal); box-shadow: 0 0 12px rgba(226,114,77,0.6); }
+  .banner.operational .dot { background: var(--signal); box-shadow: 0 0 12px rgba(43,127,184,0.6); }
   .banner.degraded .dot { background: var(--warn); box-shadow: 0 0 12px rgba(255,194,75,0.6); }
   .banner.major_outage .dot { background: var(--alert); box-shadow: 0 0 12px rgba(255,92,108,0.6); }
   .banner-text h2 { font-family: 'Archivo', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 2px; }
@@ -64,7 +64,7 @@
   .loading { text-align: center; padding: 40px 0; color: var(--muted); font-size: 14px; }
 
   .footnote { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-  .footnote b { color: #C5CAD6; }
+  .footnote b { color: var(--text); }
   .meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted); font-family: 'Archivo', monospace; margin-top: 20px; }
 </style>
 </head>
@@ -72,7 +72,7 @@
 
 <header class="nav">
   <a href="/" class="brand">
-    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#2A140C" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#2A140C"/></svg></span>
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#FFFFFF"/></svg></span>
     <div><h1>AgentRaaS</h1><span>The reliability layer for autonomous agent fleets</span></div>
   </a>
   <a href="/" class="back-link">← Back to home</a>
