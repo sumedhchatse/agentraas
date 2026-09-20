@@ -49,6 +49,11 @@ base64 = "0.21"
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "pool", "builder"] }
 url = "2"
 tokio-stream = { version = "0.1", features = ["sync"] }
+# Already in the dependency tree transitively (axum/tower-http both pull
+# it) - this just makes the existing ReaderStream usable directly for
+# streaming the M7 enterprise image tarball without buffering it in
+# memory. No new third-party code, just a direct-dependency declaration.
+tokio-util = { version = "0.7", features = ["io"] }
 futures-util = "0.3"
 walkdir = "2"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }

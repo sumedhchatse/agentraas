@@ -110,12 +110,10 @@ services:
       # startup.
       DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
       # Enterprise features (SSO/RBAC/DLP/inbound-webhook HMAC/maintenance)
-      # are compiled out of this Community-edition build entirely (see
-      # Containerfile — no --features enterprise), so this var is a no-op
-      # here regardless of its value. Left wired, default off, only so a
-      # private fork built with the enterprise feature enabled can flip it
-      # without touching this file.
-      ENTERPRISE_MODE: "${ENTERPRISE_MODE:-false}"
+      # are opt-in even here — this only ever affects ar-api-rs, never the
+      # real ar-api (Node) or production, matching how ENTERPRISE_MODE is
+      # meant to be operator-controlled.
+      ENTERPRISE_MODE: "true"
     ports:
       # Kept at 13001 (not the "default" 13000 discussed for fresh setups)
       # because production's Caddy already reverse_proxy's to :13001 from
@@ -139,6 +137,13 @@ services:
       # never writable from this container.
       - ./src/api-gateway-rs/public:/public:ro,z
       - .:/repo:ro,z
+      # Only used on agentraas.io's own deployment, for the Team+/
+      # Enterprise self-host download path - a prebuilt image tarball,
+      # exported by the deploy host separately (this container has no
+      # podman/container-runtime access to do that itself). Missing/empty
+      # directory is fine on a self-hosted instance; self_host.rs degrades
+      # to a clear 503 on that one download path, not a crash.
+      - ./self-host-artifacts:/self-host-artifacts:ro,z
     restart: "no"
 
   # Optional: agentgateway (github.com/agentgateway/agentgateway) in front

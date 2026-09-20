@@ -1115,6 +1115,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="field"><label for="self-host-reason">What will you use it for?</label><textarea id="self-host-reason" rows="2" style="width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:13px;resize:vertical;" required></textarea></div>
       <div class="field" style="margin-top:10px;"><label for="self-host-company">Company / team (optional)</label><input type="text" id="self-host-company"></div>
       <button type="button" class="btn" id="self-host-submit" style="display:flex;justify-content:center;width:100%;margin-top:12px;">Get self-host package</button>
+      <div id="self-host-enterprise-image-row" style="display:none;margin-top:8px;">
+        <a href="/api/v1/download/self-host/enterprise-image" class="btn" style="display:flex;justify-content:center;width:100%;">Download prebuilt image (agentraas-enterprise.tar)</a>
+      </div>
     </div>
 
     <h3 style="font-size:14px;">Change password</h3>
@@ -3126,6 +3129,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       loadingEl.style.display = 'none';
       if (Array.isArray(keys) && keys.length > 0) {
         formEl.style.display = 'block';
+        // SPEC-M7.md: the starter-kit zip already branches server-side
+        // by tier automatically; this second link only needs showing
+        // for Team+, since it 403s for Community and there's nothing
+        // to click for them anyway.
+        document.getElementById('self-host-enterprise-image-row').style.display =
+          (TIER_RANK[currentPlanTier] ?? 0) >= TIER_RANK.team ? 'block' : 'none';
       } else {
         noAgentEl.style.display = 'block';
       }
