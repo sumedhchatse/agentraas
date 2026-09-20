@@ -76,6 +76,13 @@ pub struct AppState {
     /// degrades a self-host deployment to free-tier behavior, never a
     /// crash or a refused startup.
     pub license_tier: std::sync::RwLock<agentraas_core::tier::Tier>,
+
+    /// CLI dev tunnel registry (SPEC-TUNNEL.md) — `tunnel_id -> handle`,
+    /// in-memory by design (a restart clearing every open tunnel is
+    /// correct, not a bug; see `crate::tunnel`'s module doc). Only
+    /// meaningful on a single-instance deployment, which is what
+    /// production is today.
+    pub tunnels: crate::tunnel::TunnelRegistry,
 }
 
 impl AppState {

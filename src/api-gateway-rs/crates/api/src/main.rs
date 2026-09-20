@@ -18,8 +18,11 @@ mod notifications;
 mod pages;
 mod pruning_settings;
 mod rules;
+mod schema_drift;
 mod self_host;
+mod spend_caps;
 mod state;
+mod tunnel;
 mod util;
 
 use std::net::SocketAddr;
@@ -184,6 +187,7 @@ async fn main() -> anyhow::Result<()> {
             .expect("building the shared HTTP client should never fail"),
         cipher,
         license_tier: std::sync::RwLock::new(licensing::initial_tier()),
+        tunnels: std::sync::Mutex::new(std::collections::HashMap::new()),
     });
 
     licensing::spawn_license_refresh_loop(state.clone());
@@ -211,6 +215,9 @@ async fn main() -> anyhow::Result<()> {
         .merge(chaos_settings::router())
         .merge(agentgateway::router())
         .merge(licensing::router())
+        .merge(spend_caps::router())
+        .merge(tunnel::router())
+        .merge(schema_drift::router())
         .merge(long_tail::router());
     #[cfg(feature = "enterprise")]
     let app = app

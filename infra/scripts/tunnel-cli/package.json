@@ -1,0 +1,9 @@
+{
+  "name": "agentraas-tunnel-cli-local",
+  "private": true,
+  "description": "Local-only dev tunnel CLI (SPEC-TUNNEL.md) - not published, run directly with node index.js",
+  "main": "index.js",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
