@@ -13,12 +13,6 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # Both editions get built and tested — the public/community repo
-        # ships without --features enterprise, so a change that only
-        # compiles with it enabled would break that build silently.
-        features: ["", "--features enterprise"]
     steps:
       - uses: actions/checkout@v4
 
@@ -32,4 +26,8 @@ jobs:
           workspaces: src/api-gateway-rs
 
       - name: cargo test
-        run: cargo test --workspace ${{ matrix.features }}
+        # No --features enterprise matrix entry here (unlike the private
+        # repo's version of this file) - this repo doesn't contain ee/
+        # source at all, so that build can never pass regardless of code
+        # correctness. This repo only ever ships the Community edition.
+        run: cargo test --workspace
