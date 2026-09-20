@@ -122,18 +122,18 @@ const NOT_FOUND_HTML: &str = r##"<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Page not found — AgentRaaS</title>
 <meta name="robots" content="noindex">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23FFA53D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232B1400' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232B1400'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --ink: #0A0D14; --text: #F5F6F9; --muted: #8B93A6; --signal: #FFA53D; }
+  :root { --ink: #F5FAFD; --text: #12283A; --muted: #5A7387; --signal: #2B7FB8; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--ink); color: var(--text); font-family: 'Manrope', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; }
   .wrap { padding: 32px; }
   h1 { font-family: 'Space Grotesk', sans-serif; font-size: 88px; color: var(--signal); line-height: 1; }
   p { color: var(--muted); font-size: 17px; margin: 16px 0 28px; }
-  a.btn { display: inline-block; background: var(--signal); color: #2B1400; font-weight: 600; padding: 12px 24px; border-radius: 8px; text-decoration: none; }
+  a.btn { display: inline-block; background: var(--signal); color: #FFFFFF; font-weight: 600; padding: 12px 24px; border-radius: 8px; text-decoration: none; }
 </style>
 </head>
 <body>
@@ -288,16 +288,16 @@ fn render_doc_page(title: &str, raw_markdown: &str) -> String {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title} — AgentRaaS</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23FFA53D'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%232B1400' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%232B1400'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {{
-    --ink: #0A0D14; --ink-2: #0F1420;
-    --border-dark: #232A3A;
-    --text: #F5F6F9; --muted: #8B93A6;
-    --signal: #FFA53D;
+    --ink: #F5FAFD; --ink-2: #FFFFFF;
+    --border-dark: #DCE7EF;
+    --text: #12283A; --muted: #5A7387;
+    --signal: #2B7FB8;
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ background: var(--ink); color: var(--text); font-family: 'Manrope', sans-serif; font-size: 16px; line-height: 1.7; }}
@@ -312,12 +312,12 @@ fn render_doc_page(title: &str, raw_markdown: &str) -> String {
   #doc-content h1 {{ font-family: 'Space Grotesk', sans-serif; font-size: 34px; margin-bottom: 20px; }}
   #doc-content h2 {{ font-family: 'Space Grotesk', sans-serif; font-size: 24px; margin: 36px 0 14px; }}
   #doc-content h3 {{ font-family: 'Space Grotesk', sans-serif; font-size: 17px; margin: 24px 0 10px; color: var(--signal); }}
-  #doc-content p {{ margin-bottom: 14px; color: #C5CAD6; }}
-  #doc-content ol, #doc-content ul {{ margin: 0 0 16px 22px; color: #C5CAD6; }}
+  #doc-content p {{ margin-bottom: 14px; color: var(--text); }}
+  #doc-content ol, #doc-content ul {{ margin: 0 0 16px 22px; color: var(--text); }}
   #doc-content li {{ margin-bottom: 6px; }}
   #doc-content code {{ background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 2px 6px; font-size: 14px; font-family: 'Space Grotesk', monospace; color: var(--signal); }}
   #doc-content pre {{ background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 10px; padding: 18px 20px; overflow-x: auto; margin-bottom: 16px; }}
-  #doc-content pre code {{ background: none; border: none; padding: 0; color: #C5CAD6; }}
+  #doc-content pre code {{ background: none; border: none; padding: 0; color: var(--text); }}
   #doc-content hr {{ border: none; border-top: 1px solid var(--border-dark); margin: 32px 0; }}
   #doc-content table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
   #doc-content th, #doc-content td {{ text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-dark); font-size: 14.5px; }}
@@ -327,7 +327,7 @@ fn render_doc_page(title: &str, raw_markdown: &str) -> String {
 <body>
 <header class="nav">
   <a href="/" class="brand">
-    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#2B1400" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#2B1400"/></svg></span>
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#FFFFFF"/></svg></span>
     <div><h1>AgentRaaS</h1><span>Agent Reliability as a Service</span></div>
   </a>
   <a href="/dashboard" class="back-link">← Back to dashboard</a>
