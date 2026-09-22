@@ -17,7 +17,7 @@ services:
     volumes:
       - ./data/redis:/data:z
     command: redis-server --appendonly yes
-    restart: unless-stopped
+    restart: always
 
   ar-postgres:
     image: docker.io/postgres:15-alpine
@@ -42,10 +42,10 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data:z
       - ./infra/migrations:/docker-entrypoint-initdb.d:z
-    restart: unless-stopped
+    restart: always
 
   ar-minio:
-    image: docker.io/minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: ar-minio
     hostname: ar-minio
     networks:
@@ -60,7 +60,7 @@ services:
     volumes:
       - ./data/minio:/data:z
     command: server /data --console-address ":9001"
-    restart: unless-stopped
+    restart: always
 
   # The API/dashboard service — Node's ar-api was retired once this fully
   # took over production traffic; no longer behind a `profiles: ["rust"]`
@@ -137,12 +137,11 @@ services:
       # never writable from this container.
       - ./src/api-gateway-rs/public:/public:ro,z
       - .:/repo:ro,z
-      # Only used on agentraas.io's own deployment, for the Team+/
-      # Enterprise self-host download path - a prebuilt image tarball,
-      # exported by the deploy host separately (this container has no
-      # podman/container-runtime access to do that itself). Missing/empty
-      # directory is fine on a self-hosted instance; self_host.rs degrades
-      # to a clear 503 on that one download path, not a crash.
+      # SPEC-M7.md: the prebuilt Enterprise-image tarball, exported by
+      # the deploy host (this container has no podman/container-runtime
+      # access to do that itself) - see project_plan/deploy.md's extra
+      # M7 deploy step. Missing/empty directory is fine; self_host.rs
+      # degrades to a clear 503 on the Team+ download path, not a crash.
       - ./self-host-artifacts:/self-host-artifacts:ro,z
     restart: "no"
 
