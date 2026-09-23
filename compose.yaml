@@ -143,7 +143,15 @@ services:
       # M7 deploy step. Missing/empty directory is fine; self_host.rs
       # degrades to a clear 503 on the Team+ download path, not a crash.
       - ./self-host-artifacts:/self-host-artifacts:ro,z
-    restart: "no"
+    # on-failure (not "no"): a cold power-on boot has crashed this once
+    # already on "Temporary failure in name resolution" (DNS not ready
+    # ~20s after network-online.target fires) with no restart, leaving
+    # cloudflared tunneling fine to a dead origin (502) until someone
+    # manually restarted it. This only affects systemd's post-start crash
+    # recovery, not podman-compose's depends_on startup path (the reason
+    # this was "no" to begin with, see the depends_on comment above) — the
+    # two are unrelated.
+    restart: on-failure
 
   # Optional: agentgateway (github.com/agentgateway/agentgateway) in front
   # of ar-api-rs's MCP endpoint — see config/agentgateway.yaml for what
