@@ -33,7 +33,7 @@ retry logic (or your agent framework's) is safe to use as-is.
 
 import requests
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"
 
 DEFAULT_BASE_URL = "http://localhost:13000"
 
