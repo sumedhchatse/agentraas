@@ -22,12 +22,12 @@ Your agent calls HubSpot to create a contact. The request succeeds, but the resp
 
 ## The Solution
 
-AgentRaaS is a proxy that guarantees **exactly-once execution** of agent actions — proven under real concurrent load with an automated test suite.
+AgentRaaS is a reliability layer that guarantees **exactly-once execution** of agent actions — proven under real concurrent load with an automated test suite.
 
 ```mermaid
 flowchart LR
     Agent["Agent<br/>(n8n, Python, MCP)"] -->|request| Proxy
-    subgraph Proxy["AgentRaaS (Proxy)"]
+    subgraph Proxy["AgentRaaS"]
         direction TB
         D["Deduplicate"] --> V["Validate"] --> C["Circuit breaker"] --> R["Rate limit"] --> A["Audit log"]
     end
@@ -39,6 +39,37 @@ flowchart LR
 2. AgentRaaS atomically claims a dedup slot in Redis for that exact request
 3. **First call:** forwarded to the real API, result cached
 4. **A concurrent or later retry:** returns the cached result, or a 409 if the original is still in flight — never a second real execution
+
+---
+
+## Free tools, no server needed
+
+`pip install agentraas` gives you three tools that run entirely on your machine. Start here, and add the server when your team wants the dashboard, human approval and one audit trail.
+
+**Find** the calls your agent would run twice. The chaos tester lets each write request execute, then drops the response (the failure that turns a retry into a double charge) and reports every action that ran twice. It exits non-zero, so it can fail CI ([GitHub Action](src/chaos-action/action.yml)).
+
+```bash
+agentraas chaos --mock -- python my_agent.py
+```
+
+**Fix** them with a decorator backed by local SQLite or your own Redis:
+
+```python
+from agentraas.local import exactly_once
+
+@exactly_once()
+def charge(customer, amount, idempotency_key=None):
+    return stripe.Charge.create(customer=customer, amount=amount, idempotency_key=idempotency_key).id
+```
+
+**Wrap** any MCP server so identical write-tool calls run once and every call is logged. Listed in the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.sumedhchatse/agentraas) as `io.github.sumedhchatse/agentraas`:
+
+```json
+{ "mcpServers": { "github": { "command": "uvx",
+  "args": ["agentraas", "wrap", "--", "npx", "-y", "@modelcontextprotocol/server-github"] } } }
+```
+
+Full options: [`src/sdk/README.md`](src/sdk/README.md). The TypeScript `exactlyOnce` is in [`src/sdk-js`](src/sdk-js) (not on npm yet).
 
 ---
 
@@ -287,6 +318,12 @@ capped at 500 actions/month — the only tier/deployment combination with
 any cap at all; self-hosting removes it entirely, on any tier). Get
 started or self-host from `/dashboard`, or contact
 **support@agentraas.io** for Enterprise sales.
+
+---
+
+## Troubleshooting
+
+Step-by-step fixes from quick checks to deeper digging (API errors, library mode, MCP wrap, chaos tester, self-hosting) are in the [Troubleshooting section of the docs](https://agentraas.io/docs#troubleshooting).
 
 ---
 
