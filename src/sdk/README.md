@@ -1,5 +1,7 @@
 # agentraas (Python SDK)
 
+<!-- mcp-name: io.github.sumedhchatse/agentraas -->
+
 Exactly-once execution for AI agents — a thin, dependency-light wrapper
 around [AgentRaaS](https://github.com/sumedhchatse/agentraas)'s SDK-style
 REST gateway. If your agent code calls Stripe, Twilio, HubSpot, or any
@@ -60,6 +62,39 @@ async def ship(order):
 When you want a dashboard, audit trail, human approval or circuit
 breaking on top, point the same calls at an AgentRaaS server with the
 `Client` below.
+
+## MCP wrap: exactly-once tool calls for any MCP server
+
+Put `agentraas wrap --` in front of an MCP server's command. Everything
+passes through unchanged, except that an identical call to a **write**
+tool (same tool, same arguments) inside the dedup window gets the first
+call's result back instead of running again. An agent that retries or
+loops can't send the same email or open the same issue twice. Every tool
+call is appended to an audit log.
+
+Claude Desktop / Cursor config:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "uvx",
+      "args": ["agentraas", "wrap", "--", "npx", "-y", "@modelcontextprotocol/server-github"]
+    }
+  }
+}
+```
+
+- Read-only tools are never deduplicated, so lookups stay fresh. The
+  server's `readOnlyHint` annotation decides, falling back to names like
+  `get_*`, `list_*`, `search_*`. Override with `--dedupe TOOL` /
+  `--no-dedupe TOOL`.
+- A failed call (JSON-RPC error or `isError: true`) is not cached, so a
+  retry runs for real.
+- Default window: 10 minutes (`--ttl 600`). State lives in
+  `~/.agentraas/mcp-dedup.db`, the log in `~/.agentraas/mcp-audit.jsonl`
+  (`--db`, `--log`).
+- A deduplicated result carries `_meta: {"agentraas/deduplicated": true}`.
 
 ## Chaos tester: find the calls your agent would run twice
 

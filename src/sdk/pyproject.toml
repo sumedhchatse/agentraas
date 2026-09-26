@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentraas"
-version = "0.4.0"
-description = "Exactly-once execution for AI agents: an @exactly_once decorator (no server), a chaos tester that finds duplicate API calls, and the AgentRaaS client"
+version = "0.5.0"
+description = "Exactly-once execution for AI agents: an @exactly_once decorator, an MCP server wrapper, a chaos tester that finds duplicate API calls, and the AgentRaaS client"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Sumedh Chatse" }]
@@ -24,12 +24,13 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["chaos-testing", "exactly-once", "deduplication", "ai-agents", "idempotency", "mcp", "webhooks", "n8n", "reliability"]
+keywords = ["mcp-server", "model-context-protocol", "chaos-testing", "exactly-once", "deduplication", "ai-agents", "idempotency", "mcp", "webhooks", "n8n", "reliability"]
 
 [project.optional-dependencies]
 redis = ["redis>=4.0"]
 
 [project.scripts]
+agentraas = "agentraas.cli:main"
 agentraas-chaos = "agentraas.chaos:main"
 
 [project.urls]
