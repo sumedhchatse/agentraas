@@ -1,0 +1,41 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sumedhchatse/agentraas",
+  "title": "AgentRaaS wrap",
+  "description": "Wraps any MCP server: identical write-tool calls run once, and every tool call is audit-logged.",
+  "version": "0.5.0",
+  "websiteUrl": "https://agentraas.io",
+  "repository": {
+    "url": "https://github.com/sumedhchatse/agentraas",
+    "source": "github",
+    "subfolder": "src/sdk"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "agentraas",
+      "version": "0.5.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "wrap"
+        },
+        {
+          "type": "positional",
+          "value": "--"
+        },
+        {
+          "type": "positional",
+          "valueHint": "mcp_server_command",
+          "isRequired": true,
+          "isRepeated": true,
+          "description": "The MCP server command to wrap, one argument per entry, e.g. npx, -y, @modelcontextprotocol/server-github"
+        }
+      ]
+    }
+  ]
+}
