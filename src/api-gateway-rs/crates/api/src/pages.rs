@@ -32,6 +32,7 @@ pub fn router() -> Router<SharedState> {
         .route("/docs", get(docs))
         .route("/webhook-audit", get(webhook_audit_page))
         .route("/status", get(status_page))
+        .route("/postmortem-2026-09", get(postmortem_2026_09))
         .route("/vendor/chart.umd.min.js", get(vendor_chart_js))
         .route("/og-image.png", get(og_image))
         .route("/logo.svg", get(logo_svg))
@@ -96,6 +97,10 @@ async fn status_page() -> axum::response::Response {
     serve_html_file(public_file("status.html"), "Status page not found").await
 }
 
+async fn postmortem_2026_09() -> axum::response::Response {
+    serve_html_file(public_file("postmortem-2026-09.html"), "Page not found").await
+}
+
 async fn vendor_chart_js() -> axum::response::Response {
     let path = public_file("vendor/chart.umd.min.js");
     match tokio::fs::read_to_string(&path).await {
@@ -106,13 +111,18 @@ async fn vendor_chart_js() -> axum::response::Response {
 
 /// Fallback for any unmatched route. API paths get the same uniform
 /// JSON shape as every other error response (`ApiError`); everything
-/// else — a mistyped or stale link to a page — gets a styled page
-/// instead of a bare blank 404, matching the site's own dark theme.
+/// else (a mistyped or stale link to a page) gets `public/404.html`,
+/// which infra/scripts/sync-site-chrome.py keeps in the site's design.
+/// Read per request like the other pages, so a restyle needs no rebuild;
+/// the inline copy below is only the fallback if that file is missing.
 pub async fn not_found(uri: axum::http::Uri) -> axum::response::Response {
     if uri.path().starts_with("/api/") {
         return (StatusCode::NOT_FOUND, Json(json!({ "error": "Not found." }))).into_response();
     }
-    (StatusCode::NOT_FOUND, Html(NOT_FOUND_HTML)).into_response()
+    match tokio::fs::read_to_string(public_file("404.html")).await {
+        Ok(page) => (StatusCode::NOT_FOUND, Html(page)).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, Html(NOT_FOUND_HTML)).into_response(),
+    }
 }
 
 const NOT_FOUND_HTML: &str = r##"<!DOCTYPE html>
@@ -120,7 +130,7 @@ const NOT_FOUND_HTML: &str = r##"<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Page not found — AgentRaaS</title>
+<title>Page not found | AgentRaaS</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -139,7 +149,7 @@ const NOT_FOUND_HTML: &str = r##"<!DOCTYPE html>
 <body>
   <div class="wrap">
     <h1>404</h1>
-    <p>That page doesn't exist — it may have moved or the link is out of date.</p>
+    <p>That page doesn't exist. It may have moved, or the link is out of date.</p>
     <a class="btn" href="/">Back to AgentRaaS</a>
   </div>
 </body>
@@ -167,7 +177,7 @@ async fn robots_txt(axum::extract::State(state): axum::extract::State<SharedStat
     ([(header::CONTENT_TYPE, "text/plain")], body)
 }
 
-const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/about", "/vs-temporal", "/vs-composio", "/vs-arcade", "/guide", "/docs", "/webhook-audit", "/status", "/license", "/privacy", "/terms", "/security", "/readme"];
+const SITEMAP_ROUTES: &[&str] = &["/", "/pricing", "/about", "/vs-temporal", "/vs-composio", "/vs-arcade", "/guide", "/docs", "/webhook-audit", "/status", "/postmortem-2026-09", "/license", "/privacy", "/terms", "/security", "/readme"];
 
 async fn sitemap_xml(axum::extract::State(state): axum::extract::State<SharedState>) -> impl IntoResponse {
     let urls: String = SITEMAP_ROUTES.iter().map(|route| format!("  <url><loc>{}{route}</loc></url>", state.public_url)).collect::<Vec<_>>().join("\n");
@@ -246,7 +256,12 @@ async fn public_status(axum::extract::State(state): axum::extract::State<SharedS
 async fn doc_page(filename: &str, title: &str) -> axum::response::Response {
     let path = std::path::Path::new(crate::self_host::SNAPSHOT_DIR).join(filename);
     match tokio::fs::read_to_string(&path).await {
-        Ok(raw_markdown) => Html(render_doc_page(title, &raw_markdown)).into_response(),
+        Ok(raw_markdown) => {
+            // public/doc-template.html carries the site's current design (kept in
+            // step by infra/scripts/sync-site-chrome.py); inline layout is the fallback.
+            let template = tokio::fs::read_to_string(public_file("doc-template.html")).await.ok();
+            Html(render_doc_page(title, &raw_markdown, template.as_deref())).into_response()
+        }
         Err(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": format!("{filename} not found on this deployment.") }))).into_response(),
     }
 }
@@ -274,20 +289,25 @@ async fn doc_readme() -> axum::response::Response {
 /// a "Loading…" placeholder here, identical whether the content was
 /// fresh or stale. Parsing with pulldown-cmark at request time means
 /// the real content is in the initial response either way.
-fn render_doc_page(title: &str, raw_markdown: &str) -> String {
+fn render_doc_page(title: &str, raw_markdown: &str, template: Option<&str>) -> String {
     // README.md uses GFM pipe tables and task-list checkboxes (the
     // roadmap section) — plain CommonMark (pulldown-cmark's default)
     // doesn't parse either, they'd render as literal text.
     let options = Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS;
     let mut content_html = String::new();
     md_html::push_html(&mut content_html, Parser::new_ext(raw_markdown, options));
+    if let Some(t) = template {
+        // TITLE first: CONTENT is inserted last so nothing inside the rendered
+        // markdown is ever treated as a placeholder.
+        return t.replace("{{TITLE}}", title).replace("{{CONTENT}}", &content_html);
+    }
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title} — AgentRaaS</title>
+<title>{title} | AgentRaaS</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -338,4 +358,25 @@ fn render_doc_page(title: &str, raw_markdown: &str) -> String {
 </body>
 </html>"##
     )
+}
+
+#[cfg(test)]
+mod doc_template_tests {
+    use super::render_doc_page;
+
+    #[test]
+    fn template_gets_title_and_rendered_markdown() {
+        let t = "<title>{{TITLE}} | AgentRaaS</title><main>{{CONTENT}}</main>";
+        let out = render_doc_page("License", "# MIT\n\nText with `{{TITLE}}` in it.", Some(t));
+        assert!(out.starts_with("<title>License | AgentRaaS</title>"));
+        assert!(out.contains("<h1>MIT</h1>"));
+        // a placeholder inside the markdown is content, not substituted
+        assert!(out.contains("<code>{{TITLE}}</code>"));
+    }
+
+    #[test]
+    fn missing_template_falls_back_to_inline_layout() {
+        let out = render_doc_page("Terms", "Hello", None);
+        assert!(out.contains("<title>Terms | AgentRaaS</title>") && out.contains("<p>Hello</p>"));
+    }
 }
