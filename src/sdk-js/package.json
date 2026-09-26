@@ -1,6 +1,6 @@
 {
   "name": "agentraas",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Exactly-once execution for AI agents — TypeScript/JavaScript SDK for AgentRaaS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -31,6 +31,7 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
     "typescript": "^5.9.3"
   }
 }

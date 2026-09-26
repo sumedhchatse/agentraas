@@ -10,14 +10,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <!-- End Google Tag Manager -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Getting started — AgentRaaS</title>
-<meta name="description" content="Get AgentRaaS running in minutes: connect an agent, add service credentials, and register a Custom Action — self-hosted or cloud.">
+<title>Getting started | AgentRaaS</title>
+<meta name="description" content="Get AgentRaaS running in minutes: connect an agent, add service credentials, and register a Custom Action, self-hosted or cloud.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Getting started — AgentRaaS">
+<meta property="og:title" content="Getting started | AgentRaaS">
 <meta property="og:description" content="Get AgentRaaS running in minutes: connect an agent, add service credentials, and register a Custom Action.">
 <meta property="og:image" content="/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%3E%3Crect%20x=%270.75%27%20y=%270.75%27%20width=%2722.5%27%20height=%2722.5%27%20rx=%276%27%20fill=%27%2316191E%27%20stroke=%27%232E343C%27%20stroke-width=%271.5%27/%3E%3Ccircle%20cx=%278.6%27%20cy=%2712%27%20r=%275.1%27%20fill=%27none%27%20stroke=%27%23ECEFF3%27%20stroke-width=%271.9%27/%3E%3Ccircle%20cx=%2715.4%27%20cy=%2712%27%20r=%275.1%27%20fill=%27%23F2B544%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -36,7 +36,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   a { color: var(--signal); }
   header.nav { border-bottom: 1px solid var(--border-dark); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
   .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
-  .brand .logo { width: 34px; height: 34px; background: var(--signal); border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+  .brand .logo { width: 34px; height: 34px; background: linear-gradient(180deg, #1D2127, #121418); box-shadow: inset 0 0 0 1px #2E343C, inset 0 1px 0 rgba(255,255,255,0.06); border-radius: 9px; display: flex; align-items: center; justify-content: center; }
   .brand h1 { font-family: 'Archivo', sans-serif; font-size: 18px; font-weight: 700; }
   .brand span { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
   .back-link { font-size: 14px; color: var(--muted); }
@@ -60,6 +60,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .toc { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 10px; padding: 16px 20px; margin: 24px 0 40px; font-size: 14.5px; }
   .toc a { display: block; padding: 4px 0; color: var(--muted); }
   .toc a:hover { color: var(--signal); }
+
+  /* Keyboard focus: visible on every interactive element, mouse clicks unaffected */
+  a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--signal, #2B7FB8); outline-offset: 3px; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -70,7 +73,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <header class="nav">
   <a href="/" class="brand">
-    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#FFFFFF"/></svg></span>
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#ECEFF3" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#F2B544"/></svg></span>
     <div><h1>AgentRaaS</h1><span>The reliability layer for autonomous agent fleets</span></div>
   </a>
   <a href="/dashboard" class="back-link">← Back to dashboard</a>
@@ -78,21 +81,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <div class="wrap">
   <h2 style="font-size:38px;">Getting started with AgentRaaS</h2>
-  <p class="lead">Connecting your first agent — on Cloud, or on your own self-hosted instance — and where to find everything again later.</p>
+  <p class="lead">Connecting your first agent (on Cloud, or on your own self-hosted instance) and where to find everything again later.</p>
+
+  <p style="margin-bottom:18px;">Not ready to run a server? <code>pip install agentraas</code> gives you a <a href="/docs#chaos-tester">chaos tester</a> that shows which API calls your agent would run twice, and an <a href="/docs#library-mode"><code>@exactly_once</code> decorator</a> that fixes them, both on your own machine with no account.</p>
 
   <div class="steps-quick">
     <p style="color:var(--text);font-weight:600;margin-bottom:10px;">The short version</p>
     <ol>
       <li>Register and log in.</li>
       <li>Click <b>+ Connect agent</b>, give it a name.</li>
-      <li>You get three things, shown <b>once</b>: an API key, a webhook URL, and an MCP URL. Save the API key somewhere safe — it's not shown again.</li>
+      <li>You get three things, shown <b>once</b>: an API key, a webhook URL, and an MCP URL. Save the API key somewhere safe; it's not shown again.</li>
       <li>Point your agent at the webhook URL (or MCP URL, if your agent framework speaks MCP), with the API key in the <code>Authorization</code> header.</li>
-      <li>Done — every call your agent makes now goes through AgentRaaS first.</li>
+      <li>Done: every call your agent makes now goes through AgentRaaS first.</li>
     </ol>
   </div>
 
   <div class="toc">
-    <a href="#cloud-vs-self-hosted">Cloud vs. self-hosted — which do I want?</a>
+    <a href="#cloud-vs-self-hosted">Cloud vs. self-hosted: which do I want?</a>
     <a href="#cloud">Cloud: step by step</a>
     <a href="#self-hosted">Self-hosted: step by step</a>
     <a href="#find-values">Where do I find these values again later?</a>
@@ -101,56 +106,56 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <a href="#custom">Something not on the list?</a>
   </div>
 
-  <h2 id="cloud-vs-self-hosted">Cloud vs. self-hosted — which do I want?</h2>
+  <h2 id="cloud-vs-self-hosted">Cloud vs. self-hosted: which do I want?</h2>
   <table>
     <tr><th></th><th>AgentRaaS Cloud</th><th>Self-hosted</th></tr>
     <tr><td>Where it runs</td><td>Our servers</td><td>Your own server</td></tr>
     <tr><td>Setup</td><td>Register, log in, done</td><td>Register, download, run <code>install.sh</code></td></tr>
-    <tr><td>Monthly limit</td><td>500 actions on the free tier, enforced (Team/Enterprise raise it)</td><td>None — unlimited, on any tier</td></tr>
+    <tr><td>Monthly limit</td><td>500 actions on the free tier, enforced (Team/Enterprise raise it)</td><td>None: unlimited on any tier</td></tr>
     <tr><td>Good for</td><td>Trying it out, no infra to manage</td><td>Your own data residency, unlimited volume</td></tr>
   </table>
-  <p>You can do both — try it on Cloud first, and self-host later if you want your own instance. Nothing about your Cloud data moves to self-host automatically; they're separate.</p>
+  <p>You can do both. Try it on Cloud first, and self-host later if you want your own instance. Nothing about your Cloud data moves to self-host automatically; they're separate.</p>
 
   <h2 id="cloud">Cloud: step by step</h2>
   <ol>
-    <li><b>Register</b> at the dashboard and verify your email (check your inbox — or, if you don't receive anything, check whether your deployment has email configured; a verification link is always available as a fallback in that case).</li>
+    <li><b>Register</b> at the dashboard and verify your email (check your inbox, or, if you don't receive anything, check whether your deployment has email configured; a verification link is always available as a fallback in that case).</li>
     <li><b>Log in.</b></li>
     <li>Click <b>+ Connect agent</b> in the top toolbar.</li>
     <li>Fill in:
       <ul>
-        <li><b>Org ID</b> — a short identifier for whoever owns this agent (a team, a client, your company). Letters, numbers, underscores, and hyphens only. If you're not sure what to put, use something like <code>myteam</code> or <code>acme_corp</code> — you can create more later if you need to separate different customers or environments.</li>
-        <li><b>Agent ID</b> — a short identifier for this specific agent, e.g. <code>invoice_bot</code> or <code>support_agent</code>. Same character rules as Org ID.</li>
-        <li><b>Label</b> (optional) — a human-friendly name shown in your agent list, e.g. "Production invoice bot".</li>
+        <li><b>Org ID</b>: a short identifier for whoever owns this agent (a team, a client, your company). Letters, numbers, underscores, and hyphens only. If you're not sure what to put, use something like <code>myteam</code> or <code>acme_corp</code>; you can create more later if you need to separate different customers or environments.</li>
+        <li><b>Agent ID</b>: a short identifier for this specific agent, e.g. <code>invoice_bot</code> or <code>support_agent</code>. Same character rules as Org ID.</li>
+        <li><b>Label</b> (optional): a human-friendly name shown in your agent list, e.g. "Production invoice bot".</li>
       </ul>
     </li>
     <li>Click <b>Connect</b>. You'll see:
       <ul>
-        <li><b>API key</b> — starts with <code>ar_live_</code>. Copy this now — it is shown exactly once and cannot be retrieved again. If you lose it, connect a new agent (you can revoke the old one from the Credentials panel).</li>
-        <li><b>Webhook URL</b> — where your agent sends requests.</li>
-        <li><b>MCP URL</b> — for agent frameworks that speak MCP instead of plain webhooks.</li>
+        <li><b>API key</b>: starts with <code>ar_live_</code>. Copy this now; it is shown exactly once and cannot be retrieved again. If you lose it, connect a new agent (you can revoke the old one from the Credentials panel).</li>
+        <li><b>Webhook URL</b>: where your agent sends requests.</li>
+        <li><b>MCP URL</b>: for agent frameworks that speak MCP instead of plain webhooks.</li>
       </ul>
     </li>
   </ol>
-  <p>That's it — your agent is connected. Every action it takes through AgentRaaS will show up on your dashboard within a few seconds.</p>
+  <p>That's it: your agent is connected. Every action it takes through AgentRaaS will show up on your dashboard within a few seconds.</p>
 
   <h2 id="self-hosted">Self-hosted: step by step</h2>
   <p>Self-hosting has two logins to keep straight: your AgentRaaS Cloud account (used only to get the download), and your self-hosted instance's own account (separate, lives on your own server).</p>
   <ol>
-    <li><b>On AgentRaaS Cloud:</b> register, log in, and connect at least one agent first (see above) — the self-host download only unlocks once you've actually tried the product.</li>
+    <li><b>On AgentRaaS Cloud:</b> register, log in, and connect at least one agent first (see above). The self-host download only unlocks once you've actually tried the product.</li>
     <li>Open your <b>Account</b> menu (click your email, top right) → <b>Self-host AgentRaaS</b>. Fill in the short form (what you'll use it for, and optionally your company/team name), then download the <code>.zip</code>.</li>
     <li>On your own server, unzip it and run:
       <pre><code>./install.sh</code></pre>
       This generates fresh secrets, runs the database migrations, and starts the stack.
     </li>
-    <li>Once it's running, go to <code>http://your-server:13001/dashboard</code> (or whatever host/port you configured). Your account is already pre-seeded with the email you used on Cloud — click <b>Forgot password</b> and enter that same email to set a password for <i>this</i> instance (see <code>SETUP_INSTRUCTIONS.txt</code> in the download for the exact link).</li>
-    <li>Log in, then <b>+ Connect agent</b>, exactly as in the Cloud steps above — this generates a fresh API key/webhook URL/MCP URL specific to your self-hosted instance. Cloud and self-hosted API keys are never interchangeable.</li>
+    <li>Once it's running, go to <code>http://your-server:13001/dashboard</code> (or whatever host/port you configured). Your account is already pre-seeded with the email you used on Cloud. Click <b>Forgot password</b> and enter that same email to set a password for <i>this</i> instance (see <code>SETUP_INSTRUCTIONS.txt</code> in the download for the exact link).</li>
+    <li>Log in, then <b>+ Connect agent</b>, exactly as in the Cloud steps above. This generates a fresh API key/webhook URL/MCP URL specific to your self-hosted instance. Cloud and self-hosted API keys are never interchangeable.</li>
   </ol>
 
   <h2 id="find-values">Where do I find these values again later?</h2>
   <ul>
-    <li><b>API key</b> — nowhere. It's shown once, by design (AgentRaaS never stores it in a form we could show you again — only a hash of it). If you've lost it, connect a new agent and revoke the old one.</li>
-    <li><b>Org ID / Agent ID / Webhook URL</b> — always visible in the <b>Credentials</b> panel, under your list of connected agents.</li>
-    <li><b>MCP URL</b> — the same for every agent on a given deployment: <code>&lt;your-instance-url&gt;/mcp</code>.</li>
+    <li><b>API key</b>: nowhere. It's shown once, by design (AgentRaaS never stores it in a form we could show you again, only a hash of it). If you've lost it, connect a new agent and revoke the old one.</li>
+    <li><b>Org ID / Agent ID / Webhook URL</b>: always visible in the <b>Credentials</b> panel, under your list of connected agents.</li>
+    <li><b>MCP URL</b>: the same for every agent on a given deployment, <code>&lt;your-instance-url&gt;/mcp</code>.</li>
   </ul>
 
   <h2 id="first-call">Making your first call</h2>
@@ -160,9 +165,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   -H "Content-Type: application/json" \
   -d '{"service":"stripe","action":"charge.create","payload":{"amount":500,"currency":"usd","customer":"cus_123"}}'</code></pre>
   <ul>
-    <li><code>service</code> — which connector to use (<code>stripe</code>, <code>twilio</code>, <code>slack</code>, etc. — see the full list on the dashboard's Credentials panel).</li>
-    <li><code>action</code> — which operation on that service (each connector supports a few — check the Credentials panel's dropdown for the exact list).</li>
-    <li><code>payload</code> — whatever that action needs, matching the real API's own fields.</li>
+    <li><code>service</code>: which connector to use (<code>stripe</code>, <code>twilio</code>, <code>slack</code>, etc.; see the full list on the dashboard's Credentials panel).</li>
+    <li><code>action</code>: which operation on that service (each connector supports a few; check the Credentials panel's dropdown for the exact list).</li>
+    <li><code>payload</code>: whatever that action needs, matching the real API's own fields.</li>
   </ul>
   <p>AgentRaaS handles the actual call to Stripe/Twilio/whichever service, and guarantees that an identical retry within the dedup window returns the cached result instead of doing it twice.</p>
 
@@ -171,16 +176,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <ol>
     <li>Open the <b>Credentials</b> panel.</li>
     <li>Pick the service and enter your key (or username/password, for services that use that instead).</li>
-    <li>Save. It's encrypted at rest — nobody, including AgentRaaS staff, can read it back out; it's only ever used server-side to make the call on your agent's behalf.</li>
+    <li>Save. It's encrypted at rest. Nobody, including AgentRaaS staff, can read it back out; it's only ever used server-side to make the call on your agent's behalf.</li>
   </ol>
 
   <h2 id="agentgateway">Optional: putting agentgateway in front (self-hosted)</h2>
-  <p>If you're self-hosting and already run — or want to run — multiple AI agents/tools behind a shared edge (auth, RBAC, rate limiting, observability across more than just AgentRaaS), you can put <a href="https://agentgateway.dev/" target="_blank" rel="noopener">agentgateway</a> (a Linux Foundation project) in front of AgentRaaS's MCP endpoint instead of pointing agents at it directly. This is available on every tier — it's a deployment choice, not one of AgentRaaS's own paid features.</p>
+  <p>If you're self-hosting and already run, or want to run, multiple AI agents/tools behind a shared edge (auth, RBAC, rate limiting, observability across more than just AgentRaaS), you can put <a href="https://agentgateway.dev/" target="_blank" rel="noopener">agentgateway</a> (a Linux Foundation project) in front of AgentRaaS's MCP endpoint instead of pointing agents at it directly. This is available on every tier; it's a deployment choice, not one of AgentRaaS's own paid features.</p>
   <pre><code>podman-compose --profile agentgateway up -d agentgateway</code></pre>
-  <p>See <code>config/agentgateway.yaml</code> in the repo for the config and what it does — AgentRaaS needs zero code changes for this; your agents' existing <code>x-agentraas-key</code> header passes straight through. Most self-hosters don't need this — it's useful once you have more than one MCP/tool server you want to manage behind a single gateway, not a requirement for using AgentRaaS.</p>
+  <p>See <code>config/agentgateway.yaml</code> in the repo for the config and what it does. AgentRaaS needs zero code changes for this: your agents' existing <code>x-agentraas-key</code> header passes straight through. Most self-hosters don't need this; it's useful once you have more than one MCP/tool server you want to manage behind a single gateway, not a requirement for using AgentRaaS.</p>
 
   <h2 id="custom">Something not on the list?</h2>
-  <p>If the service you need isn't one of the built-in connectors, use <b>Custom Actions</b> to register any endpoint yourself — same dedup protection, same SSRF guarding, same audit trail. Open the <b>Custom actions</b> panel and follow the form; it walks you through the same service/action/payload shape as the built-in connectors.</p>
+  <p>If the service you need isn't one of the built-in connectors, use <b>Custom Actions</b> to register any endpoint yourself, with the same dedup protection, same SSRF guarding, same audit trail. Open the <b>Custom actions</b> panel and follow the form; it walks you through the same service/action/payload shape as the built-in connectors.</p>
 
   <hr>
   <p style="color:var(--muted);font-size:14px;">Questions this didn't answer? <a href="mailto:hello@agentraas.io">hello@agentraas.io</a></p>

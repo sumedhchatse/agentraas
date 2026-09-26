@@ -10,16 +10,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <!-- End Google Tag Manager -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Documentation — AgentRaaS</title>
+<title>Documentation | AgentRaaS</title>
 <meta name="description" content="AgentRaaS API reference: authentication, webhook and SDK-style REST calls, MCP, SDKs, self-hosting, rate limits, and error codes.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="/docs">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Documentation — AgentRaaS">
+<meta property="og:title" content="Documentation | AgentRaaS">
 <meta property="og:description" content="AgentRaaS API reference: authentication, webhook and SDK-style REST calls, MCP, SDKs, self-hosting, rate limits, and error codes.">
 <meta property="og:image" content="/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%3E%3Crect%20x=%270.75%27%20y=%270.75%27%20width=%2722.5%27%20height=%2722.5%27%20rx=%276%27%20fill=%27%2316191E%27%20stroke=%27%232E343C%27%20stroke-width=%271.5%27/%3E%3Ccircle%20cx=%278.6%27%20cy=%2712%27%20r=%275.1%27%20fill=%27none%27%20stroke=%27%23ECEFF3%27%20stroke-width=%271.9%27/%3E%3Ccircle%20cx=%2715.4%27%20cy=%2712%27%20r=%275.1%27%20fill=%27%23F2B544%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -56,13 +56,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   header.nav .wrap { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; }
   .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
   .brand:hover { text-decoration: none; }
-  .brand .logo { width: 32px; height: 32px; border-radius: 9px; background: var(--signal); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand .logo { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(180deg, #1D2127, #121418); box-shadow: inset 0 0 0 1px #2E343C, inset 0 1px 0 rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .brand span.name { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 16px; line-height: 1.1; display: block; }
   .brand span.tag { font-size: 10.5px; color: var(--muted); font-weight: 500; }
   header.nav .links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
   header.nav .links a { color: var(--muted); font-weight: 600; }
   header.nav .links a:hover { color: var(--text); text-decoration: none; }
-  header.nav .links a.cta { background: var(--signal); color: var(--signal-deep); padding: 8px 16px; border-radius: 999px; font-weight: 800; }
+  header.nav .links a.cta { background: var(--signal); color: var(--signal-deep); padding: 8px 16px; border-radius: 6px; font-weight: 800; }
   @media (max-width: 760px) { header.nav .links a:not(.cta) { display: none; } }
 
   .docs-layout { max-width: 1280px; margin: 0 auto; display: flex; gap: 48px; align-items: flex-start; padding: 40px 32px 120px; }
@@ -79,8 +79,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .docs-content .lead { font-size: 17px; color: var(--text); margin-bottom: 4px; }
   .docs-content h2 { font-size: 23px; margin-bottom: 12px; }
   .docs-content h3 { font-size: 15.5px; color: var(--signal); margin: 22px 0 8px; }
-  .badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 6px; margin-left: 8px; vertical-align: middle; }
   .badge.team { background: rgba(217,181,75,0.14); color: var(--dedup); border: 1px solid rgba(217,181,75,0.35); }
+  .badge.free { background: rgba(78,139,107,0.14); color: var(--claim); border: 1px solid rgba(78,139,107,0.35); }
   .badge.ent { background: rgba(110,134,168,0.14); color: var(--info); border: 1px solid rgba(110,134,168,0.35); }
   .badge.get { background: rgba(78,139,107,0.14); color: var(--claim); border: 1px solid rgba(78,139,107,0.35); }
   .badge.post { background: rgba(43,127,184,0.14); color: var(--signal); border: 1px solid rgba(43,127,184,0.35); }
@@ -92,6 +93,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     .docs-sidebar { position: static; width: 100%; max-height: none; margin-bottom: 8px; columns: 2; column-gap: 24px; }
     .docs-sidebar .group { margin-bottom: 16px; break-inside: avoid; }
   }
+
+  /* Keyboard focus: visible on every interactive element, mouse clicks unaffected */
+  a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--signal, #2B7FB8); outline-offset: 3px; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -103,7 +107,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <header class="nav">
   <div class="wrap">
     <a href="/" class="brand">
-      <span class="logo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#FFFFFF"/></svg></span>
+      <span class="logo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#ECEFF3" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#F2B544"/></svg></span>
       <div><span class="name">AgentRaaS</span><span class="tag">Documentation</span></div>
     </a>
     <nav class="links">
@@ -124,9 +128,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <a href="#authentication">Authentication</a>
     </div>
     <div class="group">
+      <div class="group-label">No server</div>
+      <a href="#library-mode">Library mode</a>
+      <a href="#mcp-wrap">MCP wrap</a>
+      <a href="#chaos-tester">Chaos tester</a>
+    </div>
+    <div class="group">
       <div class="group-label">API</div>
-      <a href="#rest-webhook">REST — webhook style</a>
-      <a href="#rest-sdk">REST — SDK style</a>
+      <a href="#rest-webhook">REST: webhook style</a>
+      <a href="#rest-sdk">REST: SDK style</a>
       <a href="#mcp">MCP</a>
       <a href="#optional-headers">Idempotency &amp; tracing</a>
       <a href="#errors">Errors</a>
@@ -150,34 +160,108 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <section id="introduction">
       <h1>Documentation</h1>
       <p class="lead">Everything you need to wire an agent through AgentRaaS: authentication, the two calling styles, MCP, SDKs, and self-hosting reference.</p>
-      <p style="margin-top:14px;">AgentRaaS sits between your agent and the real API it's calling (Stripe, Twilio, your own internal endpoint — anything). It claims an atomic dedup slot before forwarding anything, so a retry from your agent, your framework, or a flaky network never becomes a second real charge, message, or side effect. Every call is logged with a per-agent identity for a full audit trail.</p>
+      <p style="margin-top:14px;">AgentRaaS sits between your agent and the real API it's calling (Stripe, Twilio, your own internal endpoint, anything). It claims an atomic dedup slot before forwarding anything, so a retry from your agent, your framework, or a flaky network never becomes a second real charge, message, or side effect. Every call is logged with a per-agent identity for a full audit trail.</p>
       <p>New to AgentRaaS? Start with <a href="/guide">Getting started</a> for the click-by-click walkthrough of connecting your first agent. This page is the reference once you're wiring things up for real.</p>
     </section>
 
     <section id="quickstart">
       <h2>Quickstart</h2>
       <ol>
-        <li>Register and log in at <a href="/dashboard">the dashboard</a> (Cloud) — or self-host with <code>./install.sh</code>, see <a href="#self-hosting">Self-hosting</a> below.</li>
-        <li>Click <b>+ Connect agent</b>. You get an API key, a webhook URL, and an MCP URL — shown once. Save the API key; it can't be retrieved again.</li>
-        <li>Add credentials for whatever service you're calling (<b>Credentials</b> panel) — AgentRaaS forwards using those, so your agent code never touches a raw upstream API key.</li>
+        <li>Register and log in at <a href="/dashboard">the dashboard</a> (Cloud), or self-host with <code>./install.sh</code>. See <a href="#self-hosting">Self-hosting</a> below.</li>
+        <li>Click <b>+ Connect agent</b>. You get an API key, a webhook URL, and an MCP URL, shown once. Save the API key; it can't be retrieved again.</li>
+        <li>Add credentials for whatever service you're calling (<b>Credentials</b> panel); AgentRaaS forwards using those, so your agent code never touches a raw upstream API key.</li>
         <li>Call AgentRaaS instead of the real API, using either calling style below.</li>
       </ol>
     </section>
 
+    <section id="library-mode">
+      <h2>Library mode <span class="badge free">Free</span></h2>
+      <p>Exactly-once execution with no AgentRaaS server at all. Decorate any function that has a side effect; retries and concurrent duplicates get the first result back instead of running it again. State lives in a local SQLite file by default, or in your own Redis.</p>
+      <pre><code>pip install agentraas</code></pre>
+      <pre><code>from agentraas.local import exactly_once, RedisStore
+
+@exactly_once()                      # SQLite file, one machine
+def charge(customer, amount, idempotency_key=None):
+    return stripe.Charge.create(customer=customer, amount=amount,
+                                idempotency_key=idempotency_key).id
+
+charge("cus_1", 4200)   # runs for real
+charge("cus_1", 4200)   # returns the cached id, no second charge
+
+@exactly_once(store=RedisStore("redis://localhost:6379/0"),   # across machines
+              key=lambda order: order["id"], ttl=3600)
+async def ship(order):
+    ...</code></pre>
+      <table>
+        <tr><th>Option</th><th>Default</th><th>What it does</th></tr>
+        <tr><td><code>store</code></td><td>SQLite file</td><td><code>SQLiteStore(path)</code> for one machine, <code>RedisStore(url)</code> for several (needs <code>pip install redis</code>).</td></tr>
+        <tr><td><code>key</code></td><td>all arguments</td><td>Function returning what counts as "the same call", e.g. an order ID.</td></tr>
+        <tr><td><code>ttl</code></td><td>86400</td><td>Seconds a completed result is remembered.</td></tr>
+        <tr><td><code>wait</code></td><td>30</td><td>Seconds a duplicate waits for an in-flight first call before raising <code>InFlightError</code>.</td></tr>
+      </table>
+      <div class="callout"><p>If the function raises, nothing is cached and a retry runs it again. That includes the case where the provider did the work but the response was lost. Give the function an <code>idempotency_key</code> parameter and pass it to the provider: the decorator fills it with the same value on every retry, so the provider dedupes that case itself. Results must be JSON-serializable.</p></div>
+    </section>
+
+    <section id="mcp-wrap">
+      <h2>MCP wrap <span class="badge free">Free</span></h2>
+      <p>Exactly-once tool calls and an audit log for any stdio MCP server. Put <code>agentraas wrap --</code> in front of the server's own command; everything passes through unchanged, except that an identical call to a write tool (same tool, same arguments) inside the dedup window gets the first call's result back instead of running again.</p>
+      <pre><code>{
+  "mcpServers": {
+    "github": {
+      "command": "uvx",
+      "args": ["agentraas", "wrap", "--", "npx", "-y", "@modelcontextprotocol/server-github"]
+    }
+  }
+}</code></pre>
+      <table>
+        <tr><th>Option</th><th>Default</th><th>What it does</th></tr>
+        <tr><td><code>--ttl</code></td><td>600</td><td>Seconds an identical write call is deduplicated.</td></tr>
+        <tr><td><code>--dedupe TOOL</code></td><td></td><td>Always dedupe this tool, even if it looks read-only. Repeatable.</td></tr>
+        <tr><td><code>--no-dedupe TOOL</code></td><td></td><td>Never dedupe this tool. Repeatable.</td></tr>
+        <tr><td><code>--db</code></td><td><code>~/.agentraas/mcp-dedup.db</code></td><td>SQLite file for dedup state.</td></tr>
+        <tr><td><code>--log</code></td><td><code>~/.agentraas/mcp-audit.jsonl</code></td><td>JSON-lines audit log of every tool call; <code>''</code> disables it.</td></tr>
+      </table>
+      <div class="callout"><p>Read-only tools always run, so lookups stay fresh: the server's <code>readOnlyHint</code> annotation decides, falling back to names like <code>get_*</code>, <code>list_*</code> and <code>search_*</code>. A failed call (JSON-RPC error or <code>isError: true</code>) is not cached, so a retry runs for real. A deduplicated result carries <code>_meta: {"agentraas/deduplicated": true}</code>.</p></div>
+    </section>
+
+    <section id="chaos-tester">
+      <h2>Chaos tester <span class="badge free">Free</span></h2>
+      <p><code>agentraas-chaos</code> sits between your code and an API. The first time each distinct write request (POST, PUT, PATCH, DELETE) arrives, it lets the request execute and then drops the response: the network failure that turns a retry into a double charge. It then lists every action that executed more than once.</p>
+      <pre><code># safe: a built-in mock answers every call
+agentraas-chaos --mock -- python my_agent.py
+
+# a real API: use test-mode keys
+agentraas-chaos --upstream https://api.stripe.com -- pytest</code></pre>
+      <p>Your command gets <code>AGENTRAAS_CHAOS_URL</code> (for example <code>http://127.0.0.1:8787</code>) to use as its API base URL. Without a command it runs until Ctrl-C, so you can point an n8n workflow or any other tool at it by hand. It exits with code 1 when it finds a duplicate. A retry that repeats an <code>Idempotency-Key</code> it has already seen counts as protected.</p>
+      <table>
+        <tr><th>Flag</th><th>What it does</th></tr>
+        <tr><td><code>--mock</code></td><td>Answer every call with a fake 200. Nothing real is called.</td></tr>
+        <tr><td><code>--upstream URL</code></td><td>Forward to a real API base URL.</td></tr>
+        <tr><td><code>--fault</code></td><td><code>lost-response</code> (default) drops the connection; <code>error-after-commit</code> returns a 502 instead; <code>none</code> only records.</td></tr>
+        <tr><td><code>--port</code></td><td>Local port, default 8787.</td></tr>
+      </table>
+      <h3>GitHub Actions</h3>
+      <pre><code>- uses: actions/setup-python@v5
+  with: { python-version: "3.12" }
+- uses: sumedhchatse/agentraas/src/chaos-action@main
+  with:
+    run: python my_agent.py      # optional: upstream, fault</code></pre>
+    </section>
+
     <section id="authentication">
       <h2>Authentication</h2>
-      <p>Every route accepts your API key in a different place depending on the calling style you use — there's no single global header. Keys start with <code>ar_live_</code> and are shown exactly once when you connect an agent; AgentRaaS only ever stores a hash of it.</p>
+      <p>Every route accepts your API key in a different place depending on the calling style you use; there's no single global header. Keys start with <code>ar_live_</code> and are shown exactly once when you connect an agent; AgentRaaS only ever stores a hash of it.</p>
       <table>
         <tr><th>Calling style</th><th>Where the key goes</th></tr>
         <tr><td>Webhook</td><td><code>Authorization: Bearer &lt;key&gt;</code></td></tr>
         <tr><td>SDK-style REST</td><td><code>x-agentraas-key: &lt;key&gt;</code> header</td></tr>
         <tr><td>MCP</td><td><code>x-agentraas-key: &lt;key&gt;</code> header</td></tr>
       </table>
-      <div class="callout"><p>Lost a key? Connect a new agent and revoke the old one from the <b>Credentials</b> panel — there's no way to have a lost key re-displayed.</p></div>
+      <div class="callout"><p>Lost a key? Connect a new agent and revoke the old one from the <b>Credentials</b> panel; there's no way to have a lost key re-displayed.</p></div>
     </section>
 
     <section id="rest-webhook">
-      <h2>REST — webhook style</h2>
+      <h2>REST: webhook style</h2>
       <p>The simplest integration: point any no-code tool (n8n, Make, Zapier) or a plain <code>curl</code>/HTTP client at one URL per agent. <code>org_id</code> and <code>agent_id</code> live in the path, so nothing else needs configuring per request.</p>
       <div class="endpoint"><span class="badge post">POST</span> /v1/webhook/:org_id/:agent_id</div>
       <pre><code>curl -X POST https://your-instance/v1/webhook/acme-corp/billing-bot \
@@ -190,23 +274,23 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   }'</code></pre>
       <table>
         <tr><th>Field</th><th>Required</th><th>Description</th></tr>
-        <tr><td><code>service</code></td><td>Yes</td><td>Which connector — see <a href="#services">Supported services</a>, or a Custom Action's name.</td></tr>
+        <tr><td><code>service</code></td><td>Yes</td><td>Which connector. See <a href="#services">Supported services</a>, or a Custom Action's name.</td></tr>
         <tr><td><code>action</code></td><td>Yes</td><td>Which operation on that service.</td></tr>
         <tr><td><code>payload</code></td><td>No</td><td>Fields the action needs, matching the real API's own shape.</td></tr>
-        <tr><td><code>end_user_id</code></td><td>No</td><td>Your own identifier for who this action was on behalf of — shows up in the audit trail.</td></tr>
+        <tr><td><code>end_user_id</code></td><td>No</td><td>Your own identifier for who this action was on behalf of. Shows up in the audit trail.</td></tr>
         <tr><td><code>resource_id</code></td><td>No</td><td>Your own identifier for what was acted on (an order id, a ticket id, etc.).</td></tr>
       </table>
       <p>A successful response, first call vs. a retry of the same request:</p>
-      <pre><code>&#8594; 200 OK   // first call — forwarded, result cached
+      <pre><code>&#8594; 200 OK   // first call, forwarded, result cached
 {"result":{"status":"success","charge_id":"ch_1N..."}}
 
-&#8594; 200 OK   // identical retry — dedup slot already claimed
+&#8594; 200 OK   // identical retry, dedup slot already claimed
 {"result":{"status":"success","charge_id":"ch_1N...","deduplicated":true}}</code></pre>
     </section>
 
     <section id="rest-sdk">
-      <h2>REST — SDK style</h2>
-      <p>Used by the official SDKs (see <a href="#sdks">SDKs</a>) — <code>org_id</code>/<code>agent_id</code> travel as headers instead of the URL, so one client instance can be reused across calls without rebuilding a path each time.</p>
+      <h2>REST: SDK style</h2>
+      <p>Used by the official SDKs (see <a href="#sdks">SDKs</a>): <code>org_id</code>/<code>agent_id</code> travel as headers instead of the URL, so one client instance can be reused across calls without rebuilding a path each time.</p>
       <div class="endpoint"><span class="badge post">POST</span> /v1/sdk/:service/:action</div>
       <pre><code>curl -X POST https://your-instance/v1/sdk/stripe/charge.create \
   -H "x-agentraas-key: ar_live_..." \
@@ -214,12 +298,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   -H "x-agentraas-agent: billing-bot" \
   -H "Content-Type: application/json" \
   -d '{ "amount": 5000, "currency": "usd", "customer": "cus_123" }'</code></pre>
-      <p>The request body here <i>is</i> the payload directly (no wrapping <code>service</code>/<code>action</code>/<code>payload</code> envelope — those are already in the path and headers). Response shape is identical to the webhook style above.</p>
+      <p>The request body here <i>is</i> the payload directly (no wrapping <code>service</code>/<code>action</code>/<code>payload</code> envelope; those are already in the path and headers). Response shape is identical to the webhook style above.</p>
     </section>
 
     <section id="mcp">
       <h2>MCP</h2>
-      <p>For Claude Desktop, Cursor, or any MCP client — every tool call through this gateway gets the same dedup, validation, rate-limiting, and audit logging as the REST routes.</p>
+      <p>For Claude Desktop, Cursor, or any MCP client: every tool call through this gateway gets the same dedup, validation, rate-limiting, and audit logging as the REST routes.</p>
       <pre><code>{
   "mcpServers": {
     "agentraas": {
@@ -229,12 +313,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   }
 }</code></pre>
       <div class="endpoint"><span class="badge post">POST</span> /mcp</div>
-      <p>Standard JSON-RPC 2.0 over HTTP (<code>tools/list</code>, <code>tools/call</code>) — authenticate with the same <code>x-agentraas-key</code> header as SDK-style REST.</p>
+      <p>Standard JSON-RPC 2.0 over HTTP (<code>tools/list</code>, <code>tools/call</code>). Authenticate with the same <code>x-agentraas-key</code> header as SDK-style REST.</p>
     </section>
 
     <section id="optional-headers">
       <h2>Idempotency &amp; tracing</h2>
-      <p>Optional headers accepted by both the webhook and SDK-style routes — useful once you're running agents in production and want to correlate calls with your own systems:</p>
+      <p>Optional headers accepted by both the webhook and SDK-style routes, useful once you're running agents in production and want to correlate calls with your own systems:</p>
       <table>
         <tr><th>Header</th><th>Purpose</th></tr>
         <tr><td><code>x-agentraas-idempotency-key</code></td><td>Your own dedup key, if you want to control the dedup window's scope yourself instead of relying on the request body being byte-identical.</td></tr>
@@ -249,15 +333,15 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <h2>Errors</h2>
       <p>Every error response is a flat JSON object with the same shape, regardless of route:</p>
       <pre><code>{ "error": "A human-readable message." }</code></pre>
-      <p>Some errors add a machine-readable <code>code</code> field alongside <code>error</code> for cases worth branching on in your own code (e.g. <code>EMAIL_NOT_VERIFIED</code>), and a few add extra context fields (e.g. <code>replayed: true</code> on a deduplicated dead-letter replay). Check the specific status code first — <code>code</code> isn't present on every error.</p>
+      <p>Some errors add a machine-readable <code>code</code> field alongside <code>error</code> for cases worth branching on in your own code (e.g. <code>EMAIL_NOT_VERIFIED</code>), and a few add extra context fields (e.g. <code>replayed: true</code> on a deduplicated dead-letter replay). Check the specific status code first, <code>code</code> isn't present on every error.</p>
       <table>
         <tr><th>Status</th><th>Meaning</th></tr>
         <tr><td><code>401</code></td><td>Missing or invalid API key.</td></tr>
-        <tr><td><code>402</code></td><td>Monthly usage limit reached (Cloud only — self-hosted has no enforced limit on any tier).</td></tr>
+        <tr><td><code>402</code></td><td>Monthly usage limit reached (Cloud only; self-hosted has no enforced limit on any tier).</td></tr>
         <tr><td><code>403</code></td><td>Authenticated, but not permitted for this org/action.</td></tr>
-        <tr><td><code>422</code></td><td>Request validation failed — check the message for which field.</td></tr>
-        <tr><td><code>429</code></td><td>Rate limit exceeded — see <a href="#plans">Plans &amp; limits</a>.</td></tr>
-        <tr><td><code>502</code>/<code>503</code></td><td>The upstream service (Stripe, Twilio, etc.) was unreachable or errored — AgentRaaS fails closed rather than silently succeeding un-deduplicated.</td></tr>
+        <tr><td><code>422</code></td><td>Request validation failed. Check the message for which field.</td></tr>
+        <tr><td><code>429</code></td><td>Rate limit exceeded. See <a href="#plans">Plans &amp; limits</a>.</td></tr>
+        <tr><td><code>502</code>/<code>503</code></td><td>The upstream service (Stripe, Twilio, etc.) was unreachable or errored; AgentRaaS fails closed rather than silently succeeding un-deduplicated.</td></tr>
       </table>
     </section>
 
@@ -277,7 +361,7 @@ client = agentraas.Client(
 
 result = client.call("stripe", "charge.create", {"amount": 5000, "currency": "usd"})</code></pre>
       <h3>TypeScript / JavaScript</h3>
-      <pre><code>npm install agentraas</code></pre>
+      <p>Not on npm yet. Build it from <code>src/sdk-js</code> in the repo (<code>npm install &amp;&amp; npm run build</code>) until the package is published.</p>
       <pre><code>import { Client } from "agentraas";
 
 const client = new Client({
@@ -288,43 +372,43 @@ const client = new Client({
 });
 
 const result = await client.call("stripe", "charge.create", { amount: 5000, currency: "usd" });</code></pre>
-      <p>Both SDKs are MIT-licensed. Neither retries automatically — since AgentRaaS claims the dedup slot server-side before forwarding, your own retry logic (as aggressive as you want) is always safe to call again with the same payload.</p>
+      <p>Both SDKs are MIT-licensed. Neither retries automatically: since AgentRaaS claims the dedup slot server-side before forwarding, your own retry logic (as aggressive as you want) is always safe to call again with the same payload.</p>
     </section>
 
     <section id="services">
       <h2>Supported services</h2>
-      <p>Curated, pre-configured integrations — no code required:</p>
+      <p>Curated, pre-configured integrations, no code required:</p>
       <p>Stripe, Twilio, HubSpot, Calendly, Shopify, Zoho, Razorpay, WhatsApp, Zapier, Make, Adyen, Mollie, Airwallex, Xendit, PayPal, Salesforce, Slack, Klarna, Paystack, GoCardless, Opn Payments, plus the built-in <code>mockpay</code> for safe testing.</p>
       <p>Need something not on this list? See <a href="#custom-actions">Custom Actions</a> below.</p>
     </section>
 
     <section id="custom-actions">
       <h2>Custom Actions</h2>
-      <p>Register any endpoint yourself from the <b>Custom actions</b> panel — any URL, any auth type — and it gets the same dedup, audit trail, and SSRF guarding (so it can't be pointed at your own internal infrastructure) as a curated service. Call it exactly like a built-in service, using its registered name as <code>service</code>.</p>
+      <p>Register any endpoint yourself from the <b>Custom actions</b> panel (any URL, any auth type) and it gets the same dedup, audit trail, and SSRF guarding (so it can't be pointed at your own internal infrastructure) as a curated service. Call it exactly like a built-in service, using its registered name as <code>service</code>.</p>
     </section>
 
     <section id="inbound-webhooks">
       <h2>Inbound webhooks <span class="badge ent">Enterprise</span></h2>
-      <p>For the reverse direction — a third party (e.g. WhatsApp) calling <i>into</i> your system. AgentRaaS verifies the provider's real signature (HMAC or ECDSA, whichever that provider uses) before forwarding the payload on to your own destination URL, so you get signature verification without implementing it per provider.</p>
+      <p>For the reverse direction: a third party (e.g. WhatsApp) calling <i>into</i> your system. AgentRaaS verifies the provider's real signature (HMAC or ECDSA, whichever that provider uses) before forwarding the payload on to your own destination URL, so you get signature verification without implementing it per provider.</p>
       <div class="endpoint"><span class="badge get">GET</span> / <span class="badge post">POST</span> /v1/inbound/:token</div>
       <p>Manage receivers from the dashboard's <b>Outage alerts</b> panel, or via <code>/api/v1/inbound-webhooks</code>.</p>
     </section>
 
     <section id="self-hosting">
       <h2>Self-hosting</h2>
-      <p>Self-hosted AgentRaaS has no enforced monthly usage limit on any tier — it's your infrastructure. One Docker Compose service, no data leaving your control.</p>
+      <p>Self-hosted AgentRaaS has no enforced monthly usage limit on any tier; it's your infrastructure. One Docker Compose service, no data leaving your control.</p>
       <pre><code>./install.sh</code></pre>
       <p>This generates fresh secrets, runs migrations, and starts the stack. Key environment variables (full reference in <code>.env.example</code>):</p>
       <table>
         <tr><th>Variable</th><th>Purpose</th></tr>
-        <tr><td><code>JWT_SECRET</code></td><td>Signs dashboard sessions. Required — the server won't start without it.</td></tr>
+        <tr><td><code>JWT_SECRET</code></td><td>Signs dashboard sessions. Required; the server won't start without it.</td></tr>
         <tr><td><code>CREDENTIALS_ENCRYPTION_KEY</code></td><td>Encrypts stored service credentials at rest. Required, 32 bytes.</td></tr>
-        <tr><td><code>PUBLIC_URL</code></td><td>Used for email links and the Connect Agent webhook/MCP URLs — set this to your real domain.</td></tr>
+        <tr><td><code>PUBLIC_URL</code></td><td>Used for email links and the Connect Agent webhook/MCP URLs. Set this to your real domain.</td></tr>
         <tr><td><code>AGENT_RATE_LIMIT_PER_MIN</code></td><td>Per-key rate limit across webhook/SDK/MCP routes. Default 300.</td></tr>
         <tr><td><code>LICENSE_TOKEN</code></td><td>Unlocks Team/Enterprise features on this deployment. Get it from your Cloud account's <b>Account → Your license</b> panel after subscribing. Missing/expired always falls back to Community rather than blocking startup.</td></tr>
-        <tr><td><code>SMTP_*</code></td><td>Optional — without it, password-reset links are logged server-side instead of emailed.</td></tr>
+        <tr><td><code>SMTP_*</code></td><td>Optional. Without it, password-reset links are logged server-side instead of emailed.</td></tr>
       </table>
-      <div class="callout"><p>Billing always happens on AgentRaaS Cloud, even for a self-hosted instance — Paddle checkout and your subscription live there. Self-hosting doesn't need its own Paddle account; you just paste the license token it issues you into <code>LICENSE_TOKEN</code>.</p></div>
+      <div class="callout"><p>Billing always happens on AgentRaaS Cloud, even for a self-hosted instance: Paddle checkout and your subscription live there. Self-hosting doesn't need its own Paddle account; you just paste the license token it issues you into <code>LICENSE_TOKEN</code>.</p></div>
     </section>
 
     <section id="plans">
@@ -335,10 +419,10 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><td>Cloud monthly actions</td><td>500</td><td>10,000</td><td>50,000</td></tr>
         <tr><td>Cloud rate limit</td><td>300/min</td><td>1,000/min</td><td>2,000/min</td></tr>
         <tr><td>Self-hosted monthly actions</td><td colspan="3">Unlimited on every tier</td></tr>
-        <tr><td>HITL approval rules, SLA escalation</td><td>—</td><td>✓</td><td>✓</td></tr>
-        <tr><td>SSO, white-label branding, client tenants, inbound webhooks</td><td>—</td><td>—</td><td>✓</td></tr>
+        <tr><td>HITL approval rules, SLA escalation</td><td>No</td><td>✓</td><td>✓</td></tr>
+        <tr><td>SSO, white-label branding, client tenants, inbound webhooks</td><td>No</td><td>No</td><td>✓</td></tr>
       </table>
-      <p>Team is self-serve at $49/month via <a href="/pricing">the pricing page</a>. Enterprise is sales-assisted — <a href="mailto:hello@agentraas.io">contact sales</a>.</p>
+      <p>Team is self-serve at $49/month via <a href="/pricing">the pricing page</a>. Enterprise is sales-assisted: <a href="mailto:hello@agentraas.io">contact sales</a>.</p>
     </section>
 
     <section id="support">
@@ -350,7 +434,7 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
 
 <script>
   // Highlights the sidebar link for whichever section is currently in
-  // view — same IntersectionObserver pattern used elsewhere on the site,
+  // view, same IntersectionObserver pattern used elsewhere on the site,
   // just for nav state instead of a reveal animation.
   (function() {
     var sections = document.querySelectorAll('.docs-content > section[id]');

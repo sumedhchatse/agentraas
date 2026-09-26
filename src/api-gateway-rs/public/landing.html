@@ -11,471 +11,411 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <!-- End Google Tag Manager -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgentRaaS — The Reliability Layer for Autonomous Agent Fleets</title>
-<meta name="description" content="AgentRaaS: the agent reliability platform — reliability (exactly-once execution, circuit breaking), responsibility (budget/loop limits, human-in-the-loop approval), and accountability (full audit trail, per-agent identity) for AI agents taking real-world actions. Self-hosted (unlimited, free, forever) or cloud.">
+<title>AgentRaaS: stop AI agents from running API calls twice</title>
+<meta name="description" content="AgentRaaS brings reliability, responsibility and accountability to AI agents: every API call runs exactly once, risky calls wait for human approval, and every action is recorded. Free CLI, Python library and MCP wrapper, plus a self-hosted server.">
 <meta name="robots" content="index, follow">
 <meta name="google-site-verification" content="EBZLmjcSMe4ZXaxSA-BnE5nll_5LwF2SqKCPTSiO-U8" />
 <link rel="canonical" href="/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="AgentRaaS">
-<meta property="og:title" content="AgentRaaS — The Reliability Layer for Autonomous Agent Fleets">
-<meta property="og:description" content="The agent reliability platform: reliability, responsibility, and accountability for every action your AI agents take. Self-hosted is unlimited and free, forever.">
+<meta property="og:title" content="AgentRaaS: stop AI agents from running API calls twice">
+<meta property="og:description" content="AgentRaaS brings reliability, responsibility and accountability to AI agents: every API call runs exactly once, risky calls wait for human approval, and every action is recorded. Free CLI, Python library and MCP wrapper, plus a self-hosted server.">
 <meta property="og:url" content="/">
 <meta property="og:image" content="/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="AgentRaaS — The Reliability Layer for Autonomous Agent Fleets">
-<meta name="twitter:description" content="The agent reliability platform — reliability, responsibility, and accountability for every action your AI agents take. Self-hosted is unlimited and free, forever.">
+<meta name="twitter:title" content="AgentRaaS: stop AI agents from running API calls twice">
+<meta name="twitter:description" content="AgentRaaS brings reliability, responsibility and accountability to AI agents: every API call runs exactly once, risky calls wait for human approval, and every action is recorded. Free CLI, Python library and MCP wrapper, plus a self-hosted server.">
 <meta name="twitter:image" content="/og-image.png">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%23175683'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%3E%3Crect%20x=%270.75%27%20y=%270.75%27%20width=%2722.5%27%20height=%2722.5%27%20rx=%276%27%20fill=%27%2316191E%27%20stroke=%27%232E343C%27%20stroke-width=%271.5%27/%3E%3Ccircle%20cx=%278.6%27%20cy=%2712%27%20r=%275.1%27%20fill=%27none%27%20stroke=%27%23ECEFF3%27%20stroke-width=%271.9%27/%3E%3Ccircle%20cx=%2715.4%27%20cy=%2712%27%20r=%275.1%27%20fill=%27%23F2B544%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,500;1,9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* Agent-network identity (2026-09-14 rebrand): AgentRaaS sits at the
-     center of a live fleet of autonomous agents, so the visual language
-     is a network graph — nodes, pulsing connections, a glowing core —
-     instead of the earlier claim-stub/ledger paper motif.
-     --signal/--alert/--dedup/--info/--claim names are kept as-is (many
-     call sites reference them) but repointed to this palette. Neutrals
-     (--ink/--paper/--border/--text/--muted) were still the old paper
-     motif's khaki-tinted values until 2026-09-15 — a genuine leftover,
-     not a deliberate choice — swapped for a plain neutral cool-dark
-     scale; the accent colors below were already fine and are unchanged. */
+  /* 2026-09-26: plain, product-first styling. No glow blobs, no gradient
+     text, no pill buttons, no scroll-driven animation: the page's weight
+     comes from real terminal output, real code and typography. Amber is
+     the only accent (matches the logo). */
   :root {
-    /* 2026-09-22: the previous --ink/--paper values (#F5FAFD/#F7F8F6) were
-       both ~98% lightness -- functionally indistinguishable from plain
-       white, so the page read as flat/washed-out regardless of the HUD
-       detailing built on top of it. Deepened to an actual cool slate with
-       real presence, and --signal moved from a fairly generic mid-tone
-       SaaS blue to a deeper, richer one -- same hue family (keeps the
-       sky-blue brand), more confident saturation/value. */
-    --ink: #E7EDF2; --ink-2: #FFFFFF;
-    --paper: #E7EDF2; --paper-panel: #FFFFFF;
-    --border-dark: #C6D4DF; --border-light: #D5DDE4;
-    --text: #0E2A40; --text-dark: #12181F; --muted: #47637A; --muted-dark: #525C68;
-    --signal: #175683; --signal-deep: #FFFFFF;
-    --claim: #3D7A58; --stripe: #1D2417;
-    --alert: #C23A2E; --dedup: #C9A23E; --info: #55749A;
+    color-scheme: dark;
+    --bg: #08090B; --bg-2: #0D0F12; --surface: #111418; --surface-2: #161A1F;
+    --line: #22272E; --line-2: #2F353D;
+    --text: #ECEFF3; --muted: #9AA3AD; --faint: #6B737C;
+    --amber: #F2B544; --amber-ink: #1A1206; --blue: #7CB8E0; --green: #4CC38A; --red: #F0645A;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
   body {
-    color: var(--text); font-family: 'IBM Plex Sans', sans-serif; font-size: 16px; line-height: 1.6;
-    background:
-      radial-gradient(1100px 760px at 72% 10%, rgba(23,86,131,0.12), transparent 60%),
-      radial-gradient(900px 680px at 6% 46%, rgba(201,162,62,0.07), transparent 55%),
-      var(--ink);
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
   }
-  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
-  code, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  code, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.9em; }
+  a { color: var(--amber); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1, h2, h3, h4 { font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; line-height: 1.15; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 28px; }
+  .accent { color: var(--amber); }
+  .icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 
-  #scroll-progress {
-    position: fixed; top: 0; left: 0; height: 3px; width: 0%; z-index: 100;
-    background: linear-gradient(90deg, var(--signal), var(--dedup)); transition: width 0.1s ease-out;
-  }
-  .wrap { max-width: 1400px; margin: 0 auto; padding: 0 32px; }
-  a { color: var(--signal); text-decoration: none; }
-  h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-optical-sizing: auto; letter-spacing: -0.01em; text-wrap: balance; }
+  /* Nav */
+  header.nav { position: sticky; top: 0; z-index: 50; background: rgba(8,9,11,0.92); border-bottom: 1px solid var(--line); }
+  header.nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); }
+  .brand:hover { text-decoration: none; }
+  .brand .mark { width: 30px; height: 30px; border-radius: 7px; background: linear-gradient(180deg, #1D2127, #121418); box-shadow: inset 0 0 0 1px #2E343C, inset 0 1px 0 rgba(255,255,255,0.06); display: grid; place-items: center; }
+  .brand .name { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+  nav.links { display: flex; align-items: center; gap: 26px; }
+  nav.links a { color: var(--muted); font-size: 14px; font-weight: 500; }
+  nav.links a:hover { color: var(--text); text-decoration: none; }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .nav-github { display: flex; color: var(--muted); }
+  .nav-github:hover { color: var(--text); }
 
-  /* Perforated divider — a strip of punched holes through the ledger,
-     marking where one section's record ends and the next begins. */
-  .perf { height: 20px; background-color: var(--border-dark); background-image: radial-gradient(circle 4.5px, var(--ink) 4.5px, transparent 5px); background-position: 14px center; background-size: 26px 100%; background-repeat: repeat-x; }
-  .perf.on-paper { background-image: radial-gradient(circle 4.5px, var(--paper) 4.5px, transparent 5px); }
+  /* Buttons: rectangles, not pills */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 6px; font-weight: 600; font-size: 15px; border: 1px solid transparent; }
+  .btn:hover { text-decoration: none; }
+  .btn.sm { padding: 8px 14px; font-size: 14px; }
+  .btn.primary { background: var(--amber); color: var(--amber-ink); }
+  .btn.primary:hover { background: #F5C262; }
+  .btn.secondary { background: var(--surface); border-color: var(--line-2); color: var(--text); }
+  .btn.secondary:hover { border-color: #444B54; }
+  .btn .icon { width: 17px; height: 17px; }
 
-  /* ─── Nav ─── */
-  header.nav {
-    position: sticky; top: 0; z-index: 40; backdrop-filter: blur(12px);
-    background: rgba(245,250,253,0.82); border-bottom: 1px solid var(--border-dark);
-    transition: box-shadow 0.25s ease, background 0.25s ease;
-  }
-  header.nav.scrolled { background: rgba(245,250,253,0.96); box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-  header.nav .wrap { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand .mark {
-    width: 34px; height: 34px; border-radius: 10px; background: var(--signal);
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
-  .brand span.name { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 18px; line-height: 1.1; display: block; }
-  .brand .tagline-small { font-size: 10.5px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; margin-top: 1px; }
-  nav.links { display: flex; align-items: center; gap: 30px; }
-  nav.links a { color: var(--muted); font-size: 14.5px; font-weight: 600; }
-  nav.links a:hover { color: var(--text); }
-  .nav-github { display: flex; color: var(--muted) !important; transition: color 0.15s ease, transform 0.15s ease; }
-  .nav-github:hover { color: var(--text) !important; transform: scale(1.1); }
-  nav.links a.nav-cta {
-    background: var(--signal); color: var(--signal-deep); padding: 11px 22px;
-    border-radius: 999px; font-weight: 800; font-size: 14px;
-    white-space: nowrap; flex-shrink: 0;
-  }
-  .nav-cta:hover { filter: brightness(1.08); }
+  /* Hero */
+  .hero { padding: 88px 0 96px; border-bottom: 1px solid var(--line); }
+  .hero-grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: 56px; align-items: center; }
+  .hero-grid > div, .split > div { min-width: 0; }
+  .hero-note { display: inline-block; font-size: 13.5px; color: var(--muted); margin-bottom: 22px; font-family: 'JetBrains Mono', monospace; }
+  .hero-note b { color: var(--amber); font-weight: 600; }
+  .hero h1 { font-size: 58px; line-height: 1.04; letter-spacing: -0.035em; font-weight: 800; margin-bottom: 22px; }
+  .hero p.sub { color: var(--muted); font-size: 18px; max-width: 540px; margin-bottom: 30px; }
+  .hero p.sub strong { color: var(--text); font-weight: 600; }
+  .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 26px; }
+  .checks { display: flex; gap: 8px 20px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .checks span { display: inline-flex; align-items: center; gap: 7px; }
+  .checks .icon { width: 16px; height: 16px; color: var(--green); }
+  .caption { font-size: 12.5px; color: var(--faint); margin-top: 10px; }
 
-  /* ─── Hero ─── */
-  /* Back to a single full-width column — the two-column layout (copy
-     capped at 520px beside a boxed graphic) is retired. Per request,
-     the network graphic is now a full-page fixed background (see
-     #agent-network below), not confined to a column next to the text,
-     so there's no second column left to reserve space for. */
-  .hero {
-    position: relative; min-height: 96vh; display: flex; align-items: center;
-    padding: 140px 0 80px; overflow: hidden;
-  }
-  /* Agent-network canvas — a handful of drifting dots with the occasional
-     packet pulsing toward a small glowing core, scoped to the hero
-     section only (z-index:-1 keeps it below the hero's own content).
-     Deliberately sparse and quiet rather than a dense radiating node
-     graph — it's a small accent, not the page's main visual. Cheap by
-     design: plain canvas fill/stroke (no CSS filters or blend modes), a
-     small node count, capped devicePixelRatio, paused via the page
-     visibility API when the tab itself is hidden, and a single static
-     frame (no rAF loop at all) under prefers-reduced-motion. See the
-     script near the end of the page for the implementation. */
-  #agent-network { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: block; }
-  .hero .wrap { position: relative; z-index: 2; }
-  .hero .eyebrow-pill, .hero h1, .hero p.sub, .pillar-row, .hero-ctas, .hero .no-list, .hero-panel {
-    opacity: 0; animation: heroIn 0.7s cubic-bezier(0.16,1,0.3,1) forwards;
-  }
-  .hero .eyebrow-pill { animation-delay: 0.05s; }
-  .hero h1 { animation-delay: 0.15s; }
-  .hero p.sub { animation-delay: 0.28s; }
-  .pillar-row { animation-delay: 0.34s; }
-  .hero-ctas { animation-delay: 0.4s; }
-  .hero .no-list { animation-delay: 0.5s; }
-  .hero-panel { animation-delay: 0.6s; }
-  @keyframes heroIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-  @media (prefers-reduced-motion: reduce) {
-    .hero .eyebrow-pill, .hero h1, .hero p.sub, .pillar-row, .hero-ctas, .hero .no-list, .hero-panel { animation: none; opacity: 1; }
-  }
-  /* Reliability / Responsibility / Accountability — the platform's three
-     pillars, each mapped to real shipped features rather than left as
-     marketing words. Bordered, not filled, to match the HUD/schematic
-     card language used elsewhere on the page. */
-  .pillar-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0; }
-  .pillar {
-    flex: 1 1 200px; border: 1px solid var(--border-dark); border-radius: 4px; padding: 12px 16px;
-    font-size: 13px; color: var(--muted); background: rgba(255,255,255,0.02);
-  }
-  .pillar-name { display: block; font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; color: var(--signal); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-  .eyebrow-pill {
-    display: inline-flex; align-items: center; gap: 8px; background: rgba(23,86,131,0.1);
-    border: 1px solid rgba(23,86,131,0.35); color: var(--signal); font-size: 13px; font-weight: 700;
-    padding: 7px 16px; border-radius: 999px; margin-bottom: 28px;
-  }
-  .eyebrow-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--signal); }
-  .hero h1 {
-    font-size: 72px; line-height: 1.03; max-width: 820px; margin-bottom: 26px;
-  }
-  .hero h1 .accent {
-    font-style: italic; font-weight: 500;
-    background: linear-gradient(90deg, var(--signal), var(--dedup), var(--signal));
-    background-size: 200% auto;
-    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-    animation: shimmer 5s ease-in-out infinite;
-  }
-  @keyframes shimmer { 0%, 100% { background-position: 0% center; } 50% { background-position: 100% center; } }
-  @media (prefers-reduced-motion: reduce) { .hero h1 .accent { animation: none; } }
-  .hero p.sub { color: var(--muted); font-size: 19px; max-width: 580px; margin-bottom: 40px; line-height: 1.55; }
-  .hero-ctas { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px; padding: 15px 28px;
-    font-weight: 700; font-size: 16px; font-family: 'IBM Plex Sans', sans-serif;
-    /* A cut top-right corner instead of a rounded rect — a small,
-       recognizable "connector/HUD panel" shape rather than a generic
-       button, echoing the corner brackets already on the cards. */
-    clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%);
-    transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease;
-  }
-  .btn.primary { background: var(--signal); color: var(--signal-deep); }
-  .btn.primary:hover { filter: brightness(1.08); box-shadow: 0 10px 28px rgba(23,86,131,0.35); transform: translateY(-2px); }
-  .btn.primary:active { transform: translateY(0) scale(0.97); }
-  .btn.secondary { background: rgba(255,255,255,0.04); border: 1.5px solid var(--border-dark); color: var(--text); }
-  .btn.secondary:hover { border-color: var(--signal); transform: translateY(-2px); }
-  .btn.secondary:active { transform: translateY(0) scale(0.97); }
-  a.nav-cta { transition: transform 0.15s ease, filter 0.15s ease; }
-  .nav-cta:active { transform: scale(0.95); }
-  .no-list { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
-  .no-list span {
-    display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted);
-    background: rgba(255,255,255,0.03); border: 1px solid var(--border-dark); padding: 7px 14px; border-radius: 999px;
-  }
+  /* Terminal / code panels */
+  .terminal { border-radius: 10px; overflow: hidden; border: 1px solid var(--line-2); background: #0A0C0F; }
+  .terminal-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .terminal-bar i { width: 10px; height: 10px; border-radius: 50%; background: #2C3238; }
+  .terminal-title { margin-left: 8px; font-size: 12px; color: var(--faint); font-family: 'JetBrains Mono', monospace; }
+  .terminal pre { padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.75; color: #C9D1D9; white-space: pre-wrap; word-break: break-word; }
+  .c-str { color: #F2C66D; } .c-comment { color: #6B737C; font-style: italic; } .c-ok { color: var(--green); font-weight: 600; } .c-key { color: var(--blue); } .c-bad { color: var(--red); font-weight: 600; }
 
-  /* Live panel, next to hero copy */
-  .hero-panel {
-    background: rgba(255,255,255,0.03); border: 1px solid var(--border-dark); border-radius: 6px;
-    padding: 28px; margin-top: 56px; backdrop-filter: blur(6px);
-    position: relative;
-  }
-  /* Scan-line accent — these two panels are the page's proof (a live
-     concurrency test / real production ledger), so they get the
-     strongest signature detail: a slow light sweep along the top edge. */
-  .hero-panel::after {
-    content: ""; position: absolute; top: -1px; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--signal), transparent);
-    background-size: 200% 100%; animation: scan 4s linear infinite;
-  }
-  @keyframes scan { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-  @media (prefers-reduced-motion: reduce) { .hero-panel::after { animation: none; background-position: 0 0; } }
-  .hero-panel .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  .hero-panel .tag { font-size: 12px; font-weight: 800; letter-spacing: 0.03em; color: var(--muted); }
-  .hero-panel .live { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--signal); }
-  .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--signal); animation: pulse 1.8s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-  .hero-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .hero-stat { background: var(--ink-2); border-radius: 3px; padding: 16px; transition: background 0.3s ease; }
-  .hero-stat.flash { animation: statFlash 0.7s ease; }
-  @keyframes statFlash { 0% { background: rgba(23,86,131,0.22); } 100% { background: var(--ink-2); } }
-  @media (prefers-reduced-motion: reduce) { .hero-stat.flash { animation: none; } }
-  .hero-stat .n { font-family: 'Fraunces', Georgia, serif; font-size: 28px; font-weight: 600; color: var(--signal); }
-  .hero-stat .l { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  /* Tool strip */
+  .strip { padding: 28px 0; border-bottom: 1px solid var(--line); }
+  .strip .wrap { display: flex; align-items: center; gap: 12px 28px; flex-wrap: wrap; }
+  .strip-label { font-size: 13px; color: var(--faint); margin-right: 8px; }
+  .strip span.tool { font-size: 16px; font-weight: 600; color: var(--muted); }
 
-  @media (prefers-reduced-motion: reduce) { .live .dot { animation: none; } }
+  /* Sections */
+  section.block { padding: 96px 0; }
+  section.block + section.block { border-top: 1px solid var(--line); }
+  .kicker { font-size: 13px; font-weight: 600; color: var(--amber); margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+  .s-head { max-width: 760px; margin-bottom: 44px; }
+  .s-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+  .s-head h2 { font-size: 40px; letter-spacing: -0.03em; margin-bottom: 14px; }
+  .s-head h2 code { font-size: 0.8em; color: var(--amber); }
+  .s-head p { color: var(--muted); font-size: 17px; }
+  .s-head p b { color: var(--text); font-weight: 600; }
 
-  /* ─── Self-hosted AI stack positioning ─── */
-  section.stack { padding: 90px 0 76px; border-top: 1px solid var(--border-dark); }
-  section.stack h2 { font-size: 38px; max-width: 780px; margin-bottom: 18px; line-height: 1.15; }
-  .section-lead { color: var(--muted); font-size: 17px; max-width: 720px; margin-bottom: 34px; line-height: 1.55; }
-  .stack-badges { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 42px; }
-  .stack-badge {
-    display: flex; align-items: center; gap: 8px; background: rgba(23,86,131,0.08);
-    border: 1px solid rgba(23,86,131,0.25); color: var(--signal); padding: 9px 16px;
-    border-radius: 999px; font-size: 13.5px; font-weight: 700;
-  }
-  .tool-pill {
-    background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 999px;
-    padding: 10px 18px; font-size: 14px; font-weight: 700; color: var(--text);
-    transition: transform 0.15s ease, border-color 0.15s ease;
-  }
-  .marquee .tool-pill:hover { transform: translateY(-2px); border-color: var(--signal); }
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 26px; transition: border-color 0.15s ease; }
+  .card:hover { border-color: var(--line-2); }
+  .card h3 { font-size: 17.5px; margin-bottom: 8px; letter-spacing: -0.01em; }
+  .card p { color: var(--muted); font-size: 14.5px; }
+  .ico { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; margin-bottom: 18px; color: var(--amber); background: #1C1911; border: 1px solid #3A3120; }
+  .ico.b { color: var(--blue); background: #111A21; border-color: #22384A; }
+  .ico.r { color: var(--red); background: #1F1313; border-color: #402424; }
+  .ico.g { color: var(--green); background: #111C17; border-color: #20392D; }
+  .grid-3 > .card:nth-child(1) .label { color: var(--amber); }
+  .grid-3 > .card:nth-child(2) .label { color: var(--green); }
+  .grid-3 > .card:nth-child(3) .label { color: var(--blue); }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+  .tag.ok { background: #122219; color: var(--green); }
+  .tag.dup { background: #241E10; color: var(--amber); }
+  .tag.cb { background: #261414; color: var(--red); }
+  .tag.b { background: #111A21; color: var(--blue); }
+  .split .oss-note { font-size: 13px; color: var(--faint); }
+  #open-source .split .terminal pre { white-space: pre; overflow-x: auto; }
+  .problem .card .tag { margin-bottom: 14px; }
 
-  /* ─── MCP-native ─── */
-  section.mcp { padding: 100px 0; background: linear-gradient(180deg, transparent, rgba(23,86,131,0.035) 45%, transparent); }
-  .mcp-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 50px; align-items: start; }
-  .integration-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 8px; }
-  .integration-path {
-    background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 20px;
-    transition: transform 0.2s ease, border-color 0.2s ease;
-  }
-  .integration-path:hover { transform: translateY(-3px); border-color: rgba(23,86,131,0.35); }
-  .integration-path .tag { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; color: var(--signal); margin-bottom: 8px; }
-  .integration-path h4 { font-size: 15.5px; margin-bottom: 6px; }
-  .integration-path p { font-size: 13.5px; color: var(--muted); margin-bottom: 10px; }
-  .integration-path code {
-    display: block; background: rgba(255,255,255,0.04); padding: 7px 10px; border-radius: 6px;
-    font-size: 12px; color: var(--dedup); font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-  }
-  .terminal { background: #05070C; border: 1px solid var(--border-dark); border-radius: 5px; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.4); }
-  .terminal-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border-dark); }
-  .terminal-dot { width: 11px; height: 11px; border-radius: 50%; }
-  .terminal-dot.r { background: var(--alert); } .terminal-dot.y { background: var(--dedup); } .terminal-dot.g { background: var(--signal); }
-  .terminal-title { margin-left: 8px; font-size: 12px; color: var(--muted); font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; }
-  .terminal pre {
-    margin: 0; padding: 22px 22px 26px; font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-    font-size: 12.5px; line-height: 1.75; color: #D7DACE; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
-  }
-  .terminal .c-str { color: var(--dedup); }
-  .terminal .c-comment { color: #5B6472; font-style: italic; }
-  .terminal .c-ok { color: var(--signal); font-weight: 700; }
-  .terminal .c-key { color: var(--dedup); }
-  .terminal-cursor { display: inline-block; width: 7px; height: 14px; background: var(--signal); vertical-align: text-bottom; margin-left: 2px; animation: blink 1s step-end infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .terminal-cursor { animation: none; } }
-  @media (max-width: 980px) { .mcp-grid { grid-template-columns: 1fr; } }
+  /* Open source */
+  .oss-label { display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .oss-note { color: var(--faint); font-size: 13px; margin-top: 12px; }
+  .oss-note code { color: var(--muted); }
+  #open-source .terminal pre { min-height: 290px; }
+  .hero .terminal pre { white-space: pre; overflow-x: auto; font-size: 12px; }
 
-  /* ─── Problem (dark) ─── */
-  /* Faint circuit-grid backdrop — plain repeating-linear-gradient lines,
-     not a filter or blend-mode (an SVG feTurbulence grain overlay froze
-     the renderer earlier in this project; flat gradients don't have
-     that cost). */
-  section.problem {
-    padding: 100px 0;
-    background-image:
-      repeating-linear-gradient(0deg, rgba(110,134,168,0.05) 0px, rgba(110,134,168,0.05) 1px, transparent 1px, transparent 64px),
-      repeating-linear-gradient(90deg, rgba(110,134,168,0.05) 0px, rgba(110,134,168,0.05) 1px, transparent 1px, transparent 64px);
-  }
-  /* Terminal-cursor blink — reads as a live system readout rather than a
-     static section label. Respects reduced-motion via the existing
-     `pulse` keyframe's own rule (kept solid, no flashing, if disabled). */
-  .eyebrow { color: var(--signal); font-size: 13px; font-weight: 800; margin-bottom: 14px; font-family: 'IBM Plex Mono', ui-monospace, monospace; }
-  .eyebrow::after { content: '_'; animation: pulse 1s step-end infinite; }
-  @media (prefers-reduced-motion: reduce) { .eyebrow::after { animation: none; } }
-  section.problem h2 { font-size: 42px; line-height: 1.1; max-width: 760px; margin-bottom: 46px; }
-  .problem-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-  .problem-card { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 30px; transition: transform 0.2s ease, border-color 0.2s ease; }
-  .problem-card:hover { transform: translateY(-3px); border-color: rgba(23,86,131,0.35); }
-  .problem-card .tag {
-    display: inline-block; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 6px; margin-bottom: 14px;
-  }
-  /* All four are the same failure pattern (a stalled call, retried) — one
-     stamp color reinforces that, instead of rainbow-coding four unrelated
-     categories. */
-  .problem-card .tag { background: rgba(217,70,63,0.14); color: var(--alert); border: 1px dashed rgba(217,70,63,0.4); }
-  .problem-card h3 { font-size: 19px; margin-bottom: 10px; }
-  .problem-card p { color: var(--muted); font-size: 15px; }
+  /* Proof numbers */
+  .proof { border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); }
+  .proof-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .proof-cell { padding: 32px 28px; border-left: 1px solid var(--line); }
+  .proof-cell:first-child { border-left: 0; }
+  .proof-cell .n { font-size: 48px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; margin-bottom: 10px; }
+  .proof-cell .n small { font-size: 0.45em; color: var(--muted); letter-spacing: 0; }
+  .proof-cell .l { color: var(--muted); font-size: 14.5px; }
+  .proof-foot { border-top: 1px solid var(--line); padding: 14px 28px; font-size: 13px; color: var(--faint); }
+  .proof-foot code { color: var(--muted); }
 
-  /* ─── Solution flow (dark, signal-tinted) ─── */
-  section.solution {
-    padding: 100px 0; background: linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%);
-    border-top: 1px solid var(--border-dark); border-bottom: 1px solid var(--border-dark);
-  }
-  .flow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 46px; }
-  .flow-step {
-    background: rgba(255,255,255,0.03); border: 1px solid var(--border-dark); border-radius: 5px; padding: 26px;
-    position: relative; transition: transform 0.2s ease, border-color 0.2s ease;
-  }
-  .flow-step:hover { transform: translateY(-3px); border-color: rgba(23,86,131,0.35); }
-  .flow-step .num {
-    width: 34px; height: 34px; border-radius: 10px; background: var(--signal); color: var(--signal-deep);
-    display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', Georgia, serif;
-    font-weight: 600; font-size: 16px; margin-bottom: 18px;
-  }
-  .flow-step p { font-size: 14.5px; color: var(--text); }
-  .flow-step p b { color: var(--signal); }
+  /* Flow */
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .flow-step { padding: 26px 24px; border-left: 1px solid var(--line); }
+  .flow-step:first-child { border-left: 0; }
+  .flow-step .num { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--amber); margin-bottom: 12px; }
+  .flow-step p { font-size: 15px; color: var(--muted); }
+  .flow-step p b { color: var(--text); font-weight: 600; }
 
-  /* ─── Features (light panel — the contrast beat) ─── */
-  section.features { background: var(--paper); color: var(--text-dark); padding: 100px 0; }
-  section.features .eyebrow { color: #A83A22; }
-  section.features h2 { font-size: 42px; color: var(--text-dark); margin-bottom: 14px; max-width: 700px; }
-  section.features p.lead { color: var(--muted-dark); font-size: 17px; margin-bottom: 50px; max-width: 560px; }
-  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
-  .feature-card {
-    background: var(--paper-panel); border: 1px solid var(--border-light); border-radius: 5px; padding: 28px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; position: relative;
-  }
-  /* HUD-style corner brackets — fade in on hover instead of a generic
-     glow, the same "targeting reticle" language a live systems display
-     uses to highlight a selected node. */
-  .feature-card::before, .feature-card::after {
-    content: ''; position: absolute; width: 14px; height: 14px; opacity: 0; transition: opacity 0.2s ease;
-    border-color: var(--signal); border-style: solid; border-width: 0;
-  }
-  .feature-card::before { top: 8px; left: 8px; border-top-width: 2px; border-left-width: 2px; }
-  .feature-card::after { bottom: 8px; right: 8px; border-bottom-width: 2px; border-right-width: 2px; }
-  .feature-card:hover {
-    transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-color: rgba(23,86,131,0.4);
-  }
-  .feature-card:hover::before, .feature-card:hover::after { opacity: 1; }
-  /* Schematic "node" icon — a bordered, mostly-empty square rather than a
-     soft filled badge, reading as a circuit component instead of a
-     friendly app-icon tile. */
-  .feature-card .icon {
-    width: 42px; height: 42px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
-    font-size: 20px; margin-bottom: 18px; transition: transform 0.25s ease, box-shadow 0.25s ease;
-    background: transparent; border: 1.5px solid currentColor;
-  }
-  .feature-card:hover .icon { transform: scale(1.08); box-shadow: 0 0 0 4px rgba(23,86,131,0.12); }
-  .feature-card.c1 .icon { color: var(--signal); }
-  .feature-card.c2 .icon { color: var(--info); }
-  .feature-card.c3 .icon { color: var(--dedup); }
-  .feature-card.c4 .icon { color: var(--alert); }
-  .feature-card.c5 .icon { color: var(--signal); }
-  .feature-card.c6 .icon { color: var(--info); }
-  .feature-card h3 { font-size: 17px; color: var(--text-dark); margin-bottom: 8px; }
-  .feature-card p { color: var(--muted-dark); font-size: 14.5px; }
+  /* Comparison */
+  .compare { border: 1px solid var(--line); border-radius: 10px; overflow: auto; background: var(--surface); }
+  .compare table { width: 100%; border-collapse: collapse; min-width: 680px; font-size: 14.5px; }
+  .compare th, .compare td { text-align: left; padding: 15px 20px; border-top: 1px solid var(--line); vertical-align: top; }
+  .compare thead th { border-top: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); font-weight: 600; }
+  .compare td:first-child, .compare td:nth-child(2) { color: var(--muted); }
+  .compare td:first-child { width: 28%; }
+  .compare .us { background: #15130D; color: var(--text); }
+  .compare th.us { color: var(--amber); }
 
-  /* ─── Services (light) ─── */
-  section.services { background: var(--paper); color: var(--text-dark); padding: 0 0 110px; }
-  .service-pills { display: flex; flex-wrap: wrap; gap: 10px; }
-  .service-pill {
-    background: var(--paper-panel); border: 1px solid var(--border-light); border-radius: 999px;
-    padding: 10px 18px; font-size: 14px; font-weight: 700; color: var(--text-dark);
-    transition: transform 0.15s ease, border-color 0.15s ease;
-  }
-  .service-pill.custom { background: var(--signal); color: var(--signal-deep); border-color: var(--signal); }
-  /* Auto-scrolling marquee — two identical tracks (see markup) so the loop
-     is seamless: when track 1 has scrolled fully offscreen, track 2 is
-     exactly where track 1 started. */
-  .marquee {
-    overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
-    mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
-  }
-  .marquee-track { display: flex; gap: 10px; width: max-content; animation: marqueeScroll 38s linear infinite; }
-  .marquee:hover .marquee-track { animation-play-state: paused; }
-  .marquee .service-pill:hover { transform: translateY(-2px); border-color: var(--signal); }
-  @keyframes marqueeScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  @media (prefers-reduced-motion: reduce) {
-    .marquee-track { animation: none; flex-wrap: wrap; width: auto; }
-    .marquee-track .service-pills-dup { display: none; }
-  }
+  /* Split */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  .split h2 { font-size: 38px; letter-spacing: -0.03em; margin-bottom: 14px; }
+  .split > div > p { color: var(--muted); font-size: 16.5px; }
+  .latency { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 24px; }
+  .latency div { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--bg-2); }
+  .latency b { display: block; font-size: 21px; letter-spacing: -0.02em; }
+  .latency span { font-size: 12px; color: var(--faint); font-family: 'JetBrains Mono', monospace; }
+  .fine { color: var(--faint); font-size: 13.5px; margin-top: 16px; }
+  .paths { display: grid; gap: 12px; margin-top: 26px; }
+  .path { display: flex; gap: 16px; align-items: flex-start; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .path .ico { margin: 0; }
+  .path h4 { font-size: 15px; margin-bottom: 3px; }
+  .path p { color: var(--muted); font-size: 13.5px; margin-bottom: 8px; }
+  .path code { color: var(--amber); font-size: 12px; }
 
-  /* ─── Pricing (dark) ─── */
-  section.pricing { padding: 110px 0; }
-  section.pricing .section-head { text-align: center; margin-bottom: 54px; }
-  section.pricing h2 { font-size: 42px; margin-bottom: 12px; }
-  section.pricing p { color: var(--muted); font-size: 17px; }
-  /* 3 real tiers (Community/Team/Enterprise) — 4 equal column tracks
-     left a permanent dead 4th column on any viewport wide enough not
-     to wrap, visible as empty space to the right of the cards. */
-  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .price-card {
-    background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; padding: 38px;
-    transition: transform 0.2s ease, border-color 0.2s ease; position: relative;
-  }
-  .price-card::before, .price-card::after {
-    content: ''; position: absolute; width: 14px; height: 14px; opacity: 0; transition: opacity 0.2s ease;
-    border-color: var(--signal); border-style: solid; border-width: 0;
-  }
-  .price-card::before { top: 8px; left: 8px; border-top-width: 2px; border-left-width: 2px; }
-  .price-card::after { bottom: 8px; right: 8px; border-bottom-width: 2px; border-right-width: 2px; }
-  .price-card:hover { transform: translateY(-3px); border-color: rgba(23,86,131,0.35); }
-  .price-card:hover::before, .price-card:hover::after { opacity: 1; }
-  .price-card.featured { border-color: var(--signal); background: linear-gradient(180deg, rgba(23,86,131,0.06), transparent 40%), var(--ink-2); }
-  .price-card h3 { font-size: 21px; margin-bottom: 6px; }
-  .price-card .tagline { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
-  .price-card .amount { font-family: 'Fraunces', Georgia, serif; font-size: 46px; font-weight: 600; margin-bottom: 4px; }
-  .price-card .amount .unit { font-size: 15px; color: var(--muted); font-weight: 600; }
-  .price-card .limit-note { color: var(--muted); font-size: 14px; margin-bottom: 26px; }
-  .price-card ul { list-style: none; margin-bottom: 30px; }
-  .price-card li { display: flex; gap: 10px; padding: 8px 0; font-size: 15px; }
-  .price-card li::before { content: '✓'; color: var(--claim); font-weight: 800; flex-shrink: 0; }
-  .price-card .btn { width: 100%; justify-content: center; }
-  .license-note { text-align: center; color: var(--muted); font-size: 14px; margin-top: 28px; }
+  /* Integrations: a plain list, not pill chips */
+  .int-list { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .int-list span { padding: 14px 16px; font-size: 14px; font-weight: 500; background: var(--surface); }
+  .int-list span.custom { color: var(--amber); }
 
-  /* ─── FAQ (dark) ─── */
-  section.faq { padding: 90px 0 110px; }
-  section.faq .section-head { text-align: center; margin-bottom: 44px; }
-  section.faq h2 { font-size: 36px; margin-bottom: 12px; }
-  section.faq p { color: var(--muted); font-size: 17px; }
-  .faq-list { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
-  .faq-item { background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 5px; }
-  .faq-item summary {
-    cursor: pointer; padding: 18px 22px; font-weight: 700; font-size: 15.5px;
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
-    list-style: none; -webkit-tap-highlight-color: transparent;
-  }
+  /* Pricing */
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+  .price-card { display: flex; flex-direction: column; padding: 32px; }
+  .price-card.featured { border-color: #6B5423; }
+  .price-card .badge { align-self: flex-start; font-size: 12px; font-weight: 600; color: var(--amber); margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
+  .price-card h3 { font-size: 20px; margin-bottom: 6px; }
+  .price-card .tagline { color: var(--muted); font-size: 14px; min-height: 44px; margin-bottom: 18px; }
+  .price-card .amount { font-size: 42px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; }
+  .price-card .amount .unit { font-size: 15px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+  .price-card .limit-note { color: var(--muted); font-size: 13.5px; margin: 6px 0 22px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .price-card ul { list-style: none; margin-bottom: 26px; flex: 1; }
+  .price-card li { display: flex; gap: 10px; padding: 5px 0; font-size: 14.5px; color: #D5DAE0; }
+  .price-card li::before { content: ""; flex-shrink: 0; width: 16px; height: 16px; margin-top: 3px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234CC38A' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center/16px no-repeat; }
+  .price-card .btn { width: 100%; }
+  .price-card .aside { font-size: 12.5px; color: var(--muted); margin-top: 12px; text-align: center; }
+  .license-note { text-align: center; color: var(--faint); font-size: 13.5px; margin: 26px auto 0; max-width: 820px; }
+
+  /* FAQ */
+  .faq-list { max-width: 820px; margin: 0 auto; border-top: 1px solid var(--line); }
+  .faq-item { border-bottom: 1px solid var(--line); }
+  .faq-item summary { cursor: pointer; padding: 20px 4px; font-weight: 600; font-size: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; list-style: none; }
   .faq-item summary::-webkit-details-marker { display: none; }
-  .faq-item summary::after {
-    content: '+'; color: var(--signal); font-size: 20px; font-weight: 400; flex-shrink: 0;
-    transition: transform 0.15s ease;
-  }
-  .faq-item[open] summary::after { transform: rotate(45deg); }
-  .faq-item[open] summary { border-bottom: 1px solid var(--border-dark); }
-  .faq-item p { padding: 4px 22px 20px; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
-  .faq-item p a { color: var(--signal); }
+  .faq-item summary::after { content: "+"; color: var(--faint); font-weight: 400; font-size: 20px; }
+  .faq-item[open] summary::after { content: "2"; }
+  .faq-item p { padding: 0 4px 22px; color: var(--muted); font-size: 15px; line-height: 1.7; }
 
-  /* ─── Footer ─── */
-  footer { border-top: 1px solid var(--border-dark); padding: 56px 0 44px; }
-  .footer-grid { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 32px; margin-bottom: 34px; }
-  .footer-col h4 { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; font-weight: 700; }
-  .footer-col a { display: block; color: var(--text); font-size: 14.5px; margin-bottom: 10px; font-weight: 500; }
-  .footer-col a:hover { color: var(--signal); }
-  .footer-bottom { color: #4A5245; font-size: 13px; padding-top: 26px; border-top: 1px solid var(--border-dark); }
+  /* Closing CTA */
+  .cta-band { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 56px 48px; display: flex; justify-content: space-between; align-items: center; gap: 32px; flex-wrap: wrap; }
+  .cta-band h2 { font-size: 34px; letter-spacing: -0.03em; margin-bottom: 8px; }
+  .cta-band p { color: var(--muted); font-size: 16.5px; }
+  .cta-band .hero-ctas { margin: 0; }
 
-  /* Pricing has 4 real columns of substantial content (each with its own
-     feature checklist) — squeezing that into 4 equal columns anywhere
-     below ~1200px leaves each card too narrow to read (every line
-     wrapping mid-word). Common laptop/tablet widths sit exactly in that
-     861-1200px gap the single max-width:860px breakpoint below misses. */
-  @media (max-width: 1200px) {
-    .pricing-grid { grid-template-columns: 1fr 1fr; }
-  }
+  /* Footer */
+  footer { padding: 64px 0 36px; margin-top: 96px; border-top: 1px solid var(--line); }
+  .footer-grid { display: grid; grid-template-columns: 1.6fr repeat(5, 1fr); gap: 32px; margin-bottom: 48px; }
+  .footer-brand p { color: var(--muted); font-size: 14px; margin: 14px 0 18px; max-width: 280px; }
+  .footer-col h4 { font-size: 13px; margin-bottom: 14px; font-weight: 600; letter-spacing: 0; }
+  .footer-col a { display: block; color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+  .footer-col a:hover { color: var(--text); text-decoration: none; }
+  .footer-bottom { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; color: var(--faint); font-size: 13px; padding-top: 24px; border-top: 1px solid var(--line); }
 
-  @media (max-width: 860px) {
-    .hero h1 { font-size: 42px; }
-    .hero-stat-grid, .problem-grid, .flow-grid, .feature-grid, .pricing-grid { grid-template-columns: 1fr; }
+  @media (max-width: 1080px) {
+    .hero-grid, .split { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 48px; }
+    .grid-4, .proof-grid, .flow { grid-template-columns: repeat(2, 1fr); }
+    .proof-cell:nth-child(3), .flow-step:nth-child(3) { border-left: 0; }
+    .proof-cell:nth-child(n+3), .flow-step:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .grid-3, .pricing-grid { grid-template-columns: 1fr 1fr; }
+    .int-list { grid-template-columns: repeat(4, 1fr); }
+    .footer-grid { grid-template-columns: repeat(3, 1fr); }
+    .footer-brand { grid-column: 1 / -1; }
     nav.links { display: none; }
-    section.problem h2, section.features h2, section.pricing h2 { font-size: 30px; }
   }
+  @media (max-width: 680px) {
+    .wrap { padding: 0 16px; }
+    .hero { padding: 48px 0 64px; }
+    .hero h1 { font-size: 38px; }
+    .s-head h2, .split h2 { font-size: 30px; }
+    .cta-band { padding: 32px 20px; }
+    .cta-band h2 { font-size: 26px; }
+    section.block { padding: 64px 0; }
+    .grid-2, .grid-3, .grid-4, .pricing-grid, .flow { grid-template-columns: 1fr; }
+    .latency { grid-template-columns: 1fr 1fr; }
+    .int-list { grid-template-columns: repeat(2, 1fr); }
+    .flow-step { border-left: 0 !important; border-top: 1px solid var(--line); }
+    .flow-step:first-child { border-top: 0; }
+    .proof-cell { padding: 22px 18px; }
+    .proof-cell .n { font-size: 36px; }
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+    .nav-right .nav-github, .nav-right .btn.secondary { display: none; }
+  }
+
+  /* ─── Motion (2026-09-26) ───
+     Motion that explains the product: the terminal replays a real run,
+     the diagram acts out a lost response and a safe retry, sections
+     settle in once as they arrive. Everything is off under
+     prefers-reduced-motion, and nothing is hidden unless JS is running. */
+  .btn, .card, .path, nav.links a, .footer-col a { transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease; }
+  .btn.primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px -6px rgba(242,181,68,0.55); }
+  .btn.secondary:hover { transform: translateY(-1px); }
+  .card:hover, .path:hover { transform: translateY(-2px); border-color: #3A4048; }
+
+  .js-motion .reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+  .js-motion .reveal.in { opacity: 1; transform: none; }
+
+  /* Tool strip: continuous, pauses on hover */
+  .strip .wrap.strip-inner { display: flex; align-items: center; gap: 24px; flex-wrap: nowrap; }
+  .marquee { flex: 1; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+  .marquee-track { display: flex; gap: 44px; width: max-content; animation: marquee 40s linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+  .marquee-track span.tool:hover { color: var(--text); }
+  @keyframes marquee { to { transform: translateX(-50%); } }
+
+  /* Terminal replay cursor */
+  .cursor { display: inline-block; width: 7px; height: 14px; background: var(--amber); vertical-align: -2px; margin-left: 1px; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Diagram */
+  .diagram { border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); padding: 18px 12px 6px; margin-bottom: 16px; }
+  .diagram svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .diagram .link { stroke: var(--line-2); stroke-width: 2; }
+  .diagram .flowline { stroke: var(--amber); stroke-width: 2; stroke-dasharray: 3 11; opacity: 0.35; animation: flow 1.2s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -14; } }
+  .diagram .node rect { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.5; }
+  .diagram .node.core rect { stroke: #6B5423; }
+  .diagram .hl { fill: none !important; stroke-width: 2.5 !important; opacity: 0; }
+  .diagram .hl-api, .diagram .hl-agent { stroke: var(--green) !important; }
+  .diagram .hl-core { stroke: var(--amber) !important; }
+  .diagram .n-title { fill: var(--text); font: 600 17px Inter, system-ui, sans-serif; text-anchor: middle; }
+  .diagram .n-sub { fill: var(--faint); font: 12px 'JetBrains Mono', monospace; text-anchor: middle; }
+  .diagram .cap { font: 500 13px 'JetBrains Mono', monospace; text-anchor: middle; fill: var(--muted); opacity: 0; }
+  .diagram .cap.ok { fill: var(--green); } .diagram .cap.bad { fill: var(--red); } .diagram .cap.warn { fill: var(--amber); }
+  .diagram .pkt { opacity: 0; }
+  .diagram .p-req { fill: var(--blue); } .diagram .p-resp, .diagram .p-cached { fill: var(--green); } .diagram .p-retry { fill: var(--amber); }
+  .diagram .p-lost line { stroke: var(--red); stroke-width: 3; stroke-linecap: round; }
+  .diagram .p-lost { opacity: 0; }
+
+  .diagram .p-req    { animation: req 11s linear infinite; }
+  .diagram .p-resp   { animation: resp 11s linear infinite; }
+  .diagram .p-retry  { animation: retry 11s linear infinite; }
+  .diagram .p-cached { animation: cached 11s linear infinite; }
+  .diagram .p-lost   { animation: show-58-66 11s linear infinite; }
+  .diagram .hl-api   { animation: show-28-36 11s linear infinite; }
+  .diagram .hl-core  { animation: core 11s linear infinite; }
+  .diagram .hl-agent { animation: show-91-99 11s linear infinite; }
+  .diagram .c1 { animation: show-5-28 11s linear infinite; }
+  .diagram .c2 { animation: show-29-60 11s linear infinite; }
+  .diagram .c3 { animation: show-46-60 11s linear infinite; }
+  .diagram .c4 { animation: show-58-66 11s linear infinite; }
+  .diagram .c5 { animation: show-64-74 11s linear infinite; }
+  .diagram .c6 { animation: show-76-90 11s linear infinite; }
+  .diagram .c7 { animation: show-91-99 11s linear infinite; }
+  .diagram .c8 { animation: show-76-99 11s linear infinite; }
+
+  @keyframes req {
+    0%, 4% { transform: translate(220px, 130px); opacity: 0; }
+    5% { transform: translate(220px, 130px); opacity: 1; }
+    15% { transform: translate(390px, 130px); opacity: 1; }
+    16% { transform: translate(570px, 130px); opacity: 0; }
+    18% { transform: translate(570px, 130px); opacity: 1; }
+    28% { transform: translate(740px, 130px); opacity: 1; }
+    29%, 100% { transform: translate(740px, 130px); opacity: 0; }
+  }
+  @keyframes resp {
+    0%, 35% { transform: translate(740px, 130px); opacity: 0; }
+    36% { transform: translate(740px, 130px); opacity: 1; }
+    46% { transform: translate(570px, 130px); opacity: 1; }
+    47% { transform: translate(390px, 130px); opacity: 0; }
+    52% { transform: translate(390px, 130px); opacity: 1; }
+    58% { transform: translate(305px, 130px); opacity: 1; }
+    59%, 100% { transform: translate(305px, 130px); opacity: 0; }
+  }
+  @keyframes retry {
+    0%, 66% { transform: translate(220px, 130px); opacity: 0; }
+    67% { transform: translate(220px, 130px); opacity: 1; }
+    76% { transform: translate(390px, 130px); opacity: 1; }
+    77%, 100% { transform: translate(390px, 130px); opacity: 0; }
+  }
+  @keyframes cached {
+    0%, 81% { transform: translate(390px, 130px); opacity: 0; }
+    82% { transform: translate(390px, 130px); opacity: 1; }
+    91% { transform: translate(220px, 130px); opacity: 1; }
+    92%, 100% { transform: translate(220px, 130px); opacity: 0; }
+  }
+  @keyframes core { 0%, 45%, 53%, 75%, 83%, 100% { opacity: 0; } 46%, 52%, 76%, 82% { opacity: 1; } }
+  @keyframes show-5-28  { 0%, 4%, 29%, 100% { opacity: 0; } 6%, 27% { opacity: 1; } }
+  @keyframes show-28-36 { 0%, 27%, 37%, 100% { opacity: 0; } 28%, 36% { opacity: 1; } }
+  @keyframes show-29-60 { 0%, 28%, 61%, 100% { opacity: 0; } 30%, 60% { opacity: 1; } }
+  @keyframes show-46-60 { 0%, 45%, 61%, 100% { opacity: 0; } 47%, 60% { opacity: 1; } }
+  @keyframes show-58-66 { 0%, 57%, 67%, 100% { opacity: 0; } 58%, 66% { opacity: 1; } }
+  @keyframes show-64-74 { 0%, 63%, 75%, 100% { opacity: 0; } 65%, 74% { opacity: 1; } }
+  @keyframes show-76-90 { 0%, 75%, 91%, 100% { opacity: 0; } 77%, 90% { opacity: 1; } }
+  @keyframes show-91-99 { 0%, 90%, 100% { opacity: 0; } 92%, 98% { opacity: 1; } }
+  @keyframes show-76-99 { 0%, 75%, 100% { opacity: 0; } 77%, 98% { opacity: 1; } }
+
+
+  /* Hero copy settles in on load (pure CSS, so no-JS still animates and nothing stays hidden) */
+  .hero-grid > div > * { animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .hero-grid > div:first-child > :nth-child(2) { animation-delay: 0.08s; }
+  .hero-grid > div:first-child > :nth-child(3) { animation-delay: 0.16s; }
+  .hero-grid > div:first-child > :nth-child(4) { animation-delay: 0.24s; }
+  .hero-grid > div:first-child > :nth-child(5) { animation-delay: 0.32s; }
+  .hero-grid > div:last-child > * { animation-delay: 0.3s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+
+  @media (max-width: 680px) {
+    .strip .wrap.strip-inner { flex-wrap: wrap; gap: 10px; }
+    .diagram .cap { font-size: 18px; }
+    .diagram .n-title { font-size: 22px; }
+    .diagram .n-sub { font-size: 15px; }
+  }
+
+
+  /* Slow-drifting glow behind the hero: amber (brand) and blue, never purple */
+  .hero { position: relative; overflow: hidden; isolation: isolate; }
+  .hero::before, .hero::after { content: ""; position: absolute; z-index: -1; border-radius: 50%; filter: blur(90px); pointer-events: none; }
+  .hero::before { width: 560px; height: 560px; top: -180px; right: 2%; background: radial-gradient(circle, rgba(242,181,68,0.20), transparent 70%); animation: glowA 22s ease-in-out infinite alternate; }
+  .hero::after { width: 480px; height: 480px; bottom: -220px; left: 0; background: radial-gradient(circle, rgba(75,163,219,0.2), transparent 70%); animation: glowB 26s ease-in-out infinite alternate; }
+  #agent-network { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: block; }
+  @keyframes glowA { to { transform: translate(-90px, 70px) scale(1.12); } }
+  @keyframes glowB { to { transform: translate(80px, -50px) scale(1.1); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .marquee-track { flex-wrap: wrap; width: auto; gap: 12px 28px; }
+    .marquee-track .dup { display: none; }
+    .diagram .c8 { opacity: 1; }
+  }
+
+  /* Keyboard focus: visible on every interactive element, mouse clicks unaffected */
+  a:focus-visible, button:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+  .btn:focus-visible { outline-offset: 2px; border-radius: 6px; }
 </style>
 </head>
 <body>
@@ -484,375 +424,417 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
 
-<div id="scroll-progress"></div>
-<canvas id="agent-network" aria-hidden="true"></canvas>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M18.5 4.5l2 2"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M14 9h5M14 13h3"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M12 14l4-4M3.3 19a10 10 0 1 1 17.4 0"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8z"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M23 6l-9.5 9.5-5-5L1 18M17 6h6v6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+  <symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.5 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.46-1.2-1.11-1.52-1.11-1.52-.91-.64.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.72 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 2.5-.35c.85 0 1.71.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.95.68 1.92 0 1.39-.01 2.51-.01 2.85 0 .28.18.61.69.5A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a8 8 0 0 0 8 8h2a6 6 0 0 0 6-6v-4a2 2 0 0 0-4 0"/></symbol>
+</svg>
+
 
 <header class="nav">
   <div class="wrap">
-    <div class="brand">
-      <div class="mark">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="2.2"/>
-          <circle cx="15.3" cy="12" r="6" fill="#FFFFFF"/>
+    <a href="/" class="brand" aria-label="AgentRaaS home">
+      <span class="mark">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+          <circle cx="8.5" cy="12" r="6" fill="none" stroke="#ECEFF3" stroke-width="2.2"/>
+          <circle cx="15.3" cy="12" r="6" fill="#F2B544"/>
         </svg>
-      </div>
-      <div>
-        <span class="name">AgentRaaS</span>
-        <div class="tagline-small">The reliability layer for autonomous agent fleets</div>
-      </div>
-    </div>
+      </span>
+      <span class="name">AgentRaaS</span>
+    </a>
     <nav class="links">
-      <a href="#features">Features</a>
-      <a href="#services">Services</a>
+      <a href="#features">Platform</a>
+      <a href="#open-source">Open source</a>
+      <a href="#use-cases">Use cases</a>
+      <a href="#services">Integrations</a>
       <a href="#pricing">Pricing</a>
-      <a href="#faq">FAQ</a>
       <a href="/docs">Docs</a>
       <a href="/guide">Guide</a>
-      <a href="/webhook-audit">Webhook Audit</a>
       <a href="/status">Status</a>
+    </nav>
+    <div class="nav-right">
       <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="nav-github" aria-label="AgentRaaS on GitHub">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.5 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.46-1.2-1.11-1.52-1.11-1.52-.91-.64.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.72 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 2.5-.35c.85 0 1.71.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.95.68 1.92 0 1.39-.01 2.51-.01 2.85 0 .28.18.61.69.5A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
       </a>
-      <a href="/dashboard" class="nav-cta">Log in</a>
-    </nav>
+      <a href="/dashboard" class="btn secondary sm">Log in</a>
+      <a href="/dashboard" class="btn primary sm" data-gtm-event="cta_click" data-gtm-label="nav_get_started">Get started</a>
+    </div>
   </div>
 </header>
 
 <section class="hero">
-  <div class="wrap">
-    <div class="eyebrow-pill"><span class="dot"></span> The reliability layer for autonomous agent fleets</div>
-    <h1>Stop shipping agents that <span class="accent">double-charge</span> your customers.</h1>
-    <p class="sub">AgentRaaS is an agent reliability platform, not a single trick: <strong>reliability</strong> (exactly-once execution, proven under real concurrent load, not just claimed), <strong>responsibility</strong> (budget/loop limits and human approval before the calls that matter), and <strong>accountability</strong> (a full audit trail and per-agent identity for every action taken). Self-hosted or cloud.</p>
-    <div class="pillar-row">
-      <div class="pillar"><span class="pillar-name">Reliability</span>Exactly-once execution, circuit breaking, rate limiting</div>
-      <div class="pillar"><span class="pillar-name">Responsibility</span>Budget/loop limits, human-in-the-loop approval</div>
-      <div class="pillar"><span class="pillar-name">Accountability</span>Full audit trail, per-agent identity &amp; scope</div>
+  <canvas id="agent-network" aria-hidden="true"></canvas>
+  <div class="wrap hero-grid">
+    <div>
+      <a class="hero-note" href="#open-source"><b>New:</b> free CLI, Python library and MCP wrapper, no server needed &rarr;</a>
+      <h1>Stop shipping agents that <span class="accent">double-charge</span> your customers.</h1>
+      <p class="sub">When an API call times out after the provider already did the work, your agent retries it and the customer pays twice. AgentRaaS finds those calls and makes each one <strong>run exactly once</strong>. Start with the free CLI and Python library. Add the self-hosted server when you want <strong>human approval</strong> and <strong>one audit trail</strong> across every service.</p>
+      <div class="hero-ctas">
+        <a href="#open-source" class="btn primary" data-gtm-event="cta_click" data-gtm-label="hero_try_free">Try it free</a>
+        <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="btn secondary" data-gtm-event="cta_click" data-gtm-label="hero_star_github"><svg class="icon"><use href="#i-github"/></svg>View on GitHub</a>
+      </div>
+      <div class="checks">
+        <span><svg class="icon"><use href="#i-check"/></svg>Open-source core (MIT/Apache-2.0)</span>
+        <span><svg class="icon"><use href="#i-check"/></svg>Any HTTP API or MCP tool</span>
+        <span><svg class="icon"><use href="#i-check"/></svg>Self-hosting is free, no usage cap</span>
+      </div>
     </div>
-    <div class="hero-ctas">
-      <a href="/dashboard" class="btn primary" data-gtm-event="cta_click" data-gtm-label="hero_get_started_free">Get started free →</a>
-      <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="btn secondary" data-gtm-event="cta_click" data-gtm-label="hero_star_github">⭐ Star on GitHub — clone &amp; self-host</a>
-    </div>
-    <div class="no-list">
-      <span>✓ Webhook, SDK-style REST, or native MCP</span>
-      <span>✓ No vendor lock-in</span>
-      <span>✓ Self-hosted is unlimited and free, forever</span>
-    </div>
+    <div>
+      <div class="terminal">
+        <div class="terminal-bar"><i></i><i></i><i></i><span class="terminal-title">terminal</span></div>
+        <pre><span class="c-key">$</span> pip install agentraas
+<span class="c-key">$</span> agentraas-chaos --mock -- python agent.py
+agentraas-chaos: 6 write requests, 3 responses dropped after execution
 
-    <div class="hero-panel">
-      <div class="row">
-        <span class="tag">CONCURRENCY PROOF</span>
-        <span class="live"><span class="dot"></span> asserted in the test suite, not a marketing number</span>
-      </div>
-      <div class="hero-stat-grid">
-        <div class="hero-stat"><div class="n">8</div><div class="l">concurrent identical requests</div></div>
-        <div class="hero-stat"><div class="n">1</div><div class="l">executed for real</div></div>
-        <div class="hero-stat"><div class="n">7</div><div class="l">caught as duplicates</div></div>
-      </div>
-      <p style="font-size:12px;color:var(--muted-dark);margin-top:10px;">From <code>src/api-gateway-rs/test/dedup.test.js</code>'s own concurrency test — clone the repo, start the stack, and run <code>npm test</code> from that directory to reproduce it yourself.</p>
-    </div>
+  <span class="c-bad">DUPLICATES: 1 action(s) executed more than once</span>
 
-    <div class="hero-panel" id="live-ledger-panel" style="margin-top:16px;">
-      <div class="row">
-        <span class="tag">LIVE EXECUTION LEDGER</span>
-        <span class="live"><span class="dot"></span> real production traffic, last 24h</span>
+    <span class="c-str">2x  POST /v1/charges  (body sha256 623f14d1b00d)</span>
+
+  Fix: <span class="c-comment">...</span>
+
+  Protected by an idempotency key: <span class="c-ok">2 retries</span>
+<span class="c-key">$</span> echo $?
+1</pre>
       </div>
-      <div class="hero-stat-grid">
-        <div class="hero-stat" id="ledger-stat-actions"><div class="n">—</div><div class="l">actions verified</div></div>
-        <div class="hero-stat" id="ledger-stat-dupes"><div class="n">—</div><div class="l">duplicates caught</div></div>
-        <div class="hero-stat" id="ledger-stat-avg"><div class="n">—</div><div class="l">avg ms per action</div></div>
-      </div>
+      <p class="caption">Real output (fix suggestion shortened): the chaos tester run against a small sample agent that retries on network errors.</p>
     </div>
   </div>
 </section>
 
-<section class="stack" id="stack">
+<div class="strip" id="stack">
+  <div class="wrap strip-inner">
+    <span class="strip-label">Works alongside</span>
+    <div class="marquee"><div class="marquee-track"><span class="tool">n8n</span><span class="tool">Flowise</span><span class="tool">Langflow</span><span class="tool">Dify</span><span class="tool">LangChain</span><span class="tool">CrewAI</span><span class="tool">AutoGen</span><span class="tool">Claude Desktop</span><span class="tool">Cursor</span><span class="tool">Make</span><span class="tool">Zapier</span><span class="tool">Ollama</span><span class="tool">LocalAI</span><div class="dup" style="display:contents" aria-hidden="true"><span class="tool">n8n</span><span class="tool">Flowise</span><span class="tool">Langflow</span><span class="tool">Dify</span><span class="tool">LangChain</span><span class="tool">CrewAI</span><span class="tool">AutoGen</span><span class="tool">Claude Desktop</span><span class="tool">Cursor</span><span class="tool">Make</span><span class="tool">Zapier</span><span class="tool">Ollama</span><span class="tool">LocalAI</span></div></div></div>
+  </div>
+</div>
+
+<section class="block">
   <div class="wrap">
-    <div class="eyebrow">01 — BUILT FOR THE SELF-HOSTED AI STACK</div>
-    <h2>Not another SaaS gateway. A drop-in layer for the stack you already run.</h2>
-    <p class="section-lead">Thousands of teams run n8n, Flowise, Langflow, Dify, Ollama, and LocalAI on their own Docker infrastructure — to cut SaaS fees, and to stay inside GDPR / EU AI Act data-residency rules. AgentRaaS is built to sit inside that stack, not replace it: one more Docker Compose service, zero data leaving infrastructure you control.</p>
-    <div class="stack-badges">
-      <span class="stack-badge">✓ Air-gapped capable</span>
-      <span class="stack-badge">✓ GDPR / EU AI Act friendly</span>
-      <span class="stack-badge">✓ One Docker Compose service</span>
-      <span class="stack-badge">✓ No per-seat SaaS fees</span>
-      <span class="stack-badge">✓ agentgateway-compatible</span>
+    <div class="s-head">
+      <div class="kicker">Built for self-hosters</div>
+      <h2>Not another SaaS gateway. A drop-in layer for the stack you already run.</h2>
+      <p>Teams run n8n, Flowise, Langflow, Dify, Ollama and LocalAI on their own Docker infrastructure to cut SaaS fees and stay inside GDPR / EU AI Act data-residency rules. AgentRaaS sits inside that stack: <b>one more Docker Compose service, zero data leaving infrastructure you control.</b></p>
     </div>
-    <div class="marquee">
-      <div class="marquee-track">
-        <span class="tool-pill">n8n</span>
-        <span class="tool-pill">Flowise</span>
-        <span class="tool-pill">Langflow</span>
-        <span class="tool-pill">Dify</span>
-        <span class="tool-pill">Ollama</span>
-        <span class="tool-pill">LocalAI</span>
-        <span class="tool-pill">LangChain</span>
-        <span class="tool-pill">AutoGen</span>
-        <span class="tool-pill">CrewAI</span>
-        <span class="tool-pill">Claude Desktop</span>
-        <span class="tool-pill">Cursor</span>
-        <span class="tool-pill">Make</span>
-        <span class="tool-pill">Zapier</span>
-        <div class="service-pills-dup" style="display:contents;" aria-hidden="true">
-          <span class="tool-pill">n8n</span>
-          <span class="tool-pill">Flowise</span>
-          <span class="tool-pill">Langflow</span>
-          <span class="tool-pill">Dify</span>
-          <span class="tool-pill">Ollama</span>
-          <span class="tool-pill">LocalAI</span>
-          <span class="tool-pill">LangChain</span>
-          <span class="tool-pill">AutoGen</span>
-          <span class="tool-pill">CrewAI</span>
-          <span class="tool-pill">Claude Desktop</span>
-          <span class="tool-pill">Cursor</span>
-          <span class="tool-pill">Make</span>
-          <span class="tool-pill">Zapier</span>
+    <div class="grid-3">
+      <div class="card"><div class="ico"><svg class="icon"><use href="#i-repeat"/></svg></div><div class="label">Reliability</div><h3>Every write executes exactly once</h3><p>Retries, timeouts and parallel duplicates get the first result back instead of a second charge, email or record.</p></div>
+      <div class="card"><div class="ico g"><svg class="icon"><use href="#i-hand"/></svg></div><div class="label">Responsibility</div><h3>Risky calls need a human yes</h3><p>Refunds over a limit, bulk emails, anything you choose is held for approval in Slack, with budget and loop limits on every agent.</p></div>
+      <div class="card"><div class="ico b"><svg class="icon"><use href="#i-list"/></svg></div><div class="label">Accountability</div><h3>One audit trail across services</h3><p>Which agent called what, when, and with what result, across Stripe, your CRM and your own endpoints, in one log.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <div class="proof">
+      <div class="proof-grid" id="proof-stats">
+        <div class="proof-cell"><div class="n accent">8</div><div class="l">concurrent identical requests fired</div></div>
+        <div class="proof-cell"><div class="n">1</div><div class="l">executed for real</div></div>
+        <div class="proof-cell"><div class="n">7</div><div class="l">caught as duplicates</div></div>
+        <div class="proof-cell"><div class="n">3.4<small>ms</small></div><div class="l">p50 added latency, self-hosted</div></div>
+      </div>
+      <div class="proof-foot">Measured by the automated test suite, not estimated: clone the repo, start the stack and run <code>npm test</code> (<code>src/api-gateway-rs/test/dedup.test.js</code>) to reproduce.</div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="open-source">
+  <div class="wrap">
+    <div class="s-head">
+      <div class="kicker">Open source · no server</div>
+      <h2>Start in 60 seconds. <span class="accent">No account, nothing to deploy.</span></h2>
+      <p>Three free tools in one package. <b>Find</b> the calls your agent would run twice, <b>fix</b> them with a decorator backed by your own SQLite or Redis, and <b>wrap</b> any MCP server so its write tools run once. Add the server later, when your team wants the dashboard, audit trail and approvals.</p>
+    </div>
+    <div class="grid-2">
+      <div>
+        <div class="oss-label"><span class="tag dup">1 · FIND</span> agentraas-chaos</div>
+        <div class="terminal">
+          <div class="terminal-bar"><i></i><i></i><i></i><span class="terminal-title">terminal</span></div>
+          <pre><span class="c-comment"># drops the response to each write after it executes,</span>
+<span class="c-comment"># then reports what your code ran twice</span>
+<span class="c-key">$</span> pip install agentraas
+<span class="c-key">$</span> agentraas-chaos --mock -- python my_agent.py
+
+  DUPLICATES: 1 action(s) executed more than once
+    <span class="c-str">2x  POST /v1/charges</span>
+  Protected by an idempotency key: <span class="c-ok">2 retries</span></pre>
         </div>
+        <p class="oss-note">Exits non-zero on a duplicate, so it fails CI. GitHub Action: <code>sumedhchatse/agentraas/src/chaos-action@main</code></p>
       </div>
+      <div>
+        <div class="oss-label"><span class="tag ok">2 · FIX</span> @exactly_once</div>
+        <div class="terminal">
+          <div class="terminal-bar"><i></i><i></i><i></i><span class="terminal-title">agent.py</span></div>
+          <pre><span class="c-key">from</span> agentraas.local <span class="c-key">import</span> exactly_once
+
+<span class="c-str">@exactly_once()</span>  <span class="c-comment"># SQLite by default, or RedisStore</span>
+<span class="c-key">def</span> charge(customer, amount, idempotency_key=None):
+    <span class="c-key">return</span> stripe.Charge.create(
+        customer=customer, amount=amount,
+        idempotency_key=idempotency_key,  <span class="c-comment"># same on every retry</span>
+    ).id
+
+charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># runs</span>
+charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cached, no second charge</span></pre>
+        </div>
+        <p class="oss-note">Retries, concurrent duplicates and lost responses covered. Python today; TypeScript coming.</p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:28px;align-items:start">
+      <div>
+        <div class="oss-label"><span class="tag b">3 · WRAP</span> agentraas wrap</div>
+        <p style="color:var(--muted);font-size:15.5px">Put it in front of any MCP server in Claude Desktop, Cursor or any MCP client. An identical call to a write tool inside a 10-minute window returns the first result instead of running again, so a looping agent can't open the same issue or send the same email twice. Read-only tools always run. Every tool call lands in a local audit log.</p>
+        <p class="oss-note">Listed in the official MCP Registry as <code>io.github.sumedhchatse/agentraas</code>.</p>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar"><i></i><i></i><i></i><span class="terminal-title">claude_desktop_config.json</span></div>
+        <pre>{
+  <span class="c-str">"mcpServers"</span>: {
+    <span class="c-str">"github"</span>: {
+      <span class="c-str">"command"</span>: <span class="c-str">"uvx"</span>,
+      <span class="c-str">"args"</span>: [<span class="c-ok">"agentraas", "wrap", "--"</span>,
+               <span class="c-str">"npx"</span>, <span class="c-str">"-y"</span>, <span class="c-str">"@modelcontextprotocol/server-github"</span>]
+    }
+  }
+}</pre>
+      </div>
+    </div>
+    <div class="hero-ctas" style="margin:30px 0 0">
+      <a href="https://pypi.org/project/agentraas/" target="_blank" rel="noopener" class="btn primary" data-gtm-event="cta_click" data-gtm-label="oss_pypi">pip install agentraas</a>
+      <a href="https://github.com/sumedhchatse/agentraas/tree/main/src/sdk#library-mode-no-server-needed" target="_blank" rel="noopener" class="btn secondary" data-gtm-event="cta_click" data-gtm-label="oss_readme">Read the docs</a>
     </div>
   </div>
 </section>
 
-<section class="problem">
+<section class="block problem">
   <div class="wrap">
-    <div class="eyebrow">02 — THE PROBLEM</div>
-    <h2>Your agent didn't fail. The network did — and nobody told it.</h2>
-    <div class="problem-grid">
-      <div class="problem-card a">
-        <span class="tag">Payment retry</span>
-        <h3>Your n8n workflow hits Stripe. It times out. n8n retries.</h3>
-        <p>Result: the customer is charged twice, and you find out from a support ticket, not a log.</p>
-      </div>
-      <div class="problem-card b">
-        <span class="tag">CRM duplicate</span>
-        <h3>Your agent calls HubSpot to create a contact. The response is lost. It retries.</h3>
-        <p>Result: two duplicate contacts, a messier pipeline, and a sales team that stops trusting the data.</p>
-      </div>
-      <div class="problem-card c">
-        <span class="tag">Client update</span>
-        <h3>Your agent sends a client a project status update. The confirmation times out. It retries.</h3>
-        <p>Result: the client gets the same update twice — and starts wondering what else is off.</p>
-      </div>
-      <div class="problem-card d">
-        <span class="tag">Team notification</span>
-        <h3>Your agent posts an approval request to Slack. The webhook times out. It retries.</h3>
-        <p>Result: your team approves the same request twice, or gets paged twice for one incident.</p>
-      </div>
+    <div class="s-head">
+      <div class="kicker">The problem</div>
+      <h2>Your agent didn't fail. The network did, and nobody told it.</h2>
+    </div>
+    <div class="grid-2">
+      <div class="card"><span class="tag cb">Payment retry</span><h3>Your n8n workflow hits Stripe. It times out. n8n retries.</h3><p>The customer is charged twice, and you find out from a support ticket, not a log.</p></div>
+      <div class="card"><span class="tag cb">CRM duplicate</span><h3>Your agent creates a HubSpot contact. The response is lost. It retries.</h3><p>Two duplicate contacts, a messier pipeline, and a sales team that stops trusting the data.</p></div>
+      <div class="card"><span class="tag cb">Client update</span><h3>Your agent sends a client a status update. The confirmation times out. It retries.</h3><p>The client gets the same update twice, and starts wondering what else is off.</p></div>
+      <div class="card"><span class="tag cb">Team notification</span><h3>Your agent posts an approval request to Slack. The webhook times out. It retries.</h3><p>Your team approves the same request twice, or gets paged twice for one incident.</p></div>
     </div>
   </div>
 </section>
 
-<section class="solution">
+<section class="block" id="how-it-works">
   <div class="wrap">
-    <div class="eyebrow">03 — HOW AGENTRAAS FIXES IT</div>
-    <h2 style="font-size:42px;max-width:700px;">A dedup slot claimed atomically, before anything real happens.</h2>
-    <div class="flow-grid">
-      <div class="flow-step"><div class="num">1</div><p>Your agent sends the request to <b>AgentRaaS instead of the API directly</b>.</p></div>
-      <div class="flow-step"><div class="num">2</div><p>AgentRaaS <b>atomically claims a dedup slot</b> for that exact request in Redis.</p></div>
-      <div class="flow-step"><div class="num">3</div><p><b>First call:</b> forwarded to the real API, the result gets cached.</p></div>
-      <div class="flow-step"><div class="num">4</div><p><b>Retry or duplicate:</b> the cached result comes back — never a second real execution.</p></div>
+    <div class="s-head">
+      <div class="kicker">How it works</div>
+      <h2>A dedup slot claimed atomically, before anything real happens.</h2>
+    </div>
+    <div class="diagram" role="img" aria-label="Animation: an agent's charge request goes through AgentRaaS to Stripe and is executed; the response is lost on the way back; the agent retries; AgentRaaS returns the cached result without calling Stripe again.">
+      <svg viewBox="0 0 960 300" aria-hidden="true">
+        <!-- links -->
+        <line class="link" x1="220" y1="130" x2="390" y2="130"/>
+        <line class="link" x1="570" y1="130" x2="740" y2="130"/>
+        <line class="flowline" x1="220" y1="130" x2="390" y2="130"/>
+        <line class="flowline" x1="570" y1="130" x2="740" y2="130"/>
+
+        <!-- nodes -->
+        <g class="node"><rect x="40" y="90" width="180" height="80" rx="10"/><rect class="hl hl-agent" x="40" y="90" width="180" height="80" rx="10"/>
+          <text x="130" y="124" class="n-title">Your agent</text><text x="130" y="146" class="n-sub">billing-bot</text></g>
+        <g class="node core"><rect x="390" y="90" width="180" height="80" rx="10"/><rect class="hl hl-core" x="390" y="90" width="180" height="80" rx="10"/>
+          <text x="480" y="124" class="n-title">AgentRaaS</text><text x="480" y="146" class="n-sub">dedup slot</text></g>
+        <g class="node"><rect x="740" y="90" width="180" height="80" rx="10"/><rect class="hl hl-api" x="740" y="90" width="180" height="80" rx="10"/>
+          <text x="830" y="124" class="n-title">Stripe API</text><text x="830" y="146" class="n-sub">POST /v1/charges</text></g>
+
+        <!-- packets -->
+        <circle class="pkt p-req" r="7"/>
+        <circle class="pkt p-resp" r="7"/>
+        <g class="p-lost"><line x1="297" y1="122" x2="313" y2="138"/><line x1="313" y1="122" x2="297" y2="138"/></g>
+        <circle class="pkt p-retry" r="7"/>
+        <circle class="pkt p-cached" r="7"/>
+
+        <!-- captions (one per beat) -->
+        <text class="cap c1" x="305" y="108">charge request</text>
+        <text class="cap c2 ok" x="830" y="205">charge created: ch_1</text>
+        <text class="cap c3" x="480" y="205">result stored</text>
+        <text class="cap c4 bad" x="305" y="108">connection dropped</text>
+        <text class="cap c5 warn" x="130" y="205">timeout: retrying</text>
+        <text class="cap c6 warn" x="480" y="205">same request: return stored result</text>
+        <text class="cap c7 ok" x="130" y="205">got ch_1</text>
+        <text class="cap c8 ok" x="830" y="205">charged once</text>
+      </svg>
+    </div>
+    <div class="flow">
+      <div class="flow-step"><div class="num">01</div><p>Your agent sends the request to <b>AgentRaaS instead of the API directly</b>.</p></div>
+      <div class="flow-step"><div class="num">02</div><p>AgentRaaS <b>atomically claims a dedup slot</b> for that exact request in Redis.</p></div>
+      <div class="flow-step"><div class="num">03</div><p><b>First call:</b> forwarded to the real API, and the result is cached.</p></div>
+      <div class="flow-step"><div class="num">04</div><p><b>Retry or duplicate:</b> the cached result comes back. Never a second real execution.</p></div>
     </div>
   </div>
 </section>
 
-<section class="why-not-diy" id="why-not-diy">
+<section class="block" id="why-not-diy">
   <div class="wrap">
-    <div class="eyebrow">04 — WHY NOT JUST DIY IDEMPOTENCY KEYS?</div>
-    <h2 style="font-size:36px;max-width:760px;">If you're calling Stripe by hand, its native <code>Idempotency-Key</code> header is genuinely enough. You don't need this.</h2>
-    <p class="section-lead" style="margin-bottom:24px;">The honest case for AgentRaaS is narrower and specific: <b>not every provider has native idempotency</b> (Stripe does; Twilio, Slack, most SaaS/CRM APIs, and any custom internal endpoint don't) — <b>no-code tools can't set the header at all</b> (n8n, Make, and Zapier give you a URL field, not a place to compute and attach an idempotency key) — and <b>none of them give you one audit trail across services</b> (Stripe's idempotency keys only tell you what happened inside Stripe; an agent calling Stripe, Twilio, and a custom CRM endpoint in the same run has zero unified record of which of those three actually fired).</p>
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;min-width:640px;">
-        <thead>
-          <tr style="border-bottom:1px solid var(--border-dark);">
-            <th style="text-align:left;padding:12px 16px;color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;"></th>
-            <th style="text-align:left;padding:12px 16px;color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;">DIY idempotency keys</th>
-            <th style="text-align:left;padding:12px 16px;color:var(--signal);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;">AgentRaaS</th>
-          </tr>
-        </thead>
-        <tbody style="color:var(--text);font-size:15px;">
-          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Code changes</td><td style="padding:14px 16px;">Modify every API call, only where the provider supports it</td><td style="padding:14px 16px;">Change the URL</td></tr>
-          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">No-code support</td><td style="padding:14px 16px;">❌ Not possible — no-code tools can't set custom headers</td><td style="padding:14px 16px;">✅ Paste webhook URL (n8n, Make, Zapier)</td></tr>
-          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Providers without native idempotency</td><td style="padding:14px 16px;">Build your own dedup logic, per provider</td><td style="padding:14px 16px;">One proxy, same guarantee, every service</td></tr>
-          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Multiple services</td><td style="padding:14px 16px;">Different logic per API</td><td style="padding:14px 16px;">One proxy, all services — plus any custom endpoint</td></tr>
-          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Credential management</td><td style="padding:14px 16px;">Build yourself</td><td style="padding:14px 16px;">Self-serve, encrypted at rest</td></tr>
-          <tr style="border-bottom:1px solid var(--border-dark);"><td style="padding:14px 16px;color:var(--muted);">Validation, circuit breaker, rate limiting</td><td style="padding:14px 16px;">Build yourself</td><td style="padding:14px 16px;">Built-in</td></tr>
-          <tr><td style="padding:14px 16px;color:var(--muted);">Audit trail, dashboard</td><td style="padding:14px 16px;">Per-provider at best</td><td style="padding:14px 16px;">One trail across every service you call</td></tr>
+    <div class="s-head">
+      <div class="kicker">Why not DIY idempotency keys?</div>
+      <h2>Calling Stripe by hand? Its <code>Idempotency-Key</code> header is genuinely enough.</h2>
+      <p>The honest case for AgentRaaS is narrower: <b>not every provider has native idempotency</b> (Twilio, Slack, most CRMs and your own endpoints don't), <b>no-code tools can't set the header at all</b>, and <b>none of them give you one audit trail across services</b>.</p>
+    </div>
+    <div class="compare">
+      <table>
+        <thead><tr><th></th><th>DIY idempotency keys</th><th class="us">AgentRaaS</th></tr></thead>
+        <tbody>
+          <tr><td>Code changes</td><td>Modify every API call, only where the provider supports it</td><td class="us">Change the URL</td></tr>
+          <tr><td>No-code support</td><td>Not possible: no-code tools can't set custom headers</td><td class="us">Paste a webhook URL (n8n, Make, Zapier)</td></tr>
+          <tr><td>Providers without native idempotency</td><td>Build your own dedup logic, per provider</td><td class="us">One layer, same guarantee, every service</td></tr>
+          <tr><td>Multiple services</td><td>Different logic per API</td><td class="us">All services, plus any custom endpoint</td></tr>
+          <tr><td>Credential management</td><td>Build yourself</td><td class="us">Self-serve, encrypted at rest</td></tr>
+          <tr><td>Validation, circuit breaker, rate limiting</td><td>Build yourself</td><td class="us">Built in</td></tr>
+          <tr><td>Audit trail, dashboard</td><td>Per-provider at best</td><td class="us">One trail across every service you call</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </section>
 
-<section class="failure-mode" id="failure-mode">
-  <div class="wrap">
-    <div class="eyebrow">05 — WHAT HAPPENS WHEN AGENTRAAS IS DOWN?</div>
-    <h2 style="font-size:36px;max-width:760px;">Fail-closed by design — not fail-silent.</h2>
-    <p class="section-lead" style="max-width:760px;">AgentRaaS sits in the request path between your agent and the real API. If it's unreachable, your call to it fails — it does not silently succeed un-deduped. There is no fallback path anywhere in the SDK, the n8n node, or the MCP gateway that quietly calls Stripe or Twilio directly when AgentRaaS doesn't respond. That's deliberate: the alternative — routing around an outage — would mean the exact retry-storm double-charge scenario this product exists to prevent happens silently, at the one moment you'd least want it to. Treat AgentRaaS like any other proxy or database on your critical path: standard timeout and retry handling on the calling side applies, same as it would for any dependency.</p>
-    <p class="section-lead" style="max-width:760px;color:var(--muted-dark);font-size:14px;">Measured, not marketing: p50 3.4ms · p90 4.2ms · p99 12.0ms · p999 14.3ms added latency, self-hosted single-node (1,000 sequential requests, real Postgres/Redis, warm connection). That's AgentRaaS's own dedup-check-plus-audit-log overhead before the request even leaves for the real API — self-hosted, it's one network hop to a service running on your own infrastructure, not a call out to us. Concurrent multi-client throughput numbers aren't published yet — that's still on the roadmap.</p>
-  </div>
-</section>
-
-<section class="mcp" id="mcp">
-  <div class="wrap">
-    <div class="mcp-grid">
-      <div>
-        <div class="eyebrow">04 — MCP-NATIVE, NOT JUST HTTP</div>
-        <h2 style="font-size:36px;margin-bottom:16px;line-height:1.15;">MCP is how modern agents call tools now. AgentRaaS speaks it natively.</h2>
-        <p class="section-lead" style="margin-bottom:26px;">Model Context Protocol is the standard Claude Desktop, Cursor, and agent frameworks like LangChain, AutoGen, and CrewAI use to invoke tools. A stalled tool call gets retried just like a stalled HTTP request — same double-execution risk, different protocol. AgentRaaS's MCP gateway is a JSON-RPC proxy that applies the exact same atomic dedup guarantee to every tool call, not just webhooks.</p>
-        <div class="integration-grid">
-          <div class="integration-path">
-            <div class="tag">WEBHOOK / HTTP</div>
-            <h4>Point any client at us</h4>
-            <p>n8n, Make, Zapier, or raw curl — change the target URL, nothing else.</p>
-            <code>POST /proxy/:service/:action</code>
-          </div>
-          <div class="integration-path">
-            <div class="tag">SDK-STYLE REST</div>
-            <h4>No SDK package required</h4>
-            <p>A clean per-service REST shape for scripts and internal tools.</p>
-            <code>POST /v1/sdk/:service/:action</code>
-          </div>
-          <div class="integration-path">
-            <div class="tag">NATIVE MCP</div>
-            <h4>JSON-RPC tool calls</h4>
-            <p>Claude Desktop, Cursor, LangChain, AutoGen, CrewAI — any MCP client.</p>
-            <code>POST /mcp</code>
-          </div>
-        </div>
+<section class="block" id="mcp">
+  <div class="wrap split">
+    <div>
+      <div class="kicker">MCP-native</div>
+      <h2 style="font-size:42px;letter-spacing:-0.04em;margin-bottom:16px">MCP is how agents call tools now. AgentRaaS speaks it natively.</h2>
+      <p style="color:var(--muted);font-size:17px">A stalled MCP tool call gets retried just like a stalled HTTP request: same double-execution risk, different protocol. The MCP gateway applies the same atomic dedup guarantee to every tool call from Claude Desktop, Cursor, LangChain, AutoGen or CrewAI.</p>
+      <div class="paths">
+        <div class="path"><div class="ico"><svg class="icon"><use href="#i-link"/></svg></div><div><h4>Webhook / HTTP</h4><p>n8n, Make, Zapier or raw curl: change the target URL, nothing else.</p><code>POST /proxy/:service/:action</code></div></div>
+        <div class="path"><div class="ico b"><svg class="icon"><use href="#i-sliders"/></svg></div><div><h4>SDK-style REST</h4><p>A clean per-service REST shape for scripts and internal tools.</p><code>POST /v1/sdk/:service/:action</code></div></div>
+        <div class="path"><div class="ico g"><svg class="icon"><use href="#i-cpu"/></svg></div><div><h4>Native MCP</h4><p>JSON-RPC tool calls from any MCP client.</p><code>POST /mcp</code></div></div>
       </div>
-      <div class="terminal">
-        <div class="terminal-bar">
-          <span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span>
-          <span class="terminal-title">MCP Idempotency Guard — /mcp</span>
-        </div>
-        <pre><span class="c-comment"># agent calls a tool via MCP</span>
+    </div>
+    <div class="terminal">
+      <div class="terminal-bar"><i></i><i></i><i></i><span class="terminal-title">MCP idempotency guard · /mcp</span></div>
+      <pre><span class="c-comment"># agent calls a tool via MCP</span>
 <span class="c-key">POST</span> /mcp
 {"jsonrpc":"2.0","id":"call_82f1","method":"tools/call",
  "params":{"name":<span class="c-str">"stripe.createCharge"</span>,
            "arguments":{"amount":4200,"customer":<span class="c-str">"cus_9f2k"</span>}}}
 
-<span class="c-ok">→ 200 OK</span>  <span class="c-comment">// first call — forwarded, result cached</span>
+<span class="c-ok">→ 200 OK</span>  <span class="c-comment">// first call: forwarded, result cached</span>
 {"result":{"status":<span class="c-str">"success"</span>,"charge_id":<span class="c-str">"ch_1N..."</span>}}
 
-<span class="c-comment"># network stalls — agent retries the identical call 400ms later</span>
+<span class="c-comment"># network stalls, agent retries the identical call 400ms later</span>
 
-<span class="c-ok">→ 200 OK</span>  <span class="c-comment">// dedup slot already claimed — cached result, zero re-execution</span>
+<span class="c-ok">→ 200 OK</span>  <span class="c-comment">// slot already claimed: cached result, zero re-execution</span>
 {"result":{"status":<span class="c-str">"success"</span>,"charge_id":<span class="c-str">"ch_1N..."</span>,
            "deduplicated":<span class="c-key">true</span>}}<span class="terminal-cursor"></span></pre>
-      </div>
     </div>
   </div>
 </section>
 
-<div class="perf on-paper" aria-hidden="true"></div>
-<section class="features" id="use-cases" style="padding-bottom:0;">
-  <div class="wrap">
-    <div class="eyebrow">05 — WHERE IT'S USED</div>
-    <h2>Any agent. Any workflow. Client-facing or internal.</h2>
-    <p class="lead">AgentRaaS doesn't care what your agent is for — only that when it acts, it acts exactly once. If it can call an API, AgentRaaS can protect it.</p>
-    <div class="feature-grid">
-      <div class="feature-card c4"><div class="icon">💬</div><h3>Customer support agents</h3><p>Resolve tickets, send replies, trigger refunds — without a retry turning into two replies or two refunds.</p></div>
-      <div class="feature-card c2"><div class="icon">📈</div><h3>Sales &amp; CRM agents</h3><p>Log leads, update deals, enrich contacts in HubSpot or Salesforce — once per real event, not once per retry.</p></div>
-      <div class="feature-card c1"><div class="icon">📅</div><h3>Scheduling &amp; client updates</h3><p>Book meetings, send confirmations, post status updates to a client — exactly the number of times you meant to.</p></div>
-      <div class="feature-card c3"><div class="icon">🔔</div><h3>Internal team &amp; ops agents</h3><p>Post to Slack directly, or Microsoft Teams via Custom Actions — trigger approvals, hand off work between systems, SSRF-guarded.</p></div>
-      <div class="feature-card c5"><div class="icon">🛒</div><h3>Commerce &amp; fulfillment agents</h3><p>Update inventory, create orders, notify shipping — protected the same way whether it's Shopify or your own warehouse API.</p></div>
-      <div class="feature-card c6"><div class="icon">⚙</div><h3>Whatever you're building</h3><p>Not on the curated list? Register it as a Custom Action in minutes — same dedup, same audit trail, same protection.</p></div>
-      <div class="feature-card c2"><div class="icon">🏢</div><h3>AI automation agencies &amp; freelancers</h3><p>Building client workflows in n8n or Make? Drop AgentRaaS in front of every client's Stripe, CRM, or messaging API so one retry storm doesn't double-charge a client account. The <a href="#pricing" style="color:inherit;text-decoration:underline;">Enterprise plan</a> adds a white-label dashboard per client tenant.</p></div>
+<section class="block" id="failure-mode">
+  <div class="wrap split">
+    <div>
+      <div class="kicker">When AgentRaaS is down</div>
+      <h2 style="font-size:42px;letter-spacing:-0.04em;margin-bottom:16px">Fail-closed by design, not fail-silent.</h2>
+      <p style="color:var(--muted);font-size:16.5px">AgentRaaS sits in the request path. If it's unreachable, your call fails; it never silently succeeds un-deduped. There is no fallback anywhere in the SDK, the n8n node or the MCP gateway that quietly calls Stripe or Twilio directly. Routing around an outage would mean the exact retry-storm double charge this product exists to prevent, at the moment you'd least want it. Treat it like any other dependency on your critical path.</p>
     </div>
-  </div>
-</section>
-
-<section class="features" id="features">
-  <div class="wrap">
-    <div class="eyebrow">06 — WHAT YOU GET</div>
-    <h2>Not just dedup. A full trust layer for autonomous action.</h2>
-    <p class="lead">Every piece your agents need to take real actions safely, out of the box.</p>
-    <div class="feature-grid">
-      <div class="feature-card c1"><div class="icon">⟳</div><h3>Exactly-once execution</h3><p>Proven under real concurrent load with an automated test suite — not just a claim.</p></div>
-      <div class="feature-card c2"><div class="icon">🔑</div><h3>Self-serve credentials</h3><p>Add your own Stripe, Twilio, or any provider's keys — encrypted at rest, no server access needed.</p></div>
-      <div class="feature-card c3"><div class="icon">⛓</div><h3>Custom Actions</h3><p>Not limited to the curated list — register any endpoint, SSRF-guarded, and agents can call it too.</p></div>
-      <div class="feature-card c4"><div class="icon">◈</div><h3>MCP native</h3><p>A JSON-RPC gateway for Claude Desktop, Cursor, and any MCP client — every call protected the same way.</p></div>
-      <div class="feature-card c5"><div class="icon">⚡</div><h3>Circuit breaker</h3><p>Stop hammering a broken upstream service. Trips open, recovers automatically.</p></div>
-      <div class="feature-card c6"><div class="icon">▤</div><h3>Full audit trail</h3><p>Every action logged — who, what, when, status, duration. Searchable dashboard, CSV export.</p></div>
-      <div class="feature-card c1"><div class="icon">🛂</div><h3>Agent Passport</h3><p>Short-lived, scope-restricted credentials for each agent — identity and the reliability guarantees applied to it, issued together and enforced before any action reaches an integration.</p></div>
-      <div class="feature-card c2"><div class="icon">💸</div><h3>Per-agent spend caps</h3><p>Loop detection catches an agent repeating itself. This catches one that isn't looping but is legitimately burning through a paid API faster than expected — capped by call count, per agent, per service.</p></div>
-      <div class="feature-card c3"><div class="icon">🔌</div><h3>Local dev tunnel</h3><p>Test a real inbound webhook — Stripe, WhatsApp, GitHub — against your own machine while you build, no deploy required. One command, live request inspector included.</p></div>
-      <div class="feature-card c4"><div class="icon">🩺</div><h3>Schema drift detection</h3><p>Get alerted the moment a service's response shape changes — a field removed or its type flipped — before your agent silently misreads it.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="services" id="services">
-  <div class="wrap">
-    <div class="eyebrow">07 — INTEGRATIONS</div>
-    <h2 style="font-size:32px;color:var(--text-dark);margin-bottom:30px;">Works with what you already use.</h2>
-    <div class="marquee">
-      <div class="marquee-track">
-        <span class="service-pill">Stripe</span>
-        <span class="service-pill">Twilio</span>
-        <span class="service-pill">HubSpot</span>
-        <span class="service-pill">Calendly</span>
-        <span class="service-pill">Shopify</span>
-        <span class="service-pill">Zoho</span>
-        <span class="service-pill">Razorpay</span>
-        <span class="service-pill">WhatsApp</span>
-        <span class="service-pill">Zapier</span>
-        <span class="service-pill">Make</span>
-        <span class="service-pill">Adyen</span>
-        <span class="service-pill">Mollie</span>
-        <span class="service-pill">Airwallex</span>
-        <span class="service-pill">Xendit</span>
-        <span class="service-pill">PayPal</span>
-        <span class="service-pill">Salesforce</span>
-        <span class="service-pill">Slack</span>
-        <span class="service-pill">Klarna</span>
-        <span class="service-pill">Paystack</span>
-        <span class="service-pill">GoCardless</span>
-        <span class="service-pill">Opn Payments</span>
-        <span class="service-pill">Microsoft Teams*</span>
-        <span class="service-pill custom">+ any endpoint</span>
-        <div class="service-pills-dup" style="display:contents;" aria-hidden="true">
-          <span class="service-pill">Stripe</span>
-          <span class="service-pill">Twilio</span>
-          <span class="service-pill">HubSpot</span>
-          <span class="service-pill">Calendly</span>
-          <span class="service-pill">Shopify</span>
-          <span class="service-pill">Zoho</span>
-          <span class="service-pill">Razorpay</span>
-          <span class="service-pill">WhatsApp</span>
-          <span class="service-pill">Zapier</span>
-          <span class="service-pill">Make</span>
-          <span class="service-pill">Adyen</span>
-          <span class="service-pill">Mollie</span>
-          <span class="service-pill">Airwallex</span>
-          <span class="service-pill">Xendit</span>
-          <span class="service-pill">PayPal</span>
-          <span class="service-pill">Salesforce</span>
-          <span class="service-pill">Slack</span>
-          <span class="service-pill">Klarna</span>
-          <span class="service-pill">Paystack</span>
-          <span class="service-pill">GoCardless</span>
-          <span class="service-pill">Opn Payments</span>
-          <span class="service-pill">Microsoft Teams*</span>
-          <span class="service-pill custom">+ any endpoint</span>
+    <div>
+      <div class="card" style="padding:30px">
+        <div class="ico"><svg class="icon"><use href="#i-gauge"/></svg></div>
+        <h3>Measured, not marketing</h3>
+        <p>Added latency, self-hosted single node: 1,000 sequential requests against real Postgres and Redis, warm connection.</p>
+        <div class="latency">
+          <div><b>3.4ms</b><span>p50</span></div>
+          <div><b>4.2ms</b><span>p90</span></div>
+          <div><b>12.0ms</b><span>p99</span></div>
+          <div><b>14.3ms</b><span>p999</span></div>
         </div>
+        <p class="fine">That's the dedup check plus audit log, before the request leaves for the real API. Concurrent multi-client throughput numbers aren't published yet.</p>
       </div>
     </div>
-    <p style="color:var(--muted-dark); font-size:13px; margin-top:16px;">* via Custom Actions — not a pre-built connector, but reachable the same way any endpoint is: register it once, agents call it by name from then on.</p>
   </div>
 </section>
 
-<section class="pricing" id="pricing">
+<section class="block" id="use-cases">
   <div class="wrap">
-    <div class="section-head">
+    <div class="s-head">
+      <div class="kicker">Where it's used</div>
+      <h2>Any agent. Any workflow. Client-facing or internal.</h2>
+      <p>AgentRaaS doesn't care what your agent is for, only that when it acts, it acts exactly once. If it can call an API, AgentRaaS can protect it.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card"><div class="ico r"><svg class="icon"><use href="#i-msg"/></svg></div><h3>Customer support agents</h3><p>Resolve tickets, send replies, trigger refunds without a retry turning into two replies or two refunds.</p></div>
+      <div class="card"><div class="ico b"><svg class="icon"><use href="#i-trend"/></svg></div><h3>Sales &amp; CRM agents</h3><p>Log leads, update deals, enrich contacts in HubSpot or Salesforce once per real event, not once per retry.</p></div>
+      <div class="card"><div class="ico"><svg class="icon"><use href="#i-cal"/></svg></div><h3>Scheduling &amp; client updates</h3><p>Book meetings, send confirmations, post status updates exactly the number of times you meant to.</p></div>
+      <div class="card"><div class="ico g"><svg class="icon"><use href="#i-bell"/></svg></div><h3>Internal team &amp; ops agents</h3><p>Post to Slack directly, or Microsoft Teams via Custom Actions: trigger approvals and hand off work between systems, SSRF-guarded.</p></div>
+      <div class="card"><div class="ico"><svg class="icon"><use href="#i-bag"/></svg></div><h3>Commerce &amp; fulfillment agents</h3><p>Update inventory, create orders, notify shipping, protected the same way on Shopify or your own warehouse API.</p></div>
+      <div class="card"><div class="ico b"><svg class="icon"><use href="#i-building"/></svg></div><h3>Automation agencies</h3><p>Put AgentRaaS in front of every client's Stripe, CRM or messaging API. The <a href="#pricing">Enterprise plan</a> adds a white-label dashboard per client tenant.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="s-head center">
+      <div class="kicker">The platform</div>
+      <h2>What the self-hosted server adds</h2>
+      <p>Run the AgentRaaS server (free to self-host) when a library isn't enough: approvals, agent identity, and one audit trail across every service.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card"><div class="ico g"><svg class="icon"><use href="#i-id"/></svg></div><h3>Agent Passport</h3><p>Short-lived, scope-restricted credentials for each agent. Identity and the reliability guarantees applied to it are issued together and enforced before any action reaches an integration.</p></div>
+      <div class="card"><div class="ico b"><svg class="icon"><use href="#i-key"/></svg></div><h3>Self-serve credentials</h3><p>Add your own Stripe, Twilio or any provider's keys, encrypted at rest.</p></div>
+      <div class="card"><div class="ico"><svg class="icon"><use href="#i-link"/></svg></div><h3>Custom Actions</h3><p>Register any endpoint, SSRF-guarded, and agents can call it too.</p></div>
+      <div class="card"><div class="ico g"><svg class="icon"><use href="#i-cpu"/></svg></div><h3>MCP native</h3><p>A JSON-RPC gateway for Claude Desktop, Cursor and any MCP client.</p></div>
+      <div class="card"><div class="ico r"><svg class="icon"><use href="#i-zap"/></svg></div><h3>Circuit breaker</h3><p>Stops hammering a broken upstream. Trips open, recovers automatically.</p></div>
+      <div class="card"><div class="ico b"><svg class="icon"><use href="#i-list"/></svg></div><h3>Full audit trail</h3><p>Who, what, when, status, duration. Searchable dashboard, CSV export.</p></div>
+      <div class="card"><div class="ico"><svg class="icon"><use href="#i-gauge"/></svg></div><h3>Per-agent spend caps</h3><p>Caps call count per agent, per service, for agents burning through a paid API faster than expected.</p></div>
+      <div class="card"><div class="ico g"><svg class="icon"><use href="#i-plug"/></svg></div><h3>Local dev tunnel</h3><p>Test real inbound webhooks against your machine. One command, live inspector.</p></div>
+      <div class="card"><div class="ico r"><svg class="icon"><use href="#i-pulse"/></svg></div><h3>Schema drift detection</h3><p>Alerts the moment a response shape changes, before your agent misreads it.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="services">
+  <div class="wrap">
+    <div class="s-head center">
+      <div class="kicker">Integrations</div>
+      <h2>Works with what you already use.</h2>
+    </div>
+    <div class="int-list">
+      <span>Stripe</span><span>Twilio</span><span>HubSpot</span><span>Calendly</span><span>Shopify</span><span>Zoho</span><span>Razorpay</span><span>WhatsApp</span><span>Zapier</span><span>Make</span><span>Adyen</span><span>Mollie</span><span>Airwallex</span><span>Xendit</span><span>PayPal</span><span>Salesforce</span><span>Slack</span><span>Klarna</span><span>Paystack</span><span>GoCardless</span><span>Opn Payments</span><span>Microsoft Teams*</span><span class="custom">+ any endpoint</span><span aria-hidden="true"></span>
+    </div>
+    <p style="color:var(--faint);font-size:13px;margin-top:20px;text-align:center">* via Custom Actions: not a pre-built connector, but reachable the same way as any endpoint. Register it once, agents call it by name.</p>
+  </div>
+</section>
+
+<section class="block" id="pricing">
+  <div class="wrap">
+    <div class="s-head center">
+      <div class="kicker">Pricing</div>
       <h2>Pricing that doesn't punish you for self-hosting.</h2>
-      <p>Open-core: the engine is MIT/Apache-2.0, genuinely open. Community is free and self-hosted only. Team and Enterprise both run either cloud-hosted or self-hosted, and unlock the separately-licensed enterprise module.</p>
+      <p>Open core: the engine is MIT/Apache-2.0. Community is free and self-hosted. Team and Enterprise run cloud-hosted or self-hosted and unlock the separately licensed enterprise module.</p>
     </div>
     <div class="pricing-grid">
-      <div class="price-card featured">
+      <div class="card price-card featured">
+        <span class="badge">Free, self-hosted</span>
         <h3>Community</h3>
         <div class="tagline">Self-hosted only, MIT/Apache-2.0 licensed</div>
         <div class="amount">$0<span class="unit"> /month</span></div>
-        <div class="limit-note">Unlimited actions/month — no cap, ever</div>
+        <div class="limit-note">Unlimited actions/month. No cap, ever.</div>
         <ul>
           <li>Single-node Docker deployment</li>
           <li>SHA-256 payload hashing &amp; Redis dedup</li>
@@ -861,10 +843,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <li>Local Postgres dashboard</li>
           <li>Community support (GitHub &amp; Discord)</li>
         </ul>
-        <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="btn primary" data-gtm-event="pricing_cta_click" data-gtm-label="community_clone_github">Clone on GitHub →</a>
-        <p style="font-size:12.5px;color:var(--muted);margin-top:14px;text-align:center;">Want to try it without installing anything? <a href="/dashboard" style="color:var(--signal);">Start a free AgentRaaS Cloud account →</a></p>
+        <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="btn primary" data-gtm-event="pricing_cta_click" data-gtm-label="community_clone_github">Clone on GitHub</a>
+        <p class="aside">Try it without installing: <a href="/dashboard">start a free Cloud account →</a></p>
       </div>
-      <div class="price-card">
+      <div class="card price-card">
         <h3>Team</h3>
         <div class="tagline">For individuals and small teams past the free tier's usage cap</div>
         <div class="amount">$49<span class="unit"> /month</span></div>
@@ -875,64 +857,80 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <li>Human-in-the-Loop approval gateway (Slack + SLA auto-escalation)</li>
           <li>Higher monthly action &amp; rate limits</li>
         </ul>
-        <a href="/dashboard" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="team_get_started">Get started →</a>
+        <a href="/dashboard" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="team_get_started">Get started</a>
       </div>
-      <div class="price-card">
+      <div class="card price-card">
         <h3>Enterprise</h3>
-        <div class="tagline">Cloud-hosted or self-hosted/on-prem — production, multi-team agent fleets, agencies managing client tenants</div>
+        <div class="tagline">Cloud or on-prem: multi-team agent fleets, agencies managing client tenants</div>
         <div class="amount">Custom<span class="unit"> from $499/mo</span></div>
-        <div class="limit-note">Unlimited actions, workspaces &amp; seats, either way</div>
+        <div class="limit-note">Unlimited actions, workspaces &amp; seats</div>
         <ul>
           <li>Everything in Team, unlimited seats</li>
-          <li>Unlimited client tenants, multi-tenant white-label dashboard</li>
+          <li>Unlimited client tenants, white-label dashboard</li>
           <li>Inbound webhook receivers (Stripe, GitHub, Shopify &amp; more)</li>
           <li>Active-active HA clustering</li>
           <li>PII masking &amp; DLP redaction engine</li>
           <li>OIDC SSO, RBAC &amp; tamper-evident audit export</li>
           <li>Priority, SLA-backed support</li>
         </ul>
-        <a href="mailto:hello@agentraas.io" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="enterprise_contact_sales">Contact sales →</a>
+        <a href="mailto:hello@agentraas.io" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="enterprise_contact_sales">Contact sales</a>
       </div>
     </div>
-    <p class="license-note">The core engine is MIT/Apache-2.0 — genuinely open, no restrictions. Team/Enterprise features (<code>crates/api/src/ee/</code>) are a separate module under a fair-code/source-available commercial license modeled on n8n's Sustainable Use License — full terms in <a href="/license">LICENSE.md</a>.</p>
+    <p class="license-note">The core engine is MIT/Apache-2.0, no restrictions. Team/Enterprise features (<code>crates/api/src/ee/</code>) are a separate module under a fair-code, source-available commercial license modeled on n8n's Sustainable Use License. Full terms in <a href="/license">LICENSE.md</a>.</p>
   </div>
 </section>
 
-<section class="faq" id="faq">
+<section class="block" id="faq">
   <div class="wrap">
-    <div class="section-head">
+    <div class="s-head center">
+      <div class="kicker">FAQ</div>
       <h2>Questions people actually ask</h2>
-      <p>The short, honest answers — full detail is in the docs and LICENSE.md.</p>
+      <p>The short, honest answers. Full detail is in the docs and LICENSE.md.</p>
     </div>
     <div class="faq-list">
       <details class="faq-item">
         <summary>Is self-hosted really unlimited, on every tier?</summary>
-        <p>Yes. Community, Team, and Enterprise are all unlimited actions/month when you run them on your own infrastructure — no cap, no metering, no phone-home check. It's a term of <a href="/license">LICENSE.md</a>, not a "soft" limit we quietly enforce. The only metered tier is the free AgentRaaS Cloud account (500 actions/month) — because that one runs on our infrastructure, not yours. Team/Enterprise features on a self-hosted instance unlock via a license token you paste into your own <code>.env</code> once at setup, verified entirely offline — never a network call back to us.</p>
+        <p>Yes. Community, Team, and Enterprise are all unlimited actions/month when you run them on your own infrastructure: no cap, no metering, no phone-home check. It's a term of <a href="/license">LICENSE.md</a>, not a "soft" limit we quietly enforce. The only metered tier is the free AgentRaaS Cloud account (500 actions/month), because that one runs on our infrastructure, not yours. Team/Enterprise features on a self-hosted instance unlock via a license token you paste into your own <code>.env</code> once at setup, verified entirely offline, with no network call back to us.</p>
       </details>
       <details class="faq-item">
         <summary>What's the difference between Team and Enterprise?</summary>
-        <p>Team ($49/mo) is for an individual builder or small team past the free tier's usage cap — 3 seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, active-active HA clustering, PII/DLP redaction, and OIDC SSO with RBAC. Both run cloud-hosted or self-hosted.</p>
+        <p>Team ($49/mo) is for an individual builder or small team past the free tier's usage cap: 3 seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, active-active HA clustering, PII/DLP redaction, and OIDC SSO with RBAC. Both run cloud-hosted or self-hosted.</p>
       </details>
       <details class="faq-item">
         <summary>Is my data safe if I self-host?</summary>
-        <p>Self-hosted means your audit log, credentials, and traffic never leave infrastructure you control — we don't see any of it. Stored credentials are encrypted at rest (AES-256-GCM), and the Enterprise tier adds PII/DLP redaction before anything touches the audit log, plus tamper-evident, SIEM-exportable logging for compliance-sensitive teams.</p>
+        <p>Self-hosted means your audit log, credentials, and traffic never leave infrastructure you control. We don't see any of it. Stored credentials are encrypted at rest (AES-256-GCM), and the Enterprise tier adds PII/DLP redaction before anything touches the audit log, plus tamper-evident, SIEM-exportable logging for compliance-sensitive teams.</p>
       </details>
       <details class="faq-item">
         <summary>Do you support n8n, Make, or Zapier?</summary>
-        <p>Yes — AgentRaaS is a proxy, not an SDK, so no-code tools work the same way code does: point the HTTP Request node at your AgentRaaS URL instead of the API directly. No custom node install required for any of them.</p>
+        <p>Yes. No-code tools work the same way code does: point the HTTP Request node at your AgentRaaS URL instead of the API directly. No custom node install required for any of them.</p>
       </details>
       <details class="faq-item">
         <summary>What happens if my agent retries a request?</summary>
-        <p>AgentRaaS claims an atomic dedup slot in Redis before anything real happens. The first call gets forwarded and its result cached; any retry or duplicate — even concurrent ones — gets the cached result back instead of a second real execution. This is tested under real concurrent load, not just claimed (see <code>src/api-gateway-rs/test/dedup.test.js</code>).</p>
+        <p>AgentRaaS claims an atomic dedup slot in Redis before anything real happens. The first call gets forwarded and its result cached; any retry or duplicate, even a concurrent one, gets the cached result back instead of a second real execution. This is tested under real concurrent load, not just claimed (see <code>src/api-gateway-rs/test/dedup.test.js</code>).</p>
       </details>
       <details class="faq-item">
         <summary>Is this open source?</summary>
-        <p>The core engine (<code>src/api-gateway-rs/crates/core/</code> — payload dedup, MCP gateway, dashboard) is MIT/Apache-2.0. Enterprise features (<code>src/api-gateway-rs/crates/api/src/ee/</code> — SSO, HMAC, DLP, distributed rate limiting) are source-available under a separate commercial license. See <a href="/license">LICENSE.md</a> for the exact terms.</p>
+        <p>The core engine (<code>src/api-gateway-rs/crates/core/</code>: payload dedup, MCP gateway, dashboard) is MIT/Apache-2.0. Enterprise features (<code>src/api-gateway-rs/crates/api/src/ee/</code>: SSO, HMAC, DLP, distributed rate limiting) are source-available under a separate commercial license. See <a href="/license">LICENSE.md</a> for the exact terms.</p>
       </details>
       <details class="faq-item">
         <summary>What does "agentgateway-compatible" mean?</summary>
-        <p><a href="https://agentgateway.dev/" target="_blank" rel="noopener">agentgateway</a> (a Linux Foundation project) is an edge proxy for AI traffic — auth, RBAC, rate limiting, and observability across all your MCP/tool servers, not just AgentRaaS. If you already run it (or want to), AgentRaaS drops in as a backend behind it with zero code changes on either side — see <a href="/guide">Getting started</a> for the one-command setup. Most self-hosters don't need this; it matters once you're managing more than one MCP server behind a shared gateway.</p>
+        <p><a href="https://agentgateway.dev/" target="_blank" rel="noopener">agentgateway</a> (a Linux Foundation project) is an edge proxy for AI traffic: auth, RBAC, rate limiting, and observability across all your MCP/tool servers, not just AgentRaaS. If you already run it (or want to), AgentRaaS drops in as a backend behind it with zero code changes on either side. See <a href="/guide">Getting started</a> for the one-command setup. Most self-hosters don't need this; it matters once you're managing more than one MCP server behind a shared gateway.</p>
       </details>
+    </div>
+  </div>
+</section>
+
+<section class="block" style="padding:0">
+  <div class="wrap">
+    <div class="cta-band">
+      <div>
+        <h2>Find your agent's duplicate calls in one command.</h2>
+        <p>Free, runs on your machine, nothing to sign up for.</p>
+      </div>
+      <div class="hero-ctas">
+        <a href="#open-source" class="btn primary" data-gtm-event="cta_click" data-gtm-label="band_try_free">Try it free</a>
+        <a href="/guide" class="btn secondary" data-gtm-event="cta_click" data-gtm-label="band_read_guide">Read the guide</a>
+      </div>
     </div>
   </div>
 </section>
@@ -940,13 +938,22 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <footer>
   <div class="wrap">
     <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="/" class="brand">
+          <span class="mark"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="6" fill="none" stroke="#ECEFF3" stroke-width="2.2"/><circle cx="15.3" cy="12" r="6" fill="#F2B544"/></svg></span>
+          <span class="name">AgentRaaS</span>
+        </a>
+        <p>Stops AI agents from running the same API call twice, holds risky calls for human approval, and records every action.</p>
+        <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="btn secondary sm"><svg class="icon"><use href="#i-github"/></svg>Star on GitHub</a>
+      </div>
       <div class="footer-col">
         <h4>Product</h4>
-        <a href="#features">Features</a>
+        <a href="#features">Platform</a>
         <a href="#pricing">Pricing</a>
         <a href="#faq">FAQ</a>
         <a href="/dashboard">Dashboard</a>
         <a href="/status">Status</a>
+        <a href="/postmortem-2026-09">Postmortems</a>
       </div>
       <div class="footer-col">
         <h4>Docs</h4>
@@ -969,17 +976,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <a href="/security">Security</a>
       </div>
       <div class="footer-col">
-        <h4>Contact</h4>
+        <h4>Company</h4>
         <a href="/about">About</a>
         <a href="mailto:hello@agentraas.io">hello@agentraas.io</a>
       </div>
     </div>
     <div class="footer-bottom">
-      © 2026 AgentRaaS. Built with Fastify, Redis, PostgreSQL, Podman, and the fear of double-charging a customer at 2 AM.
+      <span>© 2026 AgentRaaS</span>
+      <span>Built with Rust, Redis, PostgreSQL, Podman, and the fear of double-charging a customer at 2 AM.</span>
     </div>
   </div>
 </footer>
-
 <script>
 (function() {
   window.dataLayer = window.dataLayer || [];
@@ -991,64 +998,91 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 })();
 </script>
 <script>
-(function() {
-  var motionOk = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+(function () {
+  // Everything here is progressive: without JS, or with reduced motion,
+  // the page is fully static and fully visible.
+  if (!window.matchMedia('(prefers-reduced-motion: no-preference)').matches) return;
+  document.documentElement.classList.add('js-motion');
 
-  // Sticky nav shadow + top scroll-progress bar — plain UI feedback, not
-  // disorienting motion, so this runs regardless of the reduced-motion pref.
-  var navEl = document.querySelector('header.nav');
-  var progressEl = document.getElementById('scroll-progress');
-  function onScroll() {
-    if (navEl) navEl.classList.toggle('scrolled', window.scrollY > 8);
-    if (progressEl) {
-      var scrollable = document.documentElement.scrollHeight - window.innerHeight;
-      var pct = scrollable > 0 ? (window.scrollY / scrollable) * 100 : 0;
-      progressEl.style.width = pct + '%';
+  // Sections settle in once as they reach the viewport; cards in a grid stagger.
+  var targets = document.querySelectorAll('section.block .s-head, section.block .card, .proof, .diagram, .flow, .compare, #open-source .terminal, .split > div, .cta-band, .int-list, .faq-list');
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      e.target.classList.add('in');
+      io.unobserve(e.target);
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+  targets.forEach(function (el) {
+    var sibs = el.parentElement ? Array.prototype.indexOf.call(el.parentElement.children, el) : 0;
+    if (el.classList.contains('card')) el.style.transitionDelay = Math.min(sibs, 5) * 70 + 'ms';
+    el.classList.add('reveal');
+    io.observe(el);
+  });
+
+  // Proof numbers count up once.
+  var nums = document.querySelectorAll('.proof-cell .n');
+  var numIO = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      numIO.unobserve(e.target);
+      var el = e.target, small = el.querySelector('small'), target = parseFloat(el.firstChild.nodeValue);
+      if (!isFinite(target)) return;
+      var dec = (String(target).split('.')[1] || '').length, t0 = performance.now();
+      (function tick(now) {
+        var p = Math.min((now - t0) / 900, 1), v = target * (1 - Math.pow(1 - p, 3));
+        el.firstChild.nodeValue = v.toFixed(dec);
+        if (p < 1) requestAnimationFrame(tick);
+      })(t0);
+    });
+  }, { threshold: 0.5 });
+  nums.forEach(function (n) { numIO.observe(n); });
+
+  // Hero terminal replays the real run: commands type, output lines arrive.
+  var pre = document.querySelector('.hero .terminal pre');
+  if (pre) {
+    var lines = pre.innerHTML.split('\n');
+    pre.style.minHeight = pre.offsetHeight + 'px';  // reserve the final size so the hero doesn't shift
+    pre.innerHTML = '';
+    var cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    pre.appendChild(cursor);
+    var i = 0;
+    function addLine(html) {
+      var span = document.createElement('span');
+      span.innerHTML = html + '\n';
+      pre.insertBefore(span, cursor);
+      return span;
     }
+    function next() {
+      if (i >= lines.length) return;
+      var html = lines[i++];
+      var m = html.match(/^(<span class="c-key">\$<\/span> )(.*)$/);
+      if (!m) { addLine(html); setTimeout(next, html.trim() ? 170 : 90); return; }
+      var span = addLine(m[1]), text = m[2], k = 0;
+      span.innerHTML = m[1];
+      (function type() {
+        if (k <= text.length) { span.innerHTML = m[1] + text.slice(0, k++) + (k > text.length ? '\n' : ''); setTimeout(type, 28 + Math.random() * 40); }
+        else setTimeout(next, 420);
+      })();
+    }
+    setTimeout(next, 500);
   }
-  document.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
-
-  if (motionOk) {
-    // Count up the concurrency-proof numbers like a ledger ticker settling,
-    // once that panel scrolls into view — same "watch it happen" idea as
-    // the live execution ledger below it.
-    var proofNums = document.querySelectorAll('.hero-panel:first-of-type .hero-stat .n');
-    var countObserver = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (!entry.isIntersecting) return;
-        countObserver.unobserve(entry.target);
-        var el = entry.target;
-        var target = parseInt(el.textContent, 10);
-        if (!Number.isFinite(target)) return;
-        var start = performance.now();
-        var duration = 700;
-        function tick(now) {
-          var p = Math.min((now - start) / duration, 1);
-          el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
-          if (p < 1) requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
-      });
-    }, { threshold: 0.4 });
-    proofNums.forEach(function(el) { countObserver.observe(el); });
-  }
-
 })();
 </script>
 <script>
 (function() {
-  // Agent-network background — a live-updating visualization of what the
+  // Agent-network background, a live-updating visualization of what the
   // product actually does: a fleet of agents (nodes) sending actions
   // (packets) through a single reliability core. Now a fixed full-page
   // layer (see CSS: position:fixed, z-index:-1) rather than boxed into
-  // one hero column — per request, for genuinely long connecting lines
+  // one hero column, per request, for genuinely long connecting lines
   // instead of a small confined cluster, and so it shows behind every
   // section without its own opaque background, not just the hero.
   // Deliberately still simple: no CSS filters/blend-modes (that's what
   // froze the renderer in an earlier attempt at a grain-texture overlay
-  // — see git history), capped devicePixelRatio, and the rAF loop stops
-  // entirely when the tab itself isn't visible (Page Visibility API —
+  //, see git history), capped devicePixelRatio, and the rAF loop stops
+  // entirely when the tab itself isn't visible (Page Visibility API ,
   // there's no single "offscreen" section to watch anymore).
   var canvas = document.getElementById('agent-network');
   if (!canvas || !canvas.getContext) return;
@@ -1062,12 +1096,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   var lastSpawn = 0;
 
   function resize() {
-    W = window.innerWidth; H = window.innerHeight;
+    var host = canvas.parentElement.getBoundingClientRect(); W = host.width; H = host.height;
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    core.x = W * 0.68; core.y = H * 0.32;
+    core.x = W * 0.74; core.y = H * 0.18;
   }
 
   function initNodes() {
@@ -1096,7 +1130,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       }
     });
 
-    // Constellation lines — nearby nodes connect to each other, and every
+    // Constellation lines, nearby nodes connect to each other, and every
     // node has a faint thread back to the core, so this reads as an
     // actual network graph rather than a scatter of unrelated dots.
     for (var i = 0; i < nodes.length; i++) {
@@ -1105,7 +1139,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         var dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 170) {
           ctx.beginPath();
-          ctx.strokeStyle = 'rgba(110,134,168,' + (0.16 * (1 - dist / 170)) + ')';
+          ctx.strokeStyle = 'rgba(154,166,178,' + (0.16 * (1 - dist / 170)) + ')';
           ctx.lineWidth = 1;
           ctx.moveTo(nodes[i].x, nodes[i].y);
           ctx.lineTo(nodes[j].x, nodes[j].y);
@@ -1116,7 +1150,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       var cdist = Math.sqrt(cdx * cdx + cdy * cdy);
       if (cdist < 320) {
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(23,86,131,' + (0.13 * (1 - cdist / 320)) + ')';
+        ctx.strokeStyle = 'rgba(242,181,68,' + (0.13 * (1 - cdist / 320)) + ')';
         ctx.lineWidth = 1;
         ctx.moveTo(nodes[i].x, nodes[i].y);
         ctx.lineTo(core.x, core.y);
@@ -1126,30 +1160,30 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
     nodes.forEach(function(n) {
       ctx.beginPath();
-      ctx.fillStyle = 'rgba(110,134,168,0.5)';
+      ctx.fillStyle = 'rgba(154,166,178,0.5)';
       ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
       ctx.fill();
     });
 
     // Wide soft halo, then the tighter core glow, then a thin ring (echoes
-    // the logomark's ring-and-node shape) and the solid center — more
+    // the logomark's ring-and-node shape) and the solid center, more
     // presence than a single small glow, still just plain fill/stroke.
     var halo = ctx.createRadialGradient(core.x, core.y, 0, core.x, core.y, 70);
-    halo.addColorStop(0, 'rgba(23,86,131,0.16)');
-    halo.addColorStop(1, 'rgba(23,86,131,0)');
+    halo.addColorStop(0, 'rgba(242,181,68,0.16)');
+    halo.addColorStop(1, 'rgba(242,181,68,0)');
     ctx.fillStyle = halo;
     ctx.beginPath(); ctx.arc(core.x, core.y, 70, 0, Math.PI * 2); ctx.fill();
 
     var grad = ctx.createRadialGradient(core.x, core.y, 0, core.x, core.y, 24);
-    grad.addColorStop(0, 'rgba(23,86,131,0.75)');
-    grad.addColorStop(1, 'rgba(23,86,131,0)');
+    grad.addColorStop(0, 'rgba(242,181,68,0.75)');
+    grad.addColorStop(1, 'rgba(242,181,68,0)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(core.x, core.y, 24, 0, Math.PI * 2); ctx.fill();
 
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(23,86,131,0.4)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(242,181,68,0.4)'; ctx.lineWidth = 1;
     ctx.arc(core.x, core.y, 13, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.fillStyle = '#175683'; ctx.arc(core.x, core.y, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.fillStyle = '#F2B544'; ctx.arc(core.x, core.y, 4.5, 0, Math.PI * 2); ctx.fill();
 
     if (!animate) return;
     if (now - lastSpawn > 700) { spawnPacket(); lastSpawn = now; }
@@ -1158,7 +1192,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       pk.p += 0.025;
       var x = pk.from.x + (core.x - pk.from.x) * pk.p;
       var y = pk.from.y + (core.y - pk.from.y) * pk.p;
-      ctx.beginPath(); ctx.fillStyle = '#175683'; ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.fillStyle = '#F2B544'; ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
     });
   }
 
@@ -1180,49 +1214,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     if (document.visibilityState === 'visible') start(); else stop();
   });
   start();
-})();
-</script>
-<script>
-(function() {
-  // Live Execution Ledger — the unauthenticated /api/v1/public/execution-ledger
-  // endpoint already existed (built for exactly this), but nothing on the
-  // landing page ever actually called it. Polls every 30s and flashes each
-  // stat tile on change, so a visitor watching for a few seconds sees the
-  // numbers move on their own — the same "watch it happen, don't take our
-  // word for it" idea as the dashboard's live dedup test.
-  var cells = {
-    actions: document.querySelector('#ledger-stat-actions .n'),
-    dupes: document.querySelector('#ledger-stat-dupes .n'),
-    avg: document.querySelector('#ledger-stat-avg .n'),
-  };
-  if (!cells.actions) return;
-
-  var last = null;
-  function setStat(el, wrapEl, text) {
-    var changed = el.textContent !== text && el.textContent !== '—';
-    el.textContent = text;
-    if (changed) {
-      wrapEl.classList.remove('flash');
-      void wrapEl.offsetWidth; // restart the animation if it's already mid-flash
-      wrapEl.classList.add('flash');
-    }
-  }
-
-  async function refreshLedger() {
-    try {
-      var res = await fetch('/api/v1/public/execution-ledger');
-      if (!res.ok) return;
-      var data = await res.json();
-      setStat(cells.actions, document.getElementById('ledger-stat-actions'), Number(data.actions_verified || 0).toLocaleString());
-      setStat(cells.dupes, document.getElementById('ledger-stat-dupes'), Number(data.duplicates_caught || 0).toLocaleString());
-      setStat(cells.avg, document.getElementById('ledger-stat-avg'), data.avg_duration_ms == null ? '—' : Number(data.avg_duration_ms).toLocaleString());
-      last = data;
-    } catch (err) {
-      // Public marketing page — fail silently rather than show an error to a visitor.
-    }
-  }
-  refreshLedger();
-  setInterval(refreshLedger, 30000);
 })();
 </script>
 </body>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Postmortem: September 2026 outages | AgentRaaS</title>
+<meta name="description" content="What happened when AgentRaaS Cloud went down on 23 and 24 September 2026, why nobody noticed one of the outages for 15 hours, what we fixed and what is still open.">
+<meta property="og:title" content="Postmortem: September 2026 outages | AgentRaaS">
+<meta property="og:description" content="Three outages in two days: one bug found and fixed, two causes still unknown, and what changed.">
+<meta property="og:image" content="/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%3E%3Crect%20x=%270.75%27%20y=%270.75%27%20width=%2722.5%27%20height=%2722.5%27%20rx=%276%27%20fill=%27%2316191E%27%20stroke=%27%232E343C%27%20stroke-width=%271.5%27/%3E%3Ccircle%20cx=%278.6%27%20cy=%2712%27%20r=%275.1%27%20fill=%27none%27%20stroke=%27%23ECEFF3%27%20stroke-width=%271.9%27/%3E%3Ccircle%20cx=%2715.4%27%20cy=%2712%27%20r=%275.1%27%20fill=%27%23F2B544%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #08090B; --surface: #111418; --line: #22272E; --line-2: #2F353D;
+    --text: #ECEFF3; --muted: #9AA3AD; --faint: #6B737C;
+    --amber: #F2B544; --green: #4CC38A; --red: #F0645A; --blue: #7CB8E0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 17px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+  a { color: var(--amber); }
+  code { font-family: 'JetBrains Mono', monospace; font-size: 0.86em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+  header.nav { border-bottom: 1px solid var(--line); }
+  header.nav .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+  .brand .mark { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; background: linear-gradient(180deg, #1D2127, #121418); box-shadow: inset 0 0 0 1px #2E343C, inset 0 1px 0 rgba(255,255,255,0.06); }
+  .back { color: var(--muted); font-size: 14px; text-decoration: none; }
+  .back:hover { color: var(--text); }
+  article { max-width: 760px; margin: 0 auto; padding: 64px 24px 96px; }
+  .kicker { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--amber); margin-bottom: 14px; }
+  h1 { font-size: 44px; line-height: 1.08; letter-spacing: -0.035em; font-weight: 800; margin-bottom: 18px; }
+  .meta { color: var(--faint); font-size: 14px; margin-bottom: 40px; }
+  h2 { font-size: 24px; letter-spacing: -0.02em; margin: 48px 0 14px; }
+  p { margin-bottom: 16px; color: #D5DAE0; }
+  ul { margin: 0 0 16px 22px; color: #D5DAE0; }
+  li { margin-bottom: 8px; }
+  .summary { border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 8px; background: var(--surface); padding: 20px 22px; margin-bottom: 8px; }
+  .summary p:last-child { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 20px; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); font-weight: 600; }
+  td:first-child { font-family: 'JetBrains Mono', monospace; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
+  .status { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+  .done { background: #122219; color: var(--green); }
+  .open { background: #241E10; color: var(--amber); }
+  footer { border-top: 1px solid var(--line); color: var(--faint); font-size: 13px; }
+  footer .wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+  a:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+  @media (max-width: 640px) { h1 { font-size: 32px; } td:first-child { white-space: normal; } }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap">
+    <a href="/" class="brand"><span class="mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="12" r="5.6" fill="none" stroke="#ECEFF3" stroke-width="2"/><circle cx="15.5" cy="12" r="5.6" fill="#F2B544"/></svg></span>AgentRaaS</a>
+    <a href="/status" class="back">Status page &rarr;</a>
+  </div>
+</header>
+
+<article>
+  <div class="kicker">Postmortem</div>
+  <h1>Three outages in two days, and why we missed one for 15 hours</h1>
+  <div class="meta">23 to 24 September 2026 · Published 26 September 2026 · Times are IST (UTC+5:30)</div>
+
+  <div class="summary">
+    <p>AgentRaaS Cloud was unavailable three times on 23 and 24 September. The first outage had a real bug behind it, which we found and fixed. The cause of the other two is still unknown. The longest one lasted about 15 hours before anyone noticed, because nothing was watching. A product that sells reliability should not find out about its own downtime by accident, so this is the full account, including what is still open.</p>
+  </div>
+
+  <h2>What was affected</h2>
+  <p>The dashboard and the API (webhook, SDK-style REST and MCP routes) on AgentRaaS Cloud. Self-hosted installations were not affected: they don't depend on our servers at all, and license checks are offline.</p>
+  <p>AgentRaaS is designed to fail closed. During these windows, calls routed through AgentRaaS Cloud returned an error; none of them could run against Stripe, Twilio or any other service without deduplication. That is deliberate: silently routing around an outage would recreate the exact double-execution problem the product exists to prevent.</p>
+
+  <h2>Timeline</h2>
+  <table>
+    <tr><th>When</th><th>What happened</th></tr>
+    <tr><td>23 Sep</td><td>After a power cut, the production server came back, but the API container crashed on boot with <code>Temporary failure in name resolution</code> while connecting to the database: DNS wasn't ready yet, about 20 seconds after the network reported itself online. The container was configured not to restart automatically, so it stayed down. The public tunnel stayed up and returned a 502 error to every visitor until someone restarted the container by hand. This had happened three or four times before we traced it.</td></tr>
+    <tr><td>23 Sep</td><td>Fixed: the container now restarts on failure, so a slow network at boot costs seconds instead of an outage. Deployed and verified the same day.</td></tr>
+    <tr><td>23 Sep 23:40</td><td>The server booted. Its last log entry was at 00:02. There is no record of a shutdown.</td></tr>
+    <tr><td>24 Sep 14:54</td><td>The server booted again. It had been down for about 15 hours, overnight, and nobody noticed.</td></tr>
+    <tr><td>24 Sep 15:18</td><td>Services stopped in order, the way they do when a shutdown starts, but the shutdown never recorded as complete.</td></tr>
+    <tr><td>24 Sep 17:34</td><td>Back up after manual intervention, about 2 hours 16 minutes later. By this point the homepage was already being served from Cloudflare's edge and stayed up; everything else returned an error.</td></tr>
+  </table>
+
+  <h2>What went wrong</h2>
+  <ul>
+    <li><b>A restart policy chosen for the wrong reason.</b> Automatic restarts had been turned off to avoid an unrelated bug in how our container tooling orders dependent services. That trade-off was never revisited, so a transient DNS delay at boot became a full outage that needed a person to fix.</li>
+    <li><b>No external monitoring.</b> Nothing outside the server checks whether it is up. The 15-hour outage ran overnight with no alert. We found it afterwards, by reading the boot history.</li>
+    <li><b>The server didn't come back on its own.</b> It is set to power on when mains power returns, and that did not bring it back either time on 24 September. Whether these were power losses, a power button, or power management is still unknown.</li>
+    <li><b>One server, one point of failure.</b> The shared AgentRaaS Cloud environment runs on a single production server, so when it was down, the API was down. When a customer comes on, we move their workload to cloud infrastructure sized to their availability needs, and self-hosting removes the dependency on our servers entirely.</li>
+  </ul>
+
+  <h2>What we changed</h2>
+  <ul>
+    <li>The API container restarts automatically on failure (23 September).</li>
+    <li>The homepage is served from Cloudflare's edge instead of our server, so it stays up during an outage (24 September). On 26 September the rest of the public site followed: docs, guides and comparison pages.</li>
+  </ul>
+
+  <h2>What is still open</h2>
+  <table>
+    <tr><th>Item</th><th>Status</th></tr>
+    <tr><td>Root cause of the two 24 Sep outages</td><td><span class="status open">Open</span> The system logs from those boots haven't been reviewed yet.</td></tr>
+    <tr><td>External uptime alerting</td><td><span class="status open">Open</span> Not in place yet. Until it is, an outage like the 15-hour one could go unnoticed again.</td></tr>
+    <tr><td>Restart fix under a real power cut</td><td><span class="status open">Open</span> The configuration is verified; it hasn't been through a real outage since.</td></tr>
+    <tr><td>Infrastructure per customer</td><td><span class="status open">Planned</span> Each customer's workload runs on cloud infrastructure sized to their availability needs, set up when they come on.</td></tr>
+    <tr><td>Automatic restart on failure</td><td><span class="status done">Done</span></td></tr>
+    <tr><td>Public site served from the edge</td><td><span class="status done">Done</span></td></tr>
+  </table>
+  <p>We will update this page as the open items close. If you run agents through AgentRaaS Cloud and this matters to you, self-hosting removes the dependency on our servers entirely and is free on every tier. Questions: <a href="mailto:hello@agentraas.io">hello@agentraas.io</a>.</p>
+</article>
+
+<footer><div class="wrap">© 2026 AgentRaaS · <a href="/">Home</a> · <a href="/status">Status</a> · <a href="/docs">Docs</a></div></footer>
+</body>
+</html>
