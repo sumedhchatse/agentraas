@@ -1,0 +1,29 @@
+name: AgentRaaS chaos test
+description: Fail the build if your agent executes any API call twice when a response is lost.
+branding: { icon: zap, color: orange }
+inputs:
+  run:
+    description: Command that exercises your agent. It gets AGENTRAAS_CHAOS_URL to use as the API base URL.
+    required: true
+  upstream:
+    description: Real API base URL to forward to (use test-mode keys). Empty means a built-in mock.
+    default: ""
+  fault:
+    description: lost-response, error-after-commit or none
+    default: lost-response
+  version:
+    description: agentraas package version
+    default: ">=0.4.0"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: python -m pip install --quiet "agentraas${{ inputs.version }}"
+    - shell: bash
+      env:
+        CHAOS_RUN: ${{ inputs.run }}
+        CHAOS_UPSTREAM: ${{ inputs.upstream }}
+        CHAOS_FAULT: ${{ inputs.fault }}
+      run: |
+        if [ -n "$CHAOS_UPSTREAM" ]; then target=(--upstream "$CHAOS_UPSTREAM"); else target=(--mock); fi
+        agentraas-chaos "${target[@]}" --fault "$CHAOS_FAULT" -- bash -c "$CHAOS_RUN"
