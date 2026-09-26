@@ -3,20 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgentRaaS vs Temporal — Comparison</title>
-<meta name="description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
+<title>AgentRaaS vs Temporal | Comparison</title>
+<meta name="description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine, adoption model, idempotency, pricing, and when to actually pick each one.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="/vs-temporal">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="AgentRaaS">
-<meta property="og:title" content="AgentRaaS vs Temporal — Comparison">
-<meta property="og:description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
+<meta property="og:title" content="AgentRaaS vs Temporal | Comparison">
+<meta property="og:description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine, adoption model, idempotency, pricing, and when to actually pick each one.">
 <meta property="og:url" content="/vs-temporal">
 <meta property="og:image" content="/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="AgentRaaS vs Temporal — Comparison">
-<meta name="twitter:description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine — adoption model, idempotency, pricing, and when to actually pick each one.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%232B7FB8'/%3E%3Ccircle cx='8.5' cy='12' r='5.6' fill='none' stroke='%23FFFFFF' stroke-width='2.1'/%3E%3Ccircle cx='15.3' cy='12' r='5.6' fill='%23FFFFFF'/%3E%3C/svg%3E">
+<meta name="twitter:title" content="AgentRaaS vs Temporal | Comparison">
+<meta name="twitter:description" content="How AgentRaaS's drop-in agent reliability layer compares to Temporal's durable workflow engine, adoption model, idempotency, pricing, and when to actually pick each one.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%3E%3Crect%20x=%270.75%27%20y=%270.75%27%20width=%2722.5%27%20height=%2722.5%27%20rx=%276%27%20fill=%27%2316191E%27%20stroke=%27%232E343C%27%20stroke-width=%271.5%27/%3E%3Ccircle%20cx=%278.6%27%20cy=%2712%27%20r=%275.1%27%20fill=%27none%27%20stroke=%27%23ECEFF3%27%20stroke-width=%271.9%27/%3E%3Ccircle%20cx=%2715.4%27%20cy=%2712%27%20r=%275.1%27%20fill=%27%23F2B544%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -52,7 +52,7 @@
   header.nav .wrap { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand .mark {
-    width: 34px; height: 34px; border-radius: 10px; background: var(--signal);
+    width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(180deg, #1D2127, #121418); box-shadow: inset 0 0 0 1px #2E343C, inset 0 1px 0 rgba(255,255,255,0.06);
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .brand span.name { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 17px; line-height: 1.1; display: block; }
@@ -64,7 +64,7 @@
   .nav-github:hover { color: var(--text) !important; transform: scale(1.1); }
   nav.links a.nav-cta {
     background: var(--signal); color: var(--signal-deep); padding: 11px 22px;
-    border-radius: 999px; font-weight: 800; font-size: 14px;
+    border-radius: 6px; font-weight: 800; font-size: 14px;
   }
   .nav-cta:hover { filter: brightness(1.08); }
 
@@ -76,7 +76,7 @@
       radial-gradient(ellipse 900px 500px at 30% -10%, rgba(43,127,184,0.16), transparent 60%),
       radial-gradient(ellipse 700px 400px at 90% 20%, rgba(124,156,255,0.10), transparent 60%);
   }
-  /* Slow-drifting aurora blobs behind the hero copy — purely decorative,
+  /* Slow-drifting aurora blobs behind the hero copy, purely decorative,
      frozen (but still visible) under prefers-reduced-motion. */
   .hero::before, .hero::after {
     content: ''; position: absolute; z-index: 0; border-radius: 50%; filter: blur(90px); pointer-events: none;
@@ -88,7 +88,7 @@
   }
   .hero::after {
     width: 440px; height: 440px; bottom: -160px; right: 4%;
-    background: radial-gradient(circle, rgba(124,156,255,0.18), transparent 70%);
+    background: radial-gradient(circle, rgba(224,164,60,0.16), transparent 70%);
     animation: auroraB 24s ease-in-out infinite alternate;
   }
   @keyframes auroraA { from { transform: translate(0,0) scale(1); } to { transform: translate(70px, 50px) scale(1.15); } }
@@ -111,7 +111,7 @@
   .eyebrow-pill {
     display: inline-flex; align-items: center; gap: 8px; background: rgba(43,127,184,0.1);
     border: 1px solid rgba(43,127,184,0.35); color: var(--signal); font-size: 13px; font-weight: 700;
-    padding: 7px 16px; border-radius: 999px; margin-bottom: 28px;
+    padding: 7px 16px; border-radius: 6px; margin-bottom: 28px;
   }
   .eyebrow-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--signal); }
   .hero h1 {
@@ -128,7 +128,7 @@
   .hero p.sub { color: var(--muted); font-size: 19px; max-width: 580px; margin-bottom: 40px; line-height: 1.55; }
   .hero-ctas { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px; padding: 16px 30px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 8px; padding: 16px 30px; border-radius: 6px;
     font-weight: 800; font-size: 16px; font-family: 'Archivo', sans-serif;
     transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease;
   }
@@ -143,7 +143,7 @@
   .no-list { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
   .no-list span {
     display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted);
-    background: rgba(255,255,255,0.03); border: 1px solid var(--border-dark); padding: 7px 14px; border-radius: 999px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border-dark); padding: 7px 14px; border-radius: 6px;
   }
 
   /* Live panel, next to hero copy */
@@ -174,10 +174,10 @@
   .stack-badge {
     display: flex; align-items: center; gap: 8px; background: rgba(43,127,184,0.08);
     border: 1px solid rgba(43,127,184,0.25); color: var(--signal); padding: 9px 16px;
-    border-radius: 999px; font-size: 13.5px; font-weight: 700;
+    border-radius: 6px; font-size: 13.5px; font-weight: 700;
   }
   .tool-pill {
-    background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 999px;
+    background: var(--ink-2); border: 1px solid var(--border-dark); border-radius: 6px;
     padding: 10px 18px; font-size: 14px; font-weight: 700; color: var(--text);
     transition: transform 0.15s ease, border-color 0.15s ease;
   }
@@ -253,7 +253,7 @@
   .flow-step p { font-size: 14.5px; color: var(--text); }
   .flow-step p b { color: var(--signal); }
 
-  /* ─── Features (light panel — the contrast beat) ─── */
+  /* ─── Features (light panel, the contrast beat) ─── */
   section.features { background: var(--paper); color: var(--text-dark); padding: 100px 0; }
   section.features .eyebrow { color: #C2650A; }
   section.features h2 { font-size: 42px; color: var(--text-dark); margin-bottom: 14px; max-width: 700px; }
@@ -282,12 +282,12 @@
   section.services { background: var(--paper); color: var(--text-dark); padding: 0 0 110px; }
   .service-pills { display: flex; flex-wrap: wrap; gap: 10px; }
   .service-pill {
-    background: var(--paper-panel); border: 1px solid var(--border-light); border-radius: 999px;
+    background: var(--paper-panel); border: 1px solid var(--border-light); border-radius: 6px;
     padding: 10px 18px; font-size: 14px; font-weight: 700; color: var(--text-dark);
     transition: transform 0.15s ease, border-color 0.15s ease;
   }
   .service-pill.custom { background: var(--signal); color: var(--signal-deep); border-color: var(--signal); }
-  /* Auto-scrolling marquee — two identical tracks (see markup) so the loop
+  /* Auto-scrolling marquee, two identical tracks (see markup) so the loop
      is seamless: when track 1 has scrolled fully offscreen, track 2 is
      exactly where track 1 started. */
   .marquee {
@@ -353,7 +353,7 @@
   .footer-col a:hover { color: var(--signal); }
   .footer-bottom { color: #4A5264; font-size: 13px; padding-top: 26px; border-top: 1px solid var(--border-dark); }
 
-  /* Scroll-reveal — sections fade/lift into view as they're scrolled to.
+  /* Scroll-reveal, sections fade/lift into view as they're scrolled to.
      Entirely skipped for prefers-reduced-motion: elements just render at
      their natural opacity with no animation, rather than staying hidden. */
   @media (prefers-reduced-motion: no-preference) {
@@ -367,6 +367,13 @@
     nav.links { display: none; }
     section.problem h2, section.features h2, section.pricing h2 { font-size: 30px; }
   }
+
+  /* 2026-09-26: keep the motion and glow blobs, drop the shimmering
+     gradient headline text. */
+  .hero h1 .accent { background: none !important; -webkit-text-fill-color: currentColor !important; color: var(--signal); animation: none !important; }
+
+  /* Keyboard focus: visible on every interactive element, mouse clicks unaffected */
+  a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--signal, #2B7FB8); outline-offset: 3px; border-radius: 4px; }
 </style>
 <style>
   .vs-hero { padding: 160px 0 60px; }
@@ -398,8 +405,8 @@
     <div class="brand">
       <div class="mark">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-          <circle cx="8.5" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="2.2"/>
-          <circle cx="15.3" cy="12" r="6" fill="#FFFFFF"/>
+          <circle cx="8.5" cy="12" r="6" fill="none" stroke="#ECEFF3" stroke-width="2.2"/>
+          <circle cx="15.3" cy="12" r="6" fill="#F2B544"/>
         </svg>
       </div>
       <div>
@@ -426,7 +433,7 @@
   <div class="wrap">
     <div class="eyebrow-pill"><span class="dot"></span> AgentRaaS vs Temporal</div>
     <h1>Drop it in front of the agent you already built. Don't rewrite it.</h1>
-    <p class="sub">Temporal is a durable execution platform — genuinely powerful, and the right tool if you're building arbitrary-duration, stateful workflows from scratch. AgentRaaS is a narrower, different thing: a reliability layer that sits in front of an agent you've <em>already</em> built in n8n, Flowise, Langflow, or your own code, and stops it from double-charging, double-booking, or double-sending on retry — with no rewrite.</p>
+    <p class="sub">Temporal is a durable execution platform, genuinely powerful, and the right tool if you're building arbitrary-duration, stateful workflows from scratch. AgentRaaS is a narrower, different thing: a reliability layer that sits in front of an agent you've <em>already</em> built in n8n, Flowise, Langflow, or your own code, and stops it from double-charging, double-booking, or double-sending on retry, with no rewrite.</p>
     <div class="btn-row">
       <a href="/dashboard" class="btn primary">Get started free →</a>
       <a href="/#pricing" class="btn secondary">See pricing</a>
@@ -437,17 +444,17 @@
 <section class="vs-section">
   <div class="wrap">
     <h2>Where the two actually differ</h2>
-    <p class="lead">Not a head-to-head on features — these solve adjacent but distinct problems. This is where each one actually fits.</p>
+    <p class="lead">Not a head-to-head on features: these solve adjacent but distinct problems. This is where each one actually fits.</p>
     <div class="vs-table-wrap">
       <table class="vs-table">
         <thead><tr><th>Dimension</th><th>AgentRaaS</th><th>Temporal</th></tr></thead>
         <tbody>
           <tr><td class="dim">What it is</td><td>A dedup/circuit-breaker/audit proxy in front of individual tool calls</td><td>A general-purpose durable workflow engine</td></tr>
-          <tr><td class="dim">Adoption</td><td>Point your existing agent at a webhook, SDK, or MCP endpoint — no rewrite</td><td>Rewrite your logic as Temporal Workflows in their SDK (Go/Java/Python/TS)</td></tr>
-          <tr><td class="dim">Idempotency</td><td>Built in — SHA-256 payload hash or client idempotency key, automatic</td><td>You design it yourself, per activity</td></tr>
+          <tr><td class="dim">Adoption</td><td>Point your existing agent at a webhook, SDK, or MCP endpoint, no rewrite</td><td>Rewrite your logic as Temporal Workflows in their SDK (Go/Java/Python/TS)</td></tr>
+          <tr><td class="dim">Idempotency</td><td>Built in: SHA-256 payload hash or client idempotency key, automatic</td><td>You design it yourself, per activity</td></tr>
           <tr><td class="dim">Self-hosted cost</td><td>Free forever, unlimited, MIT/Apache-2.0 core</td><td>Free (OSS), but you run and operate the cluster yourself</td></tr>
           <tr><td class="dim">Cloud entry price</td><td>$49/month (Team)</td><td>Consumption-based (Actions), enterprise-weighted pricing tiers</td></tr>
-          <tr><td class="dim">Scope</td><td>Per-call reliability — dedup, circuit breaking, and budget/loop limits for a single tool/API call</td><td>Arbitrary-duration, stateful, multi-step workflow orchestration (hours to months)</td></tr>
+          <tr><td class="dim">Scope</td><td>Per-call reliability: dedup, circuit breaking, and budget/loop limits for a single tool/API call</td><td>Arbitrary-duration, stateful, multi-step workflow orchestration (hours to months)</td></tr>
         </tbody>
       </table>
     </div>
@@ -459,9 +466,9 @@
     <h2>When Temporal is genuinely the better choice</h2>
     <div class="vs-callout">
       <h3>You need real multi-day, stateful workflow orchestration</h3>
-      <p>A saga spanning days with human-approval waits, complex branching, and durable state across service restarts is exactly what Temporal is built for — and it's mature, widely deployed, and more powerful than AgentRaaS at that job by design. AgentRaaS doesn't try to be a workflow engine; it's a reliability layer for the individual calls a workflow makes, whether that workflow lives in Temporal, n8n, or your own code.</p>
+      <p>A saga spanning days with human-approval waits, complex branching, and durable state across service restarts is exactly what Temporal is built for, and it's mature, widely deployed, and more powerful than AgentRaaS at that job by design. AgentRaaS doesn't try to be a workflow engine; it's a reliability layer for the individual calls a workflow makes, whether that workflow lives in Temporal, n8n, or your own code.</p>
     </div>
-    <p class="vs-sources">Sources: <a href="https://temporal.io/product" target="_blank" rel="noopener">temporal.io/product</a>, <a href="https://www.zenml.io/blog/temporal-pricing" target="_blank" rel="noopener">Temporal Pricing Guide — ZenML</a></p>
+    <p class="vs-sources">Sources: <a href="https://temporal.io/product" target="_blank" rel="noopener">temporal.io/product</a>, <a href="https://www.zenml.io/blog/temporal-pricing" target="_blank" rel="noopener">Temporal Pricing Guide, ZenML</a></p>
   </div>
 </section>
 

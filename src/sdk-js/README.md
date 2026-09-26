@@ -19,6 +19,44 @@ runtime dependencies.
 npm install agentraas
 ```
 
+## Library mode: no server needed
+
+Wrap any function that has a side effect so retries and concurrent
+duplicates run it **exactly once**, with state in your own Redis.
+
+```ts
+import { exactlyOnce, RedisStore } from "agentraas";
+import { createClient } from "redis";
+
+const redis = await createClient().connect();
+const charge = exactlyOnce(
+  async (customer: string, amount: number) =>
+    (await stripe.charges.create({ customer, amount })).id,
+  { store: new RedisStore(redis), name: "charge", ttlSeconds: 86400 },
+);
+
+await charge("cus_1", 4200); // runs for real
+await charge("cus_1", 4200); // retry: cached id, no second charge
+```
+
+- Throwing releases the slot, so a retry runs the function again. That
+  includes the case where the provider did the work but the response was
+  lost, so pass `passKey: true` and send the key you receive to the
+  provider; it stays the same on every retry of the same call:
+
+  ```ts
+  const refund = exactlyOnce(
+    async (idempotencyKey: string, charge: string) =>
+      (await stripe.refunds.create({ charge }, { idempotencyKey })).id,
+    { store: new RedisStore(redis), name: "refund", passKey: true },
+  );
+  await refund("ch_1"); // callers never pass the key
+  ```
+- Pass `key: (...args) => string` to choose what counts as a duplicate.
+- `MemoryStore` works for tests and single-process scripts; for anything
+  else, use `RedisStore` (node-redis v4+) or implement `DedupStore`.
+- Results must be JSON-serializable.
+
 ## Quickstart
 
 1. Connect an agent from your AgentRaaS dashboard (**+ Connect Agent**) —
