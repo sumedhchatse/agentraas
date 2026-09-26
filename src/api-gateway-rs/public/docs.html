@@ -235,6 +235,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="group-label">Operating</div>
       <a href="#self-hosting">Self-hosting</a>
       <a href="#plans">Plans &amp; limits</a>
+      <a href="#troubleshooting">Troubleshooting</a>
       <a href="#support">Support</a>
     </div>
   </aside>
@@ -506,6 +507,91 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><td>SSO, white-label branding, client tenants, inbound webhooks</td><td>No</td><td>No</td><td>✓</td></tr>
       </table>
       <p>Team is self-serve at $49/month via <a href="/pricing">the pricing page</a>. Enterprise is sales-assisted: <a href="mailto:hello@agentraas.io">contact sales</a>.</p>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>Troubleshooting</h2>
+      <p>Ordered from quick checks to deeper digging: work down a list until the problem is gone. The free tools (library mode, MCP wrap, chaos tester) run entirely on your machine, so an AgentRaaS Cloud outage never affects them.</p>
+
+      <h3>Start here: 60-second checks</h3>
+      <ol>
+        <li>Is the server up? Cloud: <a href="/status">/status</a>, or <code>curl https://agentraas.io/health</code> should return <code>{"ok":true,"postgres":true,"redis":true}</code>. Self-hosted: <code>curl http://localhost:13001/health</code>.</li>
+        <li>Read the response body. Every error has a message and a <code>reqId</code>; the table below says what each status means.</li>
+        <li>Upgrade the package: <code>pip install -U agentraas</code>. Check what you have with <code>pip show agentraas</code>.</li>
+      </ol>
+
+      <h3>API responses (webhook, SDK-style REST, MCP)</h3>
+      <table>
+        <tr><th>Status</th><th>Meaning</th><th>What to do</th></tr>
+        <tr><td><code>400</code></td><td>Unknown <code>service.action</code>, missing fields, or no Custom Action with that name for this org</td><td>Check spelling against <a href="#services">Supported services</a>, or register it as a <a href="#custom-actions">Custom Action</a>.</td></tr>
+        <tr><td><code>401</code></td><td>API key missing, wrong, or revoked for this org and agent</td><td>Check the header and the org/agent IDs in the URL; connect a new agent if the key was lost.</td></tr>
+        <tr><td><code>402</code></td><td>Cloud free-tier monthly limit reached</td><td>Upgrade to Team, or self-host (no limit on any tier).</td></tr>
+        <tr><td><code>409</code></td><td>An identical request is still being processed</td><td>Working as intended: retry shortly and you get the first call's result.</td></tr>
+        <tr><td><code>422</code></td><td>The payload failed a validation rule</td><td>The message names the field; fix the payload or the org's rule.</td></tr>
+        <tr><td><code>429</code></td><td>This agent's per-minute rate limit</td><td>Back off and retry; raise the limit if the volume is legitimate.</td></tr>
+        <tr><td><code>502</code> / <code>503</code></td><td>The upstream API is failing, or its circuit breaker is open</td><td>Check the provider's status page. AgentRaaS fails closed on purpose; the breaker tries again by itself after 30 seconds.</td></tr>
+        <tr><td><code>500</code></td><td>AgentRaaS itself failed</td><td>Retry with backoff. If it keeps happening, contact us with the <code>reqId</code>.</td></tr>
+      </table>
+
+      <h3>Library mode (<code>@exactly_once</code>)</h3>
+      <p><b>Basic</b></p>
+      <ul>
+        <li><b>The function ran twice.</b> By default a call's key is all of its arguments, so a timestamp or random ID among them makes every call unique. Pass <code>key=</code> with what really identifies the action (an order ID).</li>
+        <li><b>It ran once per machine.</b> <code>SQLiteStore</code> is per machine. Use <code>RedisStore</code> when several machines run the same code.</li>
+        <li><b><code>TypeError</code> about JSON.</b> Results are stored as JSON: return ids and plain dicts, not SDK objects.</li>
+      </ul>
+      <p><b>Intermediate</b></p>
+      <ul>
+        <li><b>It ran again after the provider already did the work.</b> The response was lost, the function raised, and a raising call is never cached. Add an <code>idempotency_key</code> parameter and send it to the provider (see <a href="#library-mode">Library mode</a>).</li>
+        <li><b><code>InFlightError</code>.</b> A duplicate waited <code>wait</code> seconds for the first call to finish. If the first process was killed mid-call, its slot stays pending until <code>ttl</code> expires.</li>
+        <li><b>An old result keeps coming back.</b> It's inside the <code>ttl</code> window (default 24 hours). Lower <code>ttl</code>, or clear the state (below).</li>
+      </ul>
+      <p><b>Advanced</b></p>
+      <pre><code># see what's stored (SQLite)
+sqlite3 agentraas-dedup.db "SELECT key, substr(value,1,60), datetime(expires_at,'unixepoch') FROM dedup;"
+# clear everything: delete the file (SQLite), or in Redis:
+redis-cli --scan --pattern 'dedup:local:*' | xargs -r redis-cli del</code></pre>
+
+      <h3>MCP wrap</h3>
+      <p><b>Basic</b></p>
+      <ul>
+        <li><b>The server doesn't show up, or <code>uvx: command not found</code>.</b> Install <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener">uv</a>, or <code>pip install agentraas</code> and use <code>"command": "agentraas"</code> with <code>"args": ["wrap", "--", ...]</code>.</li>
+        <li><b>The server fails to start.</b> Run the server's own command alone in a terminal first. Then run <code>uvx agentraas wrap -- &lt;same command&gt;</code>: it should sit waiting for input, which is normal for a stdio MCP server.</li>
+      </ul>
+      <p><b>Intermediate</b></p>
+      <ul>
+        <li><b>A write tool isn't deduplicated.</b> Tools the server marks read-only, or named like <code>get_*</code>, <code>list_*</code>, <code>search_*</code>, always run. Force it with <code>--dedupe TOOL_NAME</code>.</li>
+        <li><b>A tool is deduplicated when repeats are intentional.</b> Use <code>--no-dedupe TOOL_NAME</code>, or shorten the window with <code>--ttl</code> (seconds, default 600).</li>
+        <li><b>See what happened.</b> Every tool call is logged: <code>tail ~/.agentraas/mcp-audit.jsonl</code>. The <code>outcome</code> is <code>executed</code>, <code>deduplicated</code>, <code>failed</code> or <code>passthrough</code>.</li>
+      </ul>
+      <p><b>Advanced</b></p>
+      <ul>
+        <li><b>Reset all dedup state:</b> delete <code>~/.agentraas/mcp-dedup.db</code>.</li>
+        <li><b>Wrapper and server errors</b> go to stderr, which your MCP client captures in its logs (Claude Desktop: Settings, Developer).</li>
+        <li><b>"Identical call still in flight"</b> means a duplicate arrived while a slow first call was running; it's refused rather than re-run. Raise <code>--wait</code> for tools that take longer than 30 seconds.</li>
+      </ul>
+
+      <h3>Chaos tester</h3>
+      <ul>
+        <li><b>Basic: "0 write requests".</b> Your code didn't use <code>AGENTRAAS_CHAOS_URL</code> as its API base URL. <b>"Address already in use":</b> pass <code>--port</code>.</li>
+        <li><b>Intermediate: a duplicate you think is fine.</b> The same method, path and body really executed twice. If the provider dedupes by key, send an <code>Idempotency-Key</code> header; retries that reuse it count as protected.</li>
+        <li><b>Intermediate: retries never flagged.</b> If each retry's body differs (a timestamp inside it), they aren't identical requests. That also defeats payload-based dedup, so use a stable key.</li>
+        <li><b>Advanced.</b> <code>--fault error-after-commit</code> for clients that retry on 5xx rather than dropped connections; <code>--fault none</code> just records. Against real APIs, use test-mode keys.</li>
+      </ul>
+
+      <h3>Self-hosted server</h3>
+      <ul>
+        <li><b>Basic.</b> <code>podman ps</code> (or <code>docker ps</code>): are the API, Postgres and Redis containers running? Then <code>curl localhost:13001/health</code>.</li>
+        <li><b>Intermediate: the API container exits at start.</b> Read its logs. A missing or empty <code>JWT_SECRET</code>, <code>DATABASE_URL</code>, <code>REDIS_URL</code> or <code>CREDENTIALS_ENCRYPTION_KEY</code> is the usual cause.</li>
+        <li><b>Intermediate: <code>relation "..." does not exist</code>.</b> A migration wasn't applied. Run every file in <code>infra/migrations/</code> in order; they're safe to re-run.</li>
+        <li><b>Intermediate: Team/Enterprise features missing.</b> Check <code>LICENSE_TOKEN</code> in <code>.env</code>. An invalid or expired token is logged and the server falls back to Community.</li>
+        <li><b>Intermediate: no verification email.</b> Without <code>SMTP_*</code> settings the link is written to the logs instead.</li>
+        <li><b>Advanced: rebuilt, but the old behavior remains.</b> Recreate the container (<code>up -d --force-recreate</code>) and check it runs the new image. If the build "succeeded" suspiciously fast, check disk space: a full disk can fail the compile while the wrapper still reports success.</li>
+        <li><b>Advanced: trace one request.</b> Grep the API logs for the <code>reqId</code> from the response.</li>
+      </ul>
+
+      <h3>Still stuck?</h3>
+      <p>Email <a href="mailto:hello@agentraas.io">hello@agentraas.io</a> or <a href="https://github.com/sumedhchatse/agentraas/issues" target="_blank" rel="noopener">open a GitHub issue</a> with: what you ran, the full response body including the <code>reqId</code>, your <code>agentraas</code> version or server commit, and whether it's Cloud or self-hosted. Never include API keys or credentials.</p>
     </section>
 
     <section id="support">
