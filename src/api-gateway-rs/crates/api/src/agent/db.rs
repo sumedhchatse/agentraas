@@ -624,7 +624,7 @@ pub async fn require_tier(state: &SharedState, org_id: &str, minimum: agentraas_
     if effective_tier(state, org_id).await < minimum {
         return Err(ApiError::new(
             StatusCode::FORBIDDEN,
-            format!("This feature requires the {minimum:?} plan or higher. Upgrade from the dashboard's Billing panel."),
+            format!("This feature requires the {minimum:?} plan or higher. Everything else is free on Community."),
         ));
     }
     Ok(())

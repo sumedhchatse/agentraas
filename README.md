@@ -305,13 +305,13 @@ roadmap, not fabricated.
 
 ## Pricing
 
-Open-core, three tiers. Community is self-hosted only, with a limited
-feature set — it's the free on-ramp. Team and Enterprise both run
-either cloud-hosted (on AgentRaaS Cloud) or self-hosted, and unlock
-everything above Community. The Enterprise module
-(`src/api-gateway-rs/crates/api/src/ee/` — SSO, RBAC, HMAC, DLP, HA, SIEM
-export) is source-available under a separate commercial license — see
-[LICENSE.md](./LICENSE.md).
+**You don't need to pay to use AgentRaaS.** Community is free and open
+source, with no action limit when you self-host it, and it's the version we
+recommend starting with. Team and Enterprise add approvals, seats, SSO and
+support for companies that need them, cloud-hosted or self-hosted. The
+Enterprise module (`src/api-gateway-rs/crates/api/src/ee/`: SSO, RBAC, HMAC,
+DLP, HA, SIEM export) is source-available under a separate commercial
+license, see [LICENSE.md](./LICENSE.md).
 
 | | Community | Team | Enterprise |
 |---|---|---|---|
