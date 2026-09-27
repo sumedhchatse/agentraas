@@ -40,7 +40,13 @@ pub fn router() -> Router<SharedState> {
 /// to whichever server is handling the request (each container has its own
 /// network namespace), so this route has to exist here too, byte-identical
 /// to Node's, not just in server.js.
-async fn internal_mockpay(Json(body): Json<Value>) -> Response {
+async fn internal_mockpay(headers: HeaderMap, Json(body): Json<Value>) -> Response {
+    // delay_ms (capped at 10s) lets a test push a forward past a short
+    // PROXY_TIMEOUT_SECONDS to exercise the outcome-unknown path.
+    if let Some(ms) = body.get("delay_ms").and_then(Value::as_u64) {
+        tokio::time::sleep(std::time::Duration::from_millis(ms.min(10_000))).await;
+    }
+    let idempotency_key = headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(str::to_string);
     let amount = body.get("amount").cloned();
     let fail = body.get("fail").and_then(Value::as_bool);
     // fail:true -> always fails. fail:false -> never fails (deterministic,
@@ -70,6 +76,7 @@ async fn internal_mockpay(Json(body): Json<Value>) -> Response {
             "status": "completed",
             "processor": "MockPay",
             "timestamp": crate::util::iso_now(),
+            "idempotency_key": idempotency_key,
         })),
     )
         .into()
@@ -563,6 +570,10 @@ async fn handle_request(
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
         };
+        if dedup::is_outcome_unknown(&existing) {
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("outcome_unknown"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            return err_response(StatusCode::CONFLICT, &req_id, OUTCOME_UNKNOWN_RETRY_MESSAGE);
+        }
         if is_pending {
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
@@ -737,7 +748,7 @@ async fn handle_request(
     }
 
     if resolved_route.streaming {
-        return match forward::forward_with_retry_streaming(state, &resolved_route, &service, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await {
+        return match forward::forward_with_retry_streaming(state, &resolved_route, &service, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref(), Some(&dedup::upstream_idempotency_key(&dedup_hash))).await {
             Ok(streaming) => {
                 if let Ok(mut c2) = state.redis_conn_result() {
                     if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
@@ -822,11 +833,11 @@ async fn handle_request(
                     Err(_) => err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred."),
                 }
             }
-            Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
+            Err(err) => forward_error_response(state, &mut conn, &claim.key, dedup_ttl_seconds, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
         };
     }
 
-    match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await {
+    match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref(), Some(&dedup::upstream_idempotency_key(&dedup_hash))).await {
         Ok(mut result) => {
             if let Ok(mut c2) = state.redis_conn_result() {
                 if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
@@ -867,9 +878,12 @@ async fn handle_request(
             }
             (StatusCode::OK, Json(result)).into()
         }
-        Err(err) => forward_error_response(state, &mut conn, &claim.key, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
+        Err(err) => forward_error_response(state, &mut conn, &claim.key, dedup_ttl_seconds, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
     }
 }
+
+pub(crate) const OUTCOME_UNKNOWN_MESSAGE: &str = "The upstream API did not respond, so this action may or may not have run. It was not retried. Check with the provider, or replay it from the dead-letter queue: the replay reuses the same Idempotency-Key, so a provider that supports it will not run it twice.";
+pub(crate) const OUTCOME_UNKNOWN_RETRY_MESSAGE: &str = "An identical request timed out earlier and its outcome is unknown, so it is not being run again. Replay it from the dead-letter queue, or send it with a new idempotency key if you are sure it did not run.";
 
 /// Shared by both the streaming and non-streaming success/failure arms of
 /// `handle_request` — a `ForwardError` is handled identically either way
@@ -880,6 +894,7 @@ async fn forward_error_response(
     state: &SharedState,
     conn: &mut redis::aio::MultiplexedConnection,
     claim_key: &str,
+    dedup_ttl_seconds: Option<i64>,
     circuit_key: &str,
     err: forward::ForwardError,
     req_id: &str,
@@ -894,7 +909,13 @@ async fn forward_error_response(
     step_id: Option<&str>,
     end_user_id: Option<&str>,
 ) -> Response {
-    let _ = dedup::release_dedup_slot(conn, claim_key).await;
+    // A definite failure frees the slot so the next attempt runs for real;
+    // one that may have run keeps it, so no retry can run it twice.
+    if err.outcome_unknown {
+        let _ = dedup::mark_dedup_slot_unknown(conn, claim_key, req_id, dedup_ttl_seconds).await;
+    } else {
+        let _ = dedup::release_dedup_slot(conn, claim_key).await;
+    }
     if !err.circuit_already_recorded {
         if let Ok(mut c2) = state.redis_conn_result() {
             if let Ok(Some(t)) = circuit_breaker::record_failure(&mut c2, circuit_key).await {
@@ -905,14 +926,22 @@ async fn forward_error_response(
     log_audit(&state.pg, req_id, api_key, org_id, agent_id, service, action, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id, step_id, end_user_id).await;
     tracing::error!(req_id, error = %err.message, "request failed");
 
+    let dedup_hash = claim_key.strip_prefix("dedup:");
+    if err.upstream_status.is_some() || err.outcome_unknown {
+        db::write_dead_letter_queue(state, req_id, org_id, agent_id, service, action, payload, &err.message, dedup_hash).await;
+    }
+    if err.outcome_unknown {
+        return (
+            StatusCode::GATEWAY_TIMEOUT,
+            Json(json!({ "error": OUTCOME_UNKNOWN_MESSAGE, "outcome": "unknown", "reqId": req_id, "agentraas_note": "Not retried, to avoid running it twice." })),
+        )
+            .into();
+    }
     let response_message = if err.upstream_status.is_some() {
         err.message.clone()
     } else {
         "An internal error occurred while processing this request.".to_string()
     };
-    if err.upstream_status.is_some() {
-        db::write_dead_letter_queue(state, req_id, org_id, agent_id, service, action, payload, &err.message).await;
-    }
     let status = err
         .upstream_status
         .and_then(|s| StatusCode::from_u16(s).ok())

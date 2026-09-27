@@ -242,7 +242,7 @@ async fn run_one_health_check(state: &SharedState, org_id: &str, service: &str, 
     let payload = if service == "mockpay" { json!({ "amount": 1, "fail": false }) } else { json!({}) };
     let req_id = format!("healthcheck_{}", hex::encode(rand::random::<[u8; 6]>()));
 
-    let (ok, error) = match forward_action(state, spec, service, "health_check", org_id, &payload, &req_id, None).await {
+    let (ok, error) = match forward_action(state, spec, service, "health_check", org_id, &payload, &req_id, None, None).await {
         Ok(_) => (true, None),
         Err(err) => {
             let msg = crate::agent::db::extract_upstream_error_message(&err.upstream_body.clone().unwrap_or(Value::Null))

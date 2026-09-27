@@ -888,11 +888,12 @@ pub async fn write_dead_letter_queue(
     action: &str,
     payload: &Value,
     error_message: &str,
+    dedup_hash: Option<&str>,
 ) {
     let encrypted_payload = state.cipher.encrypt(&payload.to_string());
     if let Err(err) = sqlx::query(
-        "INSERT INTO dead_letter_queue (req_id, org_id, agent_id, service, action, encrypted_payload, error_message)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO dead_letter_queue (req_id, org_id, agent_id, service, action, encrypted_payload, error_message, dedup_hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(req_id)
     .bind(org_id)
@@ -901,6 +902,7 @@ pub async fn write_dead_letter_queue(
     .bind(action)
     .bind(&encrypted_payload)
     .bind(error_message)
+    .bind(dedup_hash)
     .execute(&state.pg)
     .await
     {

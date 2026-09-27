@@ -532,6 +532,10 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request is already being processed. Retry shortly.", "reqId": req_id }), true);
         };
+        if dedup::is_outcome_unknown(&existing) {
+            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("outcome_unknown"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            return jsonrpc_result(id, json!({ "error": crate::agent::OUTCOME_UNKNOWN_RETRY_MESSAGE, "reqId": req_id }), true);
+        }
         if is_pending {
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request is already being processed. Retry shortly.", "reqId": req_id }), true);
@@ -616,7 +620,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         forward_mcp_with_retry(state, mcp_route, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await
     } else {
         let resolved_route = resolved_route.as_ref().expect("resolved_route or resolved_mcp_route is Some, checked above");
-        forward_with_retry(state, resolved_route, &resolved_service_name, &resolved_action_name, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await
+        forward_with_retry(state, resolved_route, &resolved_service_name, &resolved_action_name, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref(), Some(&dedup::upstream_idempotency_key(&dedup_hash))).await
     };
     match forward_result {
         Ok(mut result) => {
@@ -643,7 +647,11 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             jsonrpc_result(id, result, false)
         }
         Err(err) => {
-            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            if err.outcome_unknown {
+                let _ = dedup::mark_dedup_slot_unknown(&mut conn, &claim.key, &req_id, dedup_ttl_seconds).await;
+            } else {
+                let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            }
             if !err.circuit_already_recorded {
                 if let Ok(mut c2) = state.redis_conn_result() {
                     if let Ok(Some(t)) = circuit_breaker::record_failure(&mut c2, &circuit_key).await {
@@ -653,13 +661,15 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             }
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             tracing::error!(req_id, error = %err.message, "MCP request failed");
-            let response_message = if err.upstream_status.is_some() {
+            let response_message = if err.outcome_unknown {
+                crate::agent::OUTCOME_UNKNOWN_MESSAGE.to_string()
+            } else if err.upstream_status.is_some() {
                 err.message.clone()
             } else {
                 "An internal error occurred while processing this request.".to_string()
             };
-            if err.upstream_status.is_some() {
-                crate::agent::db::write_dead_letter_queue(state, &req_id, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, &payload, &err.message).await;
+            if err.upstream_status.is_some() || err.outcome_unknown {
+                crate::agent::db::write_dead_letter_queue(state, &req_id, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, &payload, &err.message, Some(&dedup_hash)).await;
             }
             jsonrpc_result(id, json!({ "error": response_message, "reqId": req_id }), true)
         }

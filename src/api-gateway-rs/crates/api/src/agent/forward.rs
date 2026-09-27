@@ -20,11 +20,30 @@ pub struct ForwardError {
     /// the caller's own catch block doesn't double-count it — mirrors
     /// `err.circuitAlreadyRecorded`.
     pub circuit_already_recorded: bool,
+    /// The request may have reached the upstream (a timeout, or a connection
+    /// that broke after sending) and no response came back, so whether the
+    /// action ran is unknown. Never retried automatically; the caller keeps
+    /// the dedup slot instead of releasing it (see `mark_dedup_slot_unknown`).
+    pub outcome_unknown: bool,
+}
+
+/// `send()` failed. A refused connection or DNS failure means nothing was
+/// sent: a plain failure, safe to retry. Anything else (a timeout, a reset
+/// mid-request) may have executed upstream.
+fn send_error(err: reqwest::Error) -> ForwardError {
+    ForwardError {
+        outcome_unknown: !(err.is_connect() || err.is_builder()),
+        message: err.to_string(),
+        upstream_status: None,
+        upstream_body: None,
+        circuit_already_recorded: false,
+    }
 }
 
 fn is_retryable(err: &ForwardError) -> bool {
     match err.upstream_status {
-        None => true, // network error, timeout, DNS failure
+        // nothing sent (refused, DNS): retry; possibly executed: never
+        None => !err.outcome_unknown,
         Some(status) => status == 429 || (500..=599).contains(&status),
     }
 }
@@ -43,6 +62,7 @@ async fn build_request(
     payload: &Value,
     req_id: &str,
     end_user_id: Option<&str>,
+    upstream_key: Option<&str>,
 ) -> Result<reqwest::RequestBuilder, ForwardError> {
     // Custom actions and inbound-webhook destinations are validated for
     // SSRF (`validate_target_url`) once, at registration time — a
@@ -59,6 +79,7 @@ async fn build_request(
                 upstream_status: None,
                 upstream_body: None,
                 circuit_already_recorded: false,
+                outcome_unknown: false,
             });
         }
     }
@@ -75,6 +96,7 @@ async fn build_request(
             upstream_status: None,
             upstream_body: None,
             circuit_already_recorded: false,
+            outcome_unknown: false,
         });
     }
 
@@ -91,7 +113,7 @@ async fn build_request(
         )
         .header("Content-Type", &route.content_type)
         .header("X-AgentRaaS-ReqId", req_id)
-        .timeout(Duration::from_secs(30));
+        .timeout(Duration::from_secs(state.proxy_timeout_seconds));
 
     if let Some(extra) = &route.extra_headers {
         if let Some(obj) = extra.as_object() {
@@ -100,6 +122,21 @@ async fn build_request(
                     builder = builder.header(k, s);
                 }
             }
+        }
+    }
+
+    // One stable key per logical action (derived from the dedup hash), so a
+    // provider that honors Idempotency-Key (Stripe and others) runs it once
+    // even when our retry, the agent's retry or a DLQ replay reaches it
+    // again. A Custom Action that sets its own Idempotency-Key keeps it.
+    if let Some(key) = upstream_key {
+        let overridden = route
+            .extra_headers
+            .as_ref()
+            .and_then(Value::as_object)
+            .is_some_and(|obj| obj.keys().any(|k| k.eq_ignore_ascii_case("idempotency-key")));
+        if !overridden {
+            builder = builder.header("Idempotency-Key", key);
         }
     }
 
@@ -161,6 +198,7 @@ pub async fn forward_action(
     payload: &Value,
     req_id: &str,
     end_user_id: Option<&str>,
+    upstream_key: Option<&str>,
 ) -> Result<Value, ForwardError> {
     // Chaos mode — checked before the real call, once per attempt (not
     // once per top-level request), so a fail_rate under 1.0 lets a retry
@@ -173,18 +211,14 @@ pub async fn forward_action(
                 upstream_status: Some(503),
                 upstream_body: None,
                 circuit_already_recorded: false,
+                outcome_unknown: false,
             });
         }
     }
 
-    let builder = build_request(state, route, service_name, org_id, payload, req_id, end_user_id).await?;
+    let builder = build_request(state, route, service_name, org_id, payload, req_id, end_user_id, upstream_key).await?;
 
-    let response = builder.send().await.map_err(|err| ForwardError {
-        message: err.to_string(),
-        upstream_status: None,
-        upstream_body: None,
-        circuit_already_recorded: false,
-    })?;
+    let response = builder.send().await.map_err(send_error)?;
 
     let status = response.status();
     let body: Value = response.json().await.unwrap_or(Value::Null);
@@ -197,6 +231,7 @@ pub async fn forward_action(
             upstream_status: Some(status.as_u16()),
             upstream_body: Some(body),
             circuit_already_recorded: false,
+            outcome_unknown: false,
         });
     }
 
@@ -212,6 +247,7 @@ pub async fn forward_action(
             upstream_status: Some(status.as_u16()),
             upstream_body: Some(body),
             circuit_already_recorded: false,
+            outcome_unknown: false,
         });
     }
 
@@ -283,6 +319,7 @@ pub async fn forward_mcp_tool_call(
             upstream_status: None,
             upstream_body: None,
             circuit_already_recorded: false,
+            outcome_unknown: false,
         });
     }
 
@@ -297,6 +334,7 @@ pub async fn forward_mcp_tool_call(
             upstream_status: None,
             upstream_body: None,
             circuit_already_recorded: false,
+            outcome_unknown: false,
         });
     }
 
@@ -305,7 +343,7 @@ pub async fn forward_mcp_tool_call(
         .post(&route.target_url)
         .header("Content-Type", "application/json")
         .header("X-AgentRaaS-ReqId", req_id)
-        .timeout(Duration::from_secs(30));
+        .timeout(Duration::from_secs(state.proxy_timeout_seconds));
 
     if let Some(cred) = &credential {
         match route.auth_type.as_str() {
@@ -337,25 +375,20 @@ pub async fn forward_mcp_tool_call(
         "params": { "name": route.remote_tool_name, "arguments": payload },
     });
 
-    let response = builder.json(&rpc_request).send().await.map_err(|err| ForwardError {
-        message: err.to_string(),
-        upstream_status: None,
-        upstream_body: None,
-        circuit_already_recorded: false,
-    })?;
+    let response = builder.json(&rpc_request).send().await.map_err(send_error)?;
 
     let status = response.status();
     let body: Value = response.json().await.unwrap_or(Value::Null);
 
     if status.as_u16() >= 400 {
         let message = extract_upstream_error_message(&body).unwrap_or_else(|| format!("HTTP {}", status.as_u16()));
-        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false });
+        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false, outcome_unknown: false });
     }
     // JSON-RPC-level error — a 200 with an "error" field, distinct from a
     // transport-level 4xx/5xx above.
     if body.get("error").is_some() {
         let message = extract_upstream_error_message(&body).unwrap_or_else(|| "MCP server returned a JSON-RPC error".to_string());
-        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false });
+        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false, outcome_unknown: false });
     }
     let result = body.get("result").cloned().unwrap_or(Value::Null);
     // MCP's own convention: a successful JSON-RPC envelope whose result
@@ -371,7 +404,7 @@ pub async fn forward_mcp_tool_call(
             .and_then(Value::as_str)
             .unwrap_or("MCP tool call failed")
             .to_string();
-        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false });
+        return Err(ForwardError { message, upstream_status: Some(status.as_u16()), upstream_body: Some(body), circuit_already_recorded: false, outcome_unknown: false });
     }
 
     Ok(json!({
@@ -414,15 +447,11 @@ pub async fn forward_action_streaming(
     payload: &Value,
     req_id: &str,
     end_user_id: Option<&str>,
+    upstream_key: Option<&str>,
 ) -> Result<StreamingForward, ForwardError> {
-    let builder = build_request(state, route, service_name, org_id, payload, req_id, end_user_id).await?;
+    let builder = build_request(state, route, service_name, org_id, payload, req_id, end_user_id, upstream_key).await?;
 
-    let response = builder.send().await.map_err(|err| ForwardError {
-        message: err.to_string(),
-        upstream_status: None,
-        upstream_body: None,
-        circuit_already_recorded: false,
-    })?;
+    let response = builder.send().await.map_err(send_error)?;
 
     let status = response.status();
 
@@ -435,6 +464,7 @@ pub async fn forward_action_streaming(
             upstream_status: Some(status.as_u16()),
             upstream_body: Some(body),
             circuit_already_recorded: false,
+            outcome_unknown: false,
         });
     }
 
@@ -463,11 +493,12 @@ pub async fn forward_with_retry_streaming(
     req_id: &str,
     circuit_key: &str,
     end_user_id: Option<&str>,
+    upstream_key: Option<&str>,
 ) -> Result<StreamingForward, ForwardError> {
     let mut last_error = None;
 
     for attempt in 1..=state.proxy_retry_max_attempts {
-        match forward_action_streaming(state, route, service_name, org_id, payload, req_id, end_user_id).await {
+        match forward_action_streaming(state, route, service_name, org_id, payload, req_id, end_user_id, upstream_key).await {
             Ok(result) => return Ok(result),
             Err(mut err) => {
                 err.circuit_already_recorded = true;
@@ -571,11 +602,12 @@ pub async fn forward_with_retry(
     req_id: &str,
     circuit_key: &str,
     end_user_id: Option<&str>,
+    upstream_key: Option<&str>,
 ) -> Result<Value, ForwardError> {
     let mut last_error = None;
 
     for attempt in 1..=state.proxy_retry_max_attempts {
-        match forward_action(state, route, service_name, action_name, org_id, payload, req_id, end_user_id).await {
+        match forward_action(state, route, service_name, action_name, org_id, payload, req_id, end_user_id, upstream_key).await {
             Ok(mut result) => {
                 if attempt > 1 {
                     result["retried"] = json!(attempt - 1);
@@ -743,5 +775,23 @@ pub async fn log_circuit_transition(state: &SharedState, transition: circuit_bre
     .await
     {
         tracing::warn!(?err, service = %transition.service, "circuit transition log failed");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn err(upstream_status: Option<u16>, outcome_unknown: bool) -> ForwardError {
+        ForwardError { message: String::new(), upstream_status, upstream_body: None, circuit_already_recorded: false, outcome_unknown }
+    }
+
+    #[test]
+    fn a_call_that_may_have_run_is_never_retried() {
+        assert!(!is_retryable(&err(None, true)), "timeout after sending");
+        assert!(is_retryable(&err(None, false)), "refused / DNS: nothing sent");
+        assert!(is_retryable(&err(Some(503), false)));
+        assert!(is_retryable(&err(Some(429), false)));
+        assert!(!is_retryable(&err(Some(402), false)), "card declined");
     }
 }

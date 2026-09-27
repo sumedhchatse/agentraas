@@ -162,6 +162,11 @@ async fn main() -> anyhow::Result<()> {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(300),
+        proxy_timeout_seconds: std::env::var("PROXY_TIMEOUT_SECONDS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .filter(|&s: &u64| s > 0)
+            .unwrap_or(30),
         agent_loop_max_repeats: std::env::var("AGENT_LOOP_MAX_REPEATS")
             .ok()
             .and_then(|v| v.parse().ok())

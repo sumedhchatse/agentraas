@@ -434,6 +434,10 @@ POST /webhooks/stripe -> 200 (4ms)</code></pre>
         <tr><td><code>x-agentraas-end-user</code></td><td>SDK-style equivalent of the webhook body's <code>end_user_id</code>.</td></tr>
         <tr><td><code>x-agentraas-resource-id</code></td><td>SDK-style equivalent of the webhook body's <code>resource_id</code>.</td></tr>
       </table>
+      <h3>What reaches the provider</h3>
+      <p>Every forwarded call carries <code>Idempotency-Key: agentraas-&lt;hash&gt;</code>, one stable value per logical action. It stays the same when AgentRaaS retries, when your agent retries, and when you replay the call from the dead-letter queue, so a provider that honors the header (Stripe and others) runs the action once even if a copy reaches it twice. A Custom Action that sets its own <code>Idempotency-Key</code> header keeps it.</p>
+      <h3>When the provider doesn't answer</h3>
+      <p>If a call times out, or the connection drops after the request was sent, nobody can tell whether it ran. AgentRaaS does not retry it and does not free its dedup slot. You get a <code>504</code> with <code>"outcome": "unknown"</code>, the call goes to the dead-letter queue, and identical calls get a <code>409</code> instead of running again. Replay it from the dead-letter queue to resolve it: the replay reuses the same Idempotency-Key, and once it succeeds, identical calls get its result. A refused connection or DNS failure means nothing was sent, so those are still retried as normal.</p>
     </section>
 
     <section id="errors">
@@ -448,7 +452,9 @@ POST /webhooks/stripe -> 200 (4ms)</code></pre>
         <tr><td><code>403</code></td><td>Authenticated, but not permitted for this org/action.</td></tr>
         <tr><td><code>422</code></td><td>Request validation failed. Check the message for which field.</td></tr>
         <tr><td><code>429</code></td><td>Rate limit exceeded. See <a href="#plans">Plans &amp; limits</a>.</td></tr>
+        <tr><td><code>409</code></td><td>An identical call is still in flight, or an earlier identical call has an unknown outcome (see <a href="#optional-headers">Idempotency &amp; tracing</a>).</td></tr>
         <tr><td><code>502</code>/<code>503</code></td><td>The upstream service (Stripe, Twilio, etc.) was unreachable or errored; AgentRaaS fails closed rather than silently succeeding un-deduplicated.</td></tr>
+        <tr><td><code>504</code></td><td>The upstream didn't respond, so the action may or may not have run. Not retried; <code>"outcome": "unknown"</code> in the body.</td></tr>
       </table>
     </section>
 

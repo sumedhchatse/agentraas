@@ -49,6 +49,9 @@ pub struct AppState {
     pub enterprise_max_client_tenants: i64,
     pub proxy_retry_max_attempts: u32,
     pub proxy_retry_base_delay_ms: u64,
+    /// Per-attempt timeout for an outbound forward. A call that hits it has
+    /// an unknown outcome (see `ForwardError::outcome_unknown`).
+    pub proxy_timeout_seconds: u64,
 
     /// Agent Run Budgeting & Loop Detection — see `crate::agent::mod`'s use
     /// of `agentraas_core::agent_run`. Only takes effect for a request that

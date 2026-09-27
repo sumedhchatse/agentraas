@@ -262,6 +262,20 @@ mod tests {
         let other_normalized = hash_field_values("k", "svc", "act", &other_payload, &["email".to_string()], true, None);
         assert_eq!(normalized, other_normalized);
     }
+
+    #[test]
+    fn upstream_key_is_stable_and_bounded() {
+        assert_eq!(upstream_idempotency_key("abc"), "agentraas-abc");
+        assert_eq!(upstream_idempotency_key("abc"), upstream_idempotency_key("abc"));
+        assert_eq!(upstream_idempotency_key(&"f".repeat(400)).len(), 255);
+    }
+
+    #[test]
+    fn only_an_unknown_slot_reads_as_unknown() {
+        assert!(is_outcome_unknown(&serde_json::json!({"pending": false, "outcome_unknown": true})));
+        assert!(!is_outcome_unknown(&serde_json::json!({"pending": true})));
+        assert!(!is_outcome_unknown(&serde_json::json!({"id": "ch_1"})));
+    }
 }
 
 const DEDUP_TTL_SECONDS: i64 = 86400;
@@ -339,6 +353,40 @@ pub async fn complete_dedup_slot_with_ttl(
         .query_async(conn)
         .await?;
     Ok(())
+}
+
+/// The `Idempotency-Key` sent to the upstream for this action: the same for
+/// every retry and replay of it, so a provider that honors the header runs it
+/// once. Stripe caps keys at 255 characters.
+pub fn upstream_idempotency_key(dedup_hash: &str) -> String {
+    let mut key = format!("agentraas-{dedup_hash}");
+    key.truncate(255);
+    key
+}
+
+/// The forward timed out (or broke after sending), so the action may or may
+/// not have run. Keep the slot instead of releasing it, so a retry can't run
+/// it a second time; `XX` so a slot that already expired isn't recreated.
+pub async fn mark_dedup_slot_unknown(
+    conn: &mut redis::aio::MultiplexedConnection,
+    key: &str,
+    req_id: &str,
+    ttl_seconds: Option<i64>,
+) -> redis::RedisResult<()> {
+    let value = serde_json::json!({ "pending": false, "outcome_unknown": true, "reqId": req_id }).to_string();
+    let _: Option<String> = redis::cmd("SET")
+        .arg(key)
+        .arg(value)
+        .arg("EX")
+        .arg(ttl_seconds.unwrap_or(DEDUP_TTL_SECONDS))
+        .arg("XX")
+        .query_async(conn)
+        .await?;
+    Ok(())
+}
+
+pub fn is_outcome_unknown(slot: &Value) -> bool {
+    slot.get("outcome_unknown").and_then(Value::as_bool).unwrap_or(false)
 }
 
 pub async fn release_dedup_slot(
