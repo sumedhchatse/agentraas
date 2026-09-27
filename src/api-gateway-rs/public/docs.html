@@ -215,6 +215,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <a href="#library-mode">Library mode</a>
       <a href="#mcp-wrap">MCP wrap</a>
       <a href="#chaos-tester">Chaos tester</a>
+      <a href="#tunnel">Local tunnel</a>
     </div>
     <div class="group">
       <div class="group-label">API</div>
@@ -234,6 +235,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="group">
       <div class="group-label">Operating</div>
       <a href="#self-hosting">Self-hosting</a>
+      <a href="#latency">Latency</a>
       <a href="#plans">Plans &amp; limits</a>
       <a href="#troubleshooting">Troubleshooting</a>
       <a href="#support">Support</a>
@@ -330,6 +332,26 @@ agentraas-chaos --upstream https://api.stripe.com -- pytest</code></pre>
 - uses: sumedhchatse/agentraas/src/chaos-action@main
   with:
     run: python my_agent.py      # optional: upstream, fault</code></pre>
+    </section>
+
+    <section id="tunnel">
+      <h2>Local tunnel</h2>
+      <p>Test webhooks against code running on your laptop without deploying it or configuring a public URL. <code>agentraas tunnel</code> opens a connection to AgentRaaS, prints a public URL, and replays every request sent to that URL against a local port. Available on every plan, including Community.</p>
+      <pre><code>pip install "agentraas[tunnel]"
+agentraas tunnel --port 3000 --org org_acme --agent agent_1 --key ar_live_...
+
+  Tunnel is live: https://agentraas.io/t/tn_3f9c2a71d04b8e65
+  Forwarding to:  http://localhost:3000
+
+POST /webhooks/stripe -> 200 (4ms)</code></pre>
+      <p>Paste the public URL (plus any path, for example <code>/webhooks/stripe</code>) into the provider's webhook settings. The key is the agent API key from the dashboard.</p>
+      <table>
+        <tr><th>Limit</th><th>Value</th></tr>
+        <tr><td>Tunnels per org</td><td>1 (opening a second closes the first)</td></tr>
+        <tr><td>Session length</td><td>2 hours, then re-run the command</td></tr>
+        <tr><td>Local response timeout</td><td>30 seconds</td></tr>
+        <tr><td>Requests through the public URL</td><td>120/min</td></tr>
+      </table>
     </section>
 
     <section id="authentication">
@@ -493,6 +515,17 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><td><code>SMTP_*</code></td><td>Optional. Without it, password-reset links are logged server-side instead of emailed.</td></tr>
       </table>
       <div class="callout"><p>Billing always happens on AgentRaaS Cloud, even for a self-hosted instance: Paddle checkout and your subscription live there. Self-hosting doesn't need its own Paddle account; you just paste the license token it issues you into <code>LICENSE_TOKEN</code>.</p></div>
+    </section>
+
+    <section id="latency">
+      <h2>Latency</h2>
+      <p>Every call passes through auth, the dedup claim, spend caps and the audit write before it is forwarded. Measured on one machine (Intel Core i3-12100, 8 GB RAM, local stack, 500 sequential calls per row, three runs):</p>
+      <table>
+        <tr><th></th><th>p50</th><th>p95</th></tr>
+        <tr><td>Added by AgentRaaS to a forwarded call</td><td>2.1 to 2.4 ms</td><td>2.9 to 3.7 ms</td></tr>
+        <tr><td>Retried duplicate (answered from cache, upstream never called)</td><td>2.1 to 2.3 ms total</td><td>3.0 to 3.5 ms total</td></tr>
+      </table>
+      <p>Network distance between your agent and AgentRaaS comes on top of this. Self-hosting next to your agent keeps that near zero. Reproduce it with <code>python3 infra/scripts/bench-overhead.py</code> against your own instance.</p>
     </section>
 
     <section id="plans">

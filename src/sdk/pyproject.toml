@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentraas"
-version = "0.5.0"
+version = "0.6.0"
 description = "Exactly-once execution for AI agents: an @exactly_once decorator, an MCP server wrapper, a chaos tester that finds duplicate API calls, and the AgentRaaS client"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -28,6 +28,7 @@ keywords = ["mcp-server", "model-context-protocol", "chaos-testing", "exactly-on
 
 [project.optional-dependencies]
 redis = ["redis>=4.0"]
+tunnel = ["websocket-client>=1.0"]
 
 [project.scripts]
 agentraas = "agentraas.cli:main"

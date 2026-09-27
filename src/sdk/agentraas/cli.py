@@ -8,6 +8,8 @@ commands:
          agentraas wrap -- npx -y @modelcontextprotocol/server-github
   chaos  find API calls your agent would execute twice
          agentraas chaos --mock -- python my_agent.py
+  tunnel forward webhooks from a public URL to a local port
+         agentraas tunnel --port 3000 --org org_acme --agent agent_1 --key ar_live_...
 """
 
 
@@ -21,6 +23,8 @@ def main(argv=None):
         from .mcp_wrap import main as run
     elif cmd == "chaos":
         from .chaos import main as run
+    elif cmd == "tunnel":
+        from .tunnel import main as run
     else:
         print(USAGE, file=sys.stderr)
         return 2
