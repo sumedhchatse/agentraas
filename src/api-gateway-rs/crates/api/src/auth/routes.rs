@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use axum::extract::{ConnectInfo, Query, State};
+use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -47,10 +48,6 @@ fn sha256_hex(input: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-fn client_ip(addr: &SocketAddr) -> String {
-    addr.ip().to_string()
-}
-
 // ─── POST /api/v1/auth/register ───
 
 #[derive(Deserialize)]
@@ -63,9 +60,10 @@ struct RegisterBody {
 async fn register(
     State(state): State<SharedState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<RegisterBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = client_ip(&addr);
+    let ip = crate::util::real_client_ip(&headers, &addr);
     if !check_register_rate_limit(&state.redis_conn, &ip).await? {
         return Err(ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
@@ -187,6 +185,7 @@ struct LoginUserRow {
 async fn login(
     State(state): State<SharedState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     jar: CookieJar,
     Json(body): Json<LoginBody>,
 ) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
@@ -199,7 +198,7 @@ async fn login(
         ));
     }
 
-    let ip = client_ip(&addr);
+    let ip = crate::util::real_client_ip(&headers, &addr);
     if !check_login_rate_limit(&state.redis_conn, &ip, &email).await? {
         return Err(ApiError::new(
             StatusCode::TOO_MANY_REQUESTS,
@@ -373,13 +372,14 @@ fn generic_resend_response() -> serde_json::Value {
 async fn resend_verification(
     State(state): State<SharedState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<EmailOnlyBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let Some(email) = body.email.filter(|e| is_valid_email(e)) else {
         return Ok(Json(generic_resend_response()));
     };
 
-    let ip = client_ip(&addr);
+    let ip = crate::util::real_client_ip(&headers, &addr);
     let key = format!("resend-verify:{email}");
     if !check_login_rate_limit(&state.redis_conn, &ip, &key).await? {
         return Ok(Json(generic_resend_response()));
@@ -434,13 +434,14 @@ fn generic_forgot_password_response() -> serde_json::Value {
 async fn forgot_password(
     State(state): State<SharedState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<EmailOnlyBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let Some(email) = body.email.filter(|e| is_valid_email(e)) else {
         return Ok(Json(generic_forgot_password_response()));
     };
 
-    let ip = client_ip(&addr);
+    let ip = crate::util::real_client_ip(&headers, &addr);
     let key = format!("reset:{email}");
     if !check_login_rate_limit(&state.redis_conn, &ip, &key).await? {
         return Ok(Json(generic_forgot_password_response()));

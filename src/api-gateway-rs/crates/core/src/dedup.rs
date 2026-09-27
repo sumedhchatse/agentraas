@@ -271,6 +271,16 @@ mod tests {
     }
 
     #[test]
+    fn only_a_pending_slot_past_its_lease_is_stale() {
+        let leased = serde_json::json!({"pending": true, "reqId": "r1", "leaseUntil": 1_000});
+        assert!(is_stale_pending(&leased, 1_001));
+        assert!(!is_stale_pending(&leased, 999), "still inside the lease");
+        assert!(!is_stale_pending(&serde_json::json!({"pending": true}), i64::MAX), "no lease: streaming or legacy");
+        assert!(!is_stale_pending(&serde_json::json!({"pending": true, "awaiting_approval": true}), i64::MAX));
+        assert!(!is_stale_pending(&serde_json::json!({"id": "ch_1", "leaseUntil": 1}), i64::MAX), "completed");
+    }
+
+    #[test]
     fn only_an_unknown_slot_reads_as_unknown() {
         assert!(is_outcome_unknown(&serde_json::json!({"pending": false, "outcome_unknown": true})));
         assert!(!is_outcome_unknown(&serde_json::json!({"pending": true})));
@@ -303,10 +313,31 @@ pub async fn claim_dedup_slot_with_ttl(
     dedup_hash: &str,
     ttl_seconds: Option<i64>,
 ) -> redis::RedisResult<ClaimResult> {
+    claim_dedup_slot_leased(conn, dedup_hash, ttl_seconds, None, None).await
+}
+
+/// Same claim, recording who holds it and until when they should be done
+/// (`lease_until_ms`, epoch ms). A copy that finds the slot still pending
+/// after that knows the claimer died mid-call (`is_stale_pending`). No lease
+/// for work that can legitimately run long (streaming, HITL approval).
+pub async fn claim_dedup_slot_leased(
+    conn: &mut redis::aio::MultiplexedConnection,
+    dedup_hash: &str,
+    ttl_seconds: Option<i64>,
+    req_id: Option<&str>,
+    lease_until_ms: Option<i64>,
+) -> redis::RedisResult<ClaimResult> {
     let key = format!("dedup:{dedup_hash}");
+    let mut value = serde_json::json!({ "pending": true });
+    if let Some(r) = req_id {
+        value["reqId"] = Value::String(r.to_string());
+    }
+    if let Some(ms) = lease_until_ms {
+        value["leaseUntil"] = Value::from(ms);
+    }
     let claimed: Option<String> = redis::cmd("SET")
         .arg(&key)
-        .arg(r#"{"pending":true}"#)
+        .arg(value.to_string())
         .arg("EX")
         .arg(ttl_seconds.unwrap_or(DEDUP_TTL_SECONDS))
         .arg("NX")
@@ -380,6 +411,49 @@ pub async fn mark_dedup_slot_unknown(
         .arg("EX")
         .arg(ttl_seconds.unwrap_or(DEDUP_TTL_SECONDS))
         .arg("XX")
+        .query_async(conn)
+        .await?;
+    Ok(())
+}
+
+/// Pending past its lease: whoever claimed it stopped mid-call.
+pub fn is_stale_pending(slot: &Value, now_ms: i64) -> bool {
+    slot.get("pending").and_then(Value::as_bool) == Some(true)
+        && slot.get("leaseUntil").and_then(Value::as_i64).is_some_and(|until| now_ms > until)
+}
+
+/// Atomically turns the exact stale slot `seen` into outcome-unknown (keeping
+/// its TTL). Returns true for the one caller that made the change, so two
+/// copies racing on the same stale slot record it once.
+pub async fn take_over_stale_slot(
+    conn: &mut redis::aio::MultiplexedConnection,
+    key: &str,
+    seen: &Value,
+) -> redis::RedisResult<bool> {
+    let req_id = seen.get("reqId").and_then(Value::as_str).unwrap_or("");
+    let unknown = serde_json::json!({ "pending": false, "outcome_unknown": true, "reqId": req_id }).to_string();
+    let changed: i64 = redis::Script::new(
+        "if redis.call('GET', KEYS[1]) == ARGV[1] then redis.call('SET', KEYS[1], ARGV[2], 'KEEPTTL') return 1 end return 0",
+    )
+    .key(key)
+    .arg(seen.to_string())
+    .arg(unknown)
+    .invoke_async(conn)
+    .await?;
+    Ok(changed == 1)
+}
+
+/// A frozen HITL call waits for a human, possibly for hours: drop the lease
+/// so it is never mistaken for a dead claimer.
+pub async fn hold_for_approval(
+    conn: &mut redis::aio::MultiplexedConnection,
+    key: &str,
+) -> redis::RedisResult<()> {
+    let _: Option<String> = redis::cmd("SET")
+        .arg(key)
+        .arg(r#"{"pending":true,"awaiting_approval":true}"#)
+        .arg("XX")
+        .arg("KEEPTTL")
         .query_async(conn)
         .await?;
     Ok(())

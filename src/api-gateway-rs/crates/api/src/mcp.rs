@@ -515,7 +515,8 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         }
     }
 
-    let Ok(claim) = dedup::claim_dedup_slot_with_ttl(&mut conn, &dedup_hash, dedup_ttl_seconds).await else {
+    let lease = Some(crate::agent::forward::forward_lease_until_ms(state));
+    let Ok(claim) = dedup::claim_dedup_slot_leased(&mut conn, &dedup_hash, dedup_ttl_seconds, Some(&req_id), lease).await else {
         return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
     };
 
@@ -532,7 +533,10 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request is already being processed. Retry shortly.", "reqId": req_id }), true);
         };
-        if dedup::is_outcome_unknown(&existing) {
+        if dedup::is_stale_pending(&existing, crate::agent::now_ms()) {
+            crate::agent::settle_stale_claim(state, &mut conn, &claim.key, &existing, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, &payload, &dedup_hash).await;
+        }
+        if dedup::is_outcome_unknown(&existing) || dedup::is_stale_pending(&existing, crate::agent::now_ms()) {
             log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("outcome_unknown"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": crate::agent::OUTCOME_UNKNOWN_RETRY_MESSAGE, "reqId": req_id }), true);
         }
@@ -669,7 +673,8 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
                 "An internal error occurred while processing this request.".to_string()
             };
             if err.upstream_status.is_some() || err.outcome_unknown {
-                crate::agent::db::write_dead_letter_queue(state, &req_id, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, &payload, &err.message, Some(&dedup_hash)).await;
+                let dlq_message = if err.outcome_unknown { format!("{}{}", crate::agent::OUTCOME_UNKNOWN_DLQ_PREFIX, err.message) } else { err.message.clone() };
+                crate::agent::db::write_dead_letter_queue(state, &req_id, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, &payload, &dlq_message, Some(&dedup_hash)).await;
             }
             jsonrpc_result(id, json!({ "error": response_message, "reqId": req_id }), true)
         }

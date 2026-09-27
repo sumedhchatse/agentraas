@@ -28,10 +28,12 @@ find "${BACKUP_DIR}" -name "agentraas_*.sql.gz" -mtime +${RETENTION_DAYS} -delet
 echo "Done. Current backups:"
 ls -lh "${BACKUP_DIR}"
 
-# ─── One-time setup: run daily at 3am via cron ───
-# crontab -e
-# Add this line:
-# 0 3 * * * /home/sumedh/agentraas/infra/scripts/backup-postgres.sh >> /home/sumedh/agentraas-backups/backup.log 2>&1
+# ─── One-time setup: run daily via cron ───
+# crontab -e (as the user that owns the podman containers, not root)
+# Pick an hour the machine is actually on, in ITS timezone (a 03:00 job on a
+# box that's off overnight never runs). Midday plus an @reboot catch-up:
+# 0 12 * * * bash $HOME/agentraas/infra/scripts/backup-postgres.sh >> $HOME/agentraas-backups.log 2>&1
+# @reboot sleep 600 && bash $HOME/agentraas/infra/scripts/backup-postgres.sh >> $HOME/agentraas-backups.log 2>&1
 #
 # To restore from a backup:
 # gunzip -c /path/to/agentraas_TIMESTAMP.sql.gz | podman exec -i ar-postgres psql -U agentraas -d agentraas

@@ -519,6 +519,8 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><td><code>PUBLIC_URL</code></td><td>Used for email links and the Connect Agent webhook/MCP URLs. Set this to your real domain.</td></tr>
         <tr><td><code>AGENT_RATE_LIMIT_PER_MIN</code></td><td>Per-key rate limit across webhook/SDK/MCP routes. Default 300.</td></tr>
         <tr><td><code>LICENSE_TOKEN</code></td><td>Unlocks Team/Enterprise features on this deployment. Get it from your Cloud account's <b>Account → Your license</b> panel after subscribing. Missing/expired always falls back to Community rather than blocking startup.</td></tr>
+        <tr><td><code>CLIENT_IP_HEADER</code></td><td>Behind a reverse proxy, the header it sets with the real client IP (<code>x-real-ip</code> for nginx, <code>cf-connecting-ip</code> behind Cloudflare), so login and signup rate limits apply per visitor. Only name a header your proxy always sets; unset uses the connecting address. Never <code>x-forwarded-for</code>: clients can prepend to it.</td></tr>
+        <tr><td><code>PROXY_TIMEOUT_SECONDS</code></td><td>How long one forwarded call may take (default 30). A call that hits it is held as <a href="#ts-outcome-unknown">outcome unknown</a>, not retried.</td></tr>
         <tr><td><code>SMTP_*</code></td><td>Optional. Without it, password-reset links are logged server-side instead of emailed.</td></tr>
       </table>
       <div class="callout"><p>Billing always happens on AgentRaaS Cloud, even for a self-hosted instance: Paddle checkout and your subscription live there. Self-hosting doesn't need its own Paddle account; you just paste the license token it issues you into <code>LICENSE_TOKEN</code>.</p></div>

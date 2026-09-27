@@ -14,6 +14,9 @@ const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 const client = axios.create({ baseURL: BASE_URL, validateStatus: () => true });
 const RUN_ID = Date.now();
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const { Pool } = require('pg');
+const pg = new Pool({ connectionString: process.env.DATABASE_URL || 'postgres://agentraas:agentraas@localhost:5432/agentraas' });
+const pgQuery = (sql, params) => pg.query(sql, params);
 
 // mockpay's circuit breaker is shared by every org; the failure tests below
 // would otherwise open it for the next test (same reset as dedup.test.js).
@@ -21,6 +24,7 @@ test.beforeEach(() => redis.del('circuit:mockpay'));
 test.after(async () => {
   await redis.del('circuit:mockpay');
   redis.disconnect();
+  await pg.end();
 });
 
 async function registerAndVerify(email, password, orgId) {
@@ -82,4 +86,31 @@ test('a definite upstream failure still frees the slot for a real retry', async 
   assert.equal(first.status, 500, JSON.stringify(first.data));
   const second = await call(payload);
   assert.equal(second.status, 500, 'retried for real, not blocked as a duplicate');
+});
+
+test('a call left in flight by a dead process becomes outcome-unknown once, on the next copy', async () => {
+  const { call, cookie } = await agent('stale');
+  const payload = { amount: 11, fail: true };
+  // a definite failure records the call's dedup hash in the DLQ and frees the slot
+  const failed = await call(payload);
+  assert.equal(failed.status, 500, JSON.stringify(failed.data));
+  const dlq = (await client.get('/api/v1/dead-letter-queue', { headers: { Cookie: cookie } })).data;
+  const entry = dlq.find((e) => e.req_id === failed.data.reqId);
+  assert.ok(entry, 'failure is in the DLQ');
+  const { rows } = await pgQuery('SELECT dedup_hash FROM dead_letter_queue WHERE id = $1', [entry.id]);
+  const key = `dedup:${rows[0].dedup_hash}`;
+
+  // what a process that died mid-call leaves behind: pending, lease long gone
+  await redis.set(key, JSON.stringify({ pending: true, reqId: 'req_dead_worker', leaseUntil: 1 }), 'EX', 3600);
+
+  const first = await call(payload);
+  assert.equal(first.status, 409, JSON.stringify(first.data));
+  assert.match(first.data.error, /outcome is unknown/);
+  assert.equal(JSON.parse(await redis.get(key)).outcome_unknown, true);
+
+  const second = await call(payload);
+  assert.equal(second.status, 409);
+  const { rows: dead } = await pgQuery("SELECT error_message FROM dead_letter_queue WHERE req_id = 'req_dead_worker' AND dedup_hash = $1", [rows[0].dedup_hash]);
+  assert.equal(dead.length, 1, 'recorded once, not once per copy');
+  assert.match(dead[0].error_message, /^outcome unknown: /);
 });

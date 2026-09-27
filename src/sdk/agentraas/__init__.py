@@ -33,7 +33,7 @@ retry logic (or your agent framework's) is safe to use as-is.
 
 import requests
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 DEFAULT_BASE_URL = "http://localhost:13000"
 
@@ -115,7 +115,7 @@ class Client:
             headers["X-AgentRaaS-Agent"] = self.agent_id
         return headers
 
-    def call(self, service, action, payload=None):
+    def call(self, service, action, payload=None, idempotency_key=None):
         """Make one protected request.
 
         Args:
@@ -126,6 +126,10 @@ class Client:
                 action from that service's docs (e.g. "charge.create");
                 for service="custom", the Custom Action's registered name.
             payload: Request body dict, forwarded to the upstream API.
+            idempotency_key: Optional. Your own dedup key for this action,
+                instead of AgentRaaS hashing the payload. A new key makes
+                it a new action (e.g. to resend after a 504 "outcome
+                unknown" once you're sure the first one didn't run).
 
         Returns:
             The upstream response body as a dict (or the cached result,
@@ -135,9 +139,12 @@ class Client:
             AgentRaaSError: on any non-2xx response.
         """
         url = f"{self.base_url}/v1/sdk/{service}/{action}"
+        headers = self._headers()
+        if idempotency_key:
+            headers["X-AgentRaaS-Idempotency-Key"] = str(idempotency_key)
         try:
             response = self._session.post(
-                url, headers=self._headers(), json=payload or {}, timeout=self.timeout
+                url, headers=headers, json=payload or {}, timeout=self.timeout
             )
         except requests.RequestException as err:
             raise AgentRaaSError(f"Could not reach AgentRaaS at {self.base_url}: {err}") from err
@@ -155,10 +162,10 @@ class Client:
 
         return response.json()
 
-    def custom(self, action, payload=None):
+    def custom(self, action, payload=None, idempotency_key=None):
         """Shorthand for call("custom", action, payload) — calls one of
         your registered Custom Actions by name."""
-        return self.call("custom", action, payload)
+        return self.call("custom", action, payload, idempotency_key=idempotency_key)
 
     def service(self, name):
         """Returns a proxy for dot-notation calls: client.service("stripe").charge.create(payload)."""
