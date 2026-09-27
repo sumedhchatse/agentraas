@@ -97,9 +97,10 @@ async fn replay_dlq(
         service: String,
         action: String,
         encrypted_payload: String,
+        dedup_hash: Option<String>,
     }
     let row: Option<Row> = sqlx::query_as(
-        "SELECT id, org_id, agent_id, service, action, encrypted_payload
+        "SELECT id, org_id, agent_id, service, action, encrypted_payload, dedup_hash
          FROM dead_letter_queue WHERE id = $1 AND org_id = ANY($2) AND replayed_at IS NULL AND dismissed_at IS NULL",
     )
     .bind(id)
@@ -112,6 +113,15 @@ async fn replay_dlq(
     if !check_org_write_permission(&state.pg, user.sub, &row.org_id).await? {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Auditors have read-only access to this org."));
     }
+
+    // The original payload replays under its original Idempotency-Key, so a
+    // provider that honors it answers with the first result if the failed
+    // call had actually run (the outcome-unknown case). An edited payload is
+    // a different request and goes out without one.
+    let upstream_key = match (&override_payload, &row.dedup_hash) {
+        (None, Some(hash)) => Some(agentraas_core::dedup::upstream_idempotency_key(hash)),
+        _ => None,
+    };
 
     // The dashboard's "edit parameters" flow — replay the original payload
     // as-is, or an edited one if the caller supplies { payload: {...} }.
@@ -135,9 +145,20 @@ async fn replay_dlq(
     rand::thread_rng().fill_bytes(&mut buf);
     let replay_req_id = format!("req_{}", hex::encode(buf));
 
-    match forward_action(&state, &resolved_route, &row.service, &row.action, &row.org_id, &payload, &replay_req_id, None).await {
+    match forward_action(&state, &resolved_route, &row.service, &row.action, &row.org_id, &payload, &replay_req_id, None, upstream_key.as_deref()).await {
         Ok(result) => {
             sqlx::query("UPDATE dead_letter_queue SET replayed_at = NOW() WHERE id = $1").bind(row.id).execute(&state.pg).await?;
+            // Resolves an outcome-unknown slot: later copies of the call now
+            // get this result instead of a 409.
+            if let (Some(hash), true) = (&row.dedup_hash, upstream_key.is_some()) {
+                if let Ok(mut conn) = state.redis_conn_result() {
+                    let key = format!("dedup:{hash}");
+                    let unknown = agentraas_core::dedup::read_dedup_slot(&mut conn, &key).await.ok().flatten().is_some_and(|v| agentraas_core::dedup::is_outcome_unknown(&v));
+                    if unknown {
+                        let _ = agentraas_core::dedup::complete_dedup_slot(&mut conn, &key, &result).await;
+                    }
+                }
+            }
             log_audit(
                 &state.pg, &replay_req_id, &format!("replay:user_{}", user.sub), &row.org_id, &row.agent_id,
                 &row.service, &row.action, "success", None, 0, None, state.enterprise_mode, Some(&payload), None, None, None,
