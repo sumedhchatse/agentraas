@@ -207,6 +207,13 @@ completes normally or returns the cached result from the call that
 actually went through. This SDK doesn't retry automatically; your own
 retry logic (or your agent framework's) can be as aggressive as you want.
 
+One case is different: if the *provider* doesn't answer AgentRaaS in time,
+you get a `504` with `"outcome": "unknown"`, and identical calls get a
+`409` until it's resolved. Retrying won't run it, on purpose, since it may
+already have gone through. Check with the provider, then replay or dismiss
+it from **Failed Requests** in the dashboard
+([steps](https://agentraas.io/docs#ts-outcome-unknown)).
+
 ## Error handling
 
 ```python
@@ -216,6 +223,8 @@ try:
     client.call("stripe", "charge.create", {"amount": 5000, "currency": "usd"})
 except AgentRaaSError as err:
     print(err.status_code, err.req_id, str(err))
+    if err.status_code == 504:
+        pass  # outcome unknown: don't retry blindly, resolve it first
 ```
 
 ## License

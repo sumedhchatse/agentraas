@@ -251,6 +251,25 @@ honest case for AgentRaaS is narrower and specific:
   zero unified record of which of those three actually fired, unless you
   build that yourself too.
 
+### What happens when a provider times out?
+
+The hardest case for exactly-once is a call that ran but whose response never
+came back. AgentRaaS handles it in two ways:
+
+- Every call it forwards carries `Idempotency-Key: agentraas-<hash>`, one
+  stable value per logical action, so a provider that honors the header
+  (Stripe and others) runs the action once even if a retry or replay reaches
+  it again.
+- A call that times out, or whose connection breaks after sending, is
+  treated as **outcome unknown**, never as failed: it is not retried, its
+  dedup slot is kept (identical calls get `409`), the caller gets `504`, and
+  it goes to the dead-letter queue. A replay from there reuses the same key
+  and, once it succeeds, identical calls get its result.
+
+A refused connection or DNS failure means nothing was sent, so those are
+still retried as normal. Steps for resolving one:
+[docs, Troubleshooting](https://agentraas.io/docs#ts-outcome-unknown).
+
 | | DIY Idempotency Keys | AgentRaaS |
 |---|---|---|
 | **Code changes** | Modify every API call, only where the provider supports it | Change the URL |
