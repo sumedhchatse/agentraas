@@ -581,7 +581,12 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <li><b>It ran, and the provider supports Idempotency-Key</b> (Stripe does, for 24 hours): open <b>Failed Requests</b> in the dashboard and click <b>Replay</b>. The provider hands back the original result instead of running it again, and your agent's identical calls start getting that result.</li>
         <li><b>It did not run:</b> click <b>Replay</b> and it runs once.</li>
         <li><b>It ran, but the provider has no Idempotency-Key support</b> (or its window has passed): click <b>Dismiss</b>, not Replay. The <code>409</code>s are correct and stop when the dedup window ends (24 hours by default).</li>
-        <li><b>You're sure it did not run and want your agent's own retry to go through</b>: send the call with a new <code>x-agentraas-idempotency-key</code>. Don't do this if it might have run.</li>
+        <li><b>You're sure it did not run and want your agent's own retry to go through</b>: send the call with a new <code>x-agentraas-idempotency-key</code>. Don't do this if it might have run.
+<pre><code>curl -X POST https://agentraas.io/v1/webhook/YOUR_ORG/YOUR_AGENT \
+  -H "Authorization: Bearer ar_live_..." \
+  -H "x-agentraas-idempotency-key: order-1042-retry-1" \
+  -H "Content-Type: application/json" \
+  -d '{"service":"stripe","action":"charge.create","payload":{"amount":5000,"currency":"usd"}}'</code></pre></li>
         <li><b>Use Replay, not Edit &amp; Replay</b>, to resolve a timeout: an edited payload is a new request and goes out without the original key.</li>
         <li><b>Happens often with one provider?</b> Self-hosted: raise <code>PROXY_TIMEOUT_SECONDS</code> (default 30) in <code>.env</code> and restart. Cloud: contact us with a <code>reqId</code>.</li>
       </ol>
