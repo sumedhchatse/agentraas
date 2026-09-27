@@ -196,7 +196,9 @@ def head_meta(s, path):
             f'<meta property="og:image" content="{SITE}/og-image.png">',
             '<meta property="og:image:width" content="1200">', '<meta property="og:image:height" content="630">',
             '<meta name="twitter:card" content="summary_large_image">',
-            f'<meta name="twitter:image" content="{SITE}/og-image.png">']
+            f'<meta name="twitter:image" content="{SITE}/og-image.png">',
+            # Cloudflare Web Analytics: cookieless, so no consent banner needed.
+            '<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon=\'{"token": "17545b657d6f40dcb8b3a2441ff3e39c"}\'></script>']
     if not has_og_title: tags.append(f'<meta property="og:title" content="{title}">')
     if not has_og_desc: tags.append(f'<meta property="og:description" content="{desc}">')
     if not has_tw_title: tags.append(f'<meta name="twitter:title" content="{title}">')
