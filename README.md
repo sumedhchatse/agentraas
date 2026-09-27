@@ -1,4 +1,4 @@
-<img src="src/api-gateway-rs/public/logo.svg" width="32" height="32" alt="AgentRaaS logo" align="left">
+<img src="src/api-gateway-rs/public/img/agentraas-banner.png" alt="AgentRaaS" width="100%">
 
 # AgentRaaS
 

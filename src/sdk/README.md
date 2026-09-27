@@ -143,6 +143,19 @@ In GitHub Actions:
     run: python my_agent.py
 ```
 
+## Local tunnel: test webhooks against your laptop
+
+`agentraas tunnel` prints a public URL and replays every request sent to it
+against a local port, so you can point Stripe, GitHub or n8n webhooks at code
+you haven't deployed. Needs a free AgentRaaS account (an agent API key).
+
+```bash
+pip install "agentraas[tunnel]"
+agentraas tunnel --port 3000 --org org_acme --agent agent_1 --key ar_live_...
+```
+
+One tunnel per org, 2-hour sessions, 30-second local response timeout.
+
 ## Quickstart
 
 1. Connect an agent from your AgentRaaS dashboard (**+ Connect Agent**) —
