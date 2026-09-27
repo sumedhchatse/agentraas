@@ -683,7 +683,7 @@ async fn handle_request(
         return err_response(
             StatusCode::PAYMENT_REQUIRED,
             &req_id,
-            format!("Monthly usage limit reached ({}/{} actions this month). Contact hello@agentraas.io to upgrade.", usage.count, usage.limit),
+            format!("Monthly limit of the free Cloud account reached ({}/{} actions this month). Self-hosting is free with no limit: https://agentraas.io/docs#self-hosting", usage.count, usage.limit),
         );
     }
 

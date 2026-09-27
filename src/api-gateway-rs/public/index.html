@@ -1392,10 +1392,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       planBadgeEl.style.display = 'inline-flex';
       upgradeBtnEl.style.display = 'none';
     } else {
+      // Free-first: no upgrade prompt in the header. Paid plans stay
+      // reachable from Account settings for anyone who goes looking.
       planBadgeEl.style.display = 'none';
-      upgradeBtnEl.textContent = 'Upgrade to Team';
-      upgradeBtnEl.dataset.targetPlan = 'team';
-      upgradeBtnEl.style.display = 'inline-flex';
+      upgradeBtnEl.style.display = 'none';
     }
     hasEverAuthenticated = true;
     sessionBanner.style.display = 'none';
@@ -1476,9 +1476,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         banner.className = data.enforced ? 'cloud' : 'exempt';
         banner.style.display = 'flex';
         if (data.enforced) {
-          banner.innerHTML = `<span>You've reached your ${data.limit.toLocaleString()}/month limit — new actions are being blocked until next month.</span><button type="button" class="btn filled" onclick="startCheckout('team', this, null)">Upgrade</button>`;
+          banner.innerHTML = `<span>You've reached the free Cloud account's ${data.limit.toLocaleString()}/month limit, so new actions are paused until next month. Self-hosting is free with no limit.</span><a class="btn filled" href="/docs#self-hosting">Self-host free</a>`;
         } else {
-          banner.innerHTML = `<span>You've passed the free tier's ${data.limit.toLocaleString()}/month limit. Upgrade to Team, or self-host for free with no limit.</span><button type="button" class="btn filled" onclick="startCheckout('team', this, null)">Upgrade to Team</button>`;
+          banner.innerHTML = `<span>You've passed the free Cloud account's ${data.limit.toLocaleString()}/month limit (this account is exempt). Self-hosting is free with no limit.</span><a class="btn filled" href="/docs#self-hosting">Self-host free</a>`;
         }
       }
 

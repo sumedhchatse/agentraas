@@ -548,7 +548,7 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><td>HITL approval rules, SLA escalation</td><td>No</td><td>✓</td><td>✓</td></tr>
         <tr><td>SSO, white-label branding, client tenants, inbound webhooks</td><td>No</td><td>No</td><td>✓</td></tr>
       </table>
-      <p>Team is self-serve at $49/month via <a href="/pricing">the pricing page</a>. Enterprise is sales-assisted: <a href="mailto:hello@agentraas.io">contact sales</a>.</p>
+      <p>You don't need a paid plan to use AgentRaaS: Community, self-hosted, is free with no action limit, and that's where we recommend starting. Team is available from <b>Account settings</b> in the dashboard if you need approvals or seats; Enterprise is <a href="mailto:hello@agentraas.io">by conversation</a>.</p>
     </section>
 
     <section id="troubleshooting">
@@ -567,7 +567,7 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><th>Status</th><th>Meaning</th><th>What to do</th></tr>
         <tr><td><code>400</code></td><td>Unknown <code>service.action</code>, missing fields, or no Custom Action with that name for this org</td><td>Check spelling against <a href="#services">Supported services</a>, or register it as a <a href="#custom-actions">Custom Action</a>.</td></tr>
         <tr><td><code>401</code></td><td>API key missing, wrong, or revoked for this org and agent</td><td>Check the header and the org/agent IDs in the URL; connect a new agent if the key was lost.</td></tr>
-        <tr><td><code>402</code></td><td>Cloud free-tier monthly limit reached</td><td>Upgrade to Team, or self-host (no limit on any tier).</td></tr>
+        <tr><td><code>402</code></td><td>Free Cloud account's monthly limit reached</td><td>Self-host for free (no limit on any tier), or wait for the monthly reset.</td></tr>
         <tr><td><code>409</code></td><td>An identical request is still being processed, or an earlier identical call timed out with an unknown outcome</td><td>Still processing: retry shortly and you get the first call's result. "Outcome is unknown": see <a href="#ts-outcome-unknown">A call timed out</a> below; retrying won't run it.</td></tr>
         <tr><td><code>422</code></td><td>The payload failed a validation rule</td><td>The message names the field; fix the payload or the org's rule.</td></tr>
         <tr><td><code>429</code></td><td>This agent's per-minute rate limit</td><td>Back off and retry; raise the limit if the volume is legitimate.</td></tr>
