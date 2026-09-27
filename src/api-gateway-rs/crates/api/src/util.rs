@@ -27,6 +27,31 @@ pub fn is_valid_header_name(name: &str) -> bool {
         })
 }
 
+/// Real client IP, used for the per-IP login/register/audit rate limits.
+/// Only a header set by a proxy we run is trusted: `CLIENT_IP_HEADER` names
+/// it. Production (behind Cloudflare) uses `cf-connecting-ip`, which
+/// Cloudflare sets on every request itself, so a client can't forge it.
+/// Unset, the TCP peer address is used. X-Forwarded-For is never trusted by
+/// default: since the Cloudflare Tunnel replaced Caddy, nothing strips a
+/// client-supplied value, so its first entry was attacker-chosen and any
+/// caller could dodge the rate limits.
+pub fn real_client_ip(headers: &axum::http::HeaderMap, connect_addr: &std::net::SocketAddr) -> String {
+    static HEADER: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    let header = HEADER.get_or_init(|| configured_env("CLIENT_IP_HEADER").map(|h| h.trim().to_ascii_lowercase()));
+    client_ip_from(headers, connect_addr, header.as_deref())
+}
+
+fn client_ip_from(headers: &axum::http::HeaderMap, connect_addr: &std::net::SocketAddr, trusted_header: Option<&str>) -> String {
+    trusted_header
+        .and_then(|name| headers.get(name))
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| connect_addr.ip().to_string())
+}
+
 fn is_private_or_reserved_v4(v4: &std::net::Ipv4Addr) -> bool {
     let o = v4.octets();
     o[0] == 0
@@ -112,5 +137,40 @@ pub async fn validate_target_url(target_url: &str) -> Option<String> {
             None
         }
         Err(_) => Some("Could not resolve the target hostname.".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod real_client_ip_tests {
+    use super::client_ip_from;
+    use axum::http::HeaderMap;
+    use std::net::SocketAddr;
+
+    fn connect_addr() -> SocketAddr {
+        "127.0.0.1:1234".parse().unwrap()
+    }
+
+    #[test]
+    fn uses_the_configured_trusted_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert("cf-connecting-ip", "203.0.113.7".parse().unwrap());
+        assert_eq!(client_ip_from(&headers, &connect_addr(), Some("cf-connecting-ip")), "203.0.113.7");
+    }
+
+    #[test]
+    fn a_forged_x_forwarded_for_is_ignored() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", "6.6.6.6".parse().unwrap());
+        headers.insert("cf-connecting-ip", "203.0.113.7".parse().unwrap());
+        assert_eq!(client_ip_from(&headers, &connect_addr(), Some("cf-connecting-ip")), "203.0.113.7");
+        assert_eq!(client_ip_from(&headers, &connect_addr(), None), "127.0.0.1", "unset: peer address, never XFF");
+    }
+
+    #[test]
+    fn falls_back_to_connect_addr_when_trusted_header_missing_or_empty() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(client_ip_from(&headers, &connect_addr(), Some("cf-connecting-ip")), "127.0.0.1");
+        headers.insert("cf-connecting-ip", "".parse().unwrap());
+        assert_eq!(client_ip_from(&headers, &connect_addr(), Some("cf-connecting-ip")), "127.0.0.1");
     }
 }

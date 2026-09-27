@@ -212,7 +212,12 @@ you get a `504` with `"outcome": "unknown"`, and identical calls get a
 `409` until it's resolved. Retrying won't run it, on purpose, since it may
 already have gone through. Check with the provider, then replay or dismiss
 it from **Failed Requests** in the dashboard
-([steps](https://agentraas.io/docs#ts-outcome-unknown)).
+([steps](https://agentraas.io/docs#ts-outcome-unknown)). If you're sure it
+did not run, resend it as a new action with your own key:
+
+```python
+client.call("stripe", "charge.create", payload, idempotency_key="order-1042-retry-1")
+```
 
 ## Error handling
 

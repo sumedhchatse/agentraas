@@ -27,6 +27,18 @@ pub struct ForwardError {
     pub outcome_unknown: bool,
 }
 
+/// When a claimer should have finished forwarding (epoch ms): every attempt
+/// timing out, plus backoff, plus a minute of slack. A slot still pending
+/// after this means the process handling it stopped mid-call.
+pub fn forward_lease_until_ms(state: &SharedState) -> i64 {
+    let attempts = state.proxy_retry_max_attempts.max(1) as i64;
+    let work_ms = state.proxy_timeout_seconds as i64 * 1000 * attempts
+        + state.proxy_retry_base_delay_ms as i64 * (1i64 << attempts.min(20))
+        + 60_000;
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+    now_ms + work_ms
+}
+
 /// `send()` failed. A refused connection or DNS failure means nothing was
 /// sent: a plain failure, safe to retry. Anything else (a timeout, a reset
 /// mid-request) may have executed upstream.

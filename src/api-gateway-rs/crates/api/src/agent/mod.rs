@@ -540,7 +540,8 @@ async fn handle_request(
             }
         }
     }
-    let claim = match dedup::claim_dedup_slot_with_ttl(&mut conn, &dedup_hash, dedup_ttl_seconds).await {
+    let lease = (!resolved_route.streaming).then(|| forward::forward_lease_until_ms(state));
+    let claim = match dedup::claim_dedup_slot_leased(&mut conn, &dedup_hash, dedup_ttl_seconds, Some(&req_id), lease).await {
         Ok(c) => c,
         Err(err) => {
             tracing::error!(?err, "claim_dedup_slot failed");
@@ -570,7 +571,10 @@ async fn handle_request(
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, "An identical request is already being processed. Retry shortly.");
         };
-        if dedup::is_outcome_unknown(&existing) {
+        if dedup::is_stale_pending(&existing, now_ms()) {
+            settle_stale_claim(state, &mut conn, &claim.key, &existing, &org_id, &agent_id, &service, &action, &payload, &dedup_hash).await;
+        }
+        if dedup::is_outcome_unknown(&existing) || dedup::is_stale_pending(&existing, now_ms()) {
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("outcome_unknown"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return err_response(StatusCode::CONFLICT, &req_id, OUTCOME_UNKNOWN_RETRY_MESSAGE);
         }
@@ -882,6 +886,40 @@ async fn handle_request(
     }
 }
 
+/// Every outcome-unknown DLQ entry starts with this, so an operator can list
+/// them in one query (docs/kb/10-troubleshooting.md section 15).
+pub(crate) const OUTCOME_UNKNOWN_DLQ_PREFIX: &str = "outcome unknown: ";
+
+pub(crate) fn now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+}
+
+/// A copy found the slot pending past its lease: the process that claimed
+/// it stopped mid-call, so the action may or may not have run. The one copy
+/// that wins the atomic takeover records it exactly like a timeout (slot
+/// outcome-unknown, DLQ entry under the original reqId); the caller then
+/// answers with the outcome-unknown 409.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn settle_stale_claim(
+    state: &SharedState,
+    conn: &mut redis::aio::MultiplexedConnection,
+    key: &str,
+    seen: &Value,
+    org_id: &str,
+    agent_id: &str,
+    service: &str,
+    action: &str,
+    payload: &Value,
+    dedup_hash: &str,
+) {
+    if let Ok(true) = dedup::take_over_stale_slot(conn, key, seen).await {
+        let original_req_id = seen.get("reqId").and_then(Value::as_str).unwrap_or("unknown");
+        tracing::warn!(req_id = original_req_id, "stale in-flight claim taken over as outcome unknown");
+        let message = format!("{OUTCOME_UNKNOWN_DLQ_PREFIX}the server stopped while this call was in flight");
+        db::write_dead_letter_queue(state, original_req_id, org_id, agent_id, service, action, payload, &message, Some(dedup_hash)).await;
+    }
+}
+
 pub(crate) const OUTCOME_UNKNOWN_MESSAGE: &str = "The upstream API did not respond, so this action may or may not have run. It was not retried. Check with the provider, or replay it from the dead-letter queue: the replay reuses the same Idempotency-Key, so a provider that supports it will not run it twice.";
 pub(crate) const OUTCOME_UNKNOWN_RETRY_MESSAGE: &str = "An identical request timed out earlier and its outcome is unknown, so it is not being run again. Replay it from the dead-letter queue, or send it with a new idempotency key if you are sure it did not run.";
 
@@ -928,7 +966,8 @@ async fn forward_error_response(
 
     let dedup_hash = claim_key.strip_prefix("dedup:");
     if err.upstream_status.is_some() || err.outcome_unknown {
-        db::write_dead_letter_queue(state, req_id, org_id, agent_id, service, action, payload, &err.message, dedup_hash).await;
+        let dlq_message = if err.outcome_unknown { format!("{OUTCOME_UNKNOWN_DLQ_PREFIX}{}", err.message) } else { err.message.clone() };
+        db::write_dead_letter_queue(state, req_id, org_id, agent_id, service, action, payload, &dlq_message, dedup_hash).await;
     }
     if err.outcome_unknown {
         return (

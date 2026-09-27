@@ -3,7 +3,7 @@
   "name": "io.github.sumedhchatse/agentraas",
   "title": "AgentRaaS wrap",
   "description": "Wraps any MCP server: identical write-tool calls run once, and every tool call is audit-logged.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "websiteUrl": "https://agentraas.io",
   "repository": {
     "url": "https://github.com/sumedhchatse/agentraas",
@@ -14,7 +14,7 @@
     {
       "registryType": "pypi",
       "identifier": "agentraas",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

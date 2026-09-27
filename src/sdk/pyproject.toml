@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentraas"
-version = "0.6.0"
+version = "0.6.1"
 description = "Exactly-once execution for AI agents: an @exactly_once decorator, an MCP server wrapper, a chaos tester that finds duplicate API calls, and the AgentRaaS client"
 readme = "README.md"
 license = { file = "LICENSE" }

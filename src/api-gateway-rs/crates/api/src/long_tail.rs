@@ -68,13 +68,15 @@ async fn fire_one(client: &reqwest::Client, url: &str, payload: &Value, attempt:
 async fn webhook_audit_tool(
     State(state): State<SharedState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<AuditBody>,
 ) -> Result<Json<Value>, ApiError> {
     let url = body.url.unwrap_or_default();
     if url.is_empty() || url.chars().count() > 2000 {
         return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "A webhook URL is required."));
     }
-    let under_limit = check_login_rate_limit(&state.redis_conn, &addr.ip().to_string(), "webhook-audit").await?;
+    let ip = crate::util::real_client_ip(&headers, &addr);
+    let under_limit = check_login_rate_limit(&state.redis_conn, &ip, "webhook-audit").await?;
     if !under_limit {
         return Err(ApiError::new(StatusCode::TOO_MANY_REQUESTS, "Too many audits from this IP. Try again in 15 minutes."));
     }
