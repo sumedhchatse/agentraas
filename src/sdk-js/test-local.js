@@ -23,3 +23,15 @@ const { exactlyOnce, MemoryStore } = require("./dist");
   assert.notStrictEqual(seen[2], seen[0], "different call, different key");
   console.log("ok");
 })();
+// Client sends idempotencyKey as X-AgentRaaS-Idempotency-Key, and only when set
+(async () => {
+  const { Client } = require("./dist");
+  const sent = [];
+  global.fetch = async (url, init) => { sent.push(init.headers); return { ok: true, json: async () => ({}) }; };
+  const c = new Client({ agentraasKey: "ar_test" });
+  await c.call("stripe", "charge.create", {}, { idempotencyKey: "order-1" });
+  await c.service("stripe").call("charge.create", {});
+  assert.strictEqual(sent[0]["X-AgentRaaS-Idempotency-Key"], "order-1");
+  assert(!("X-AgentRaaS-Idempotency-Key" in sent[1]), "no key header when unset");
+  console.log("ok client");
+})();

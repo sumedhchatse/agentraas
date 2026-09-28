@@ -43,6 +43,15 @@ export interface ClientOptions {
   timeoutMs?: number;
 }
 
+export interface CallOptions {
+  /**
+   * Your own dedup key for this action, instead of AgentRaaS hashing the
+   * payload. A new key makes it a new action (e.g. to resend after a 504
+   * "outcome unknown" once you're sure the first one didn't run).
+   */
+  idempotencyKey?: string;
+}
+
 export class AgentRaaSError extends Error {
   statusCode?: number;
   reqId?: string;
@@ -91,20 +100,24 @@ export class Client {
    * @param action Dotted action name for a curated service (e.g.
    *   "charge.create"), or your Custom Action's registered name.
    * @param payload Request body, forwarded to the upstream API.
+   * @param options Optional `idempotencyKey`, see {@link CallOptions}.
    * @returns The upstream response body (or the cached result, with
    *   `cached: true`, if this exact request already ran).
    * @throws {AgentRaaSError} on any non-2xx response.
    */
-  async call<T = any>(service: string, action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  async call<T = any>(service: string, action: string, payload: Record<string, unknown> = {}, options: CallOptions = {}): Promise<T> {
     const url = `${this.baseUrl}/v1/sdk/${encodeURIComponent(service)}/${encodeURIComponent(action)}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    const headers = this.headers();
+    if (options.idempotencyKey) headers['X-AgentRaaS-Idempotency-Key'] = String(options.idempotencyKey);
 
     let response: Response;
     try {
       response = await fetch(url, {
         method: 'POST',
-        headers: this.headers(),
+        headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -122,13 +135,13 @@ export class Client {
   }
 
   /** Shorthand for call("custom", action, payload) — calls a registered Custom Action by name. */
-  custom<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
-    return this.call<T>('custom', action, payload);
+  custom<T = any>(action: string, payload: Record<string, unknown> = {}, options: CallOptions = {}): Promise<T> {
+    return this.call<T>('custom', action, payload, options);
   }
 
   /** Returns a proxy for dot-notation calls: client.service("stripe").call("charge.create", payload). */
-  service(name: string): { call: <T = any>(action: string, payload?: Record<string, unknown>) => Promise<T> } {
-    return { call: (action, payload = {}) => this.call(name, action, payload) };
+  service(name: string): { call: <T = any>(action: string, payload?: Record<string, unknown>, options?: CallOptions) => Promise<T> } {
+    return { call: (action, payload = {}, options = {}) => this.call(name, action, payload, options) };
   }
 }
 
