@@ -69,7 +69,7 @@ def charge(customer, amount, idempotency_key=None):
   "args": ["agentraas", "wrap", "--", "npx", "-y", "@modelcontextprotocol/server-github"] } } }
 ```
 
-Full options: [`src/sdk/README.md`](src/sdk/README.md). The TypeScript `exactlyOnce` is in [`src/sdk-js`](src/sdk-js) (not on npm yet).
+Full options: [`src/sdk/README.md`](src/sdk/README.md). The TypeScript client and `exactlyOnce` are on npm: `npm install agentraas` ([`src/sdk-js`](src/sdk-js)).
 
 ---
 

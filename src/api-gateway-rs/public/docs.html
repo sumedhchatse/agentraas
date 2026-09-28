@@ -406,6 +406,8 @@ POST /webhooks/stripe -> 200 (4ms)</code></pre>
   -H "Content-Type: application/json" \
   -d '{ "amount": 5000, "currency": "usd", "customer": "cus_123" }'</code></pre>
       <p>The request body here <i>is</i> the payload directly (no wrapping <code>service</code>/<code>action</code>/<code>payload</code> envelope; those are already in the path and headers). Response shape is identical to the webhook style above.</p>
+      <div class="endpoint"><span class="badge get">GET</span> /v1/sdk/whoami</div>
+      <p>Checks an agent key without doing anything: <code>200 {"ok": true, "org_id": "..."}</code> for a valid key, <code>401</code> for a missing, unknown or revoked one. Useful as a credential test in integrations (the n8n node uses it).</p>
     </section>
 
     <section id="mcp">
@@ -474,7 +476,7 @@ client = agentraas.Client(
 
 result = client.call("stripe", "charge.create", {"amount": 5000, "currency": "usd"})</code></pre>
       <h3>TypeScript / JavaScript</h3>
-      <p>Not on npm yet. Build it from <code>src/sdk-js</code> in the repo (<code>npm install &amp;&amp; npm run build</code>) until the package is published.</p>
+      <p>Install from npm: <code>npm install agentraas</code>. Pass <code>{ idempotencyKey }</code> as a fourth argument to <code>call()</code> to choose your own dedup key.</p>
       <pre><code>import { Client } from "agentraas";
 
 const client = new Client({
