@@ -6,8 +6,8 @@ tools it's built to sit alongside.
 | Tool | What's here | Install |
 |---|---|---|
 | **Python** | [`src/sdk`](../../src/sdk) — `Client`, tested end-to-end against a live instance | `pip install agentraas` (once published — see its README) |
-| **TypeScript/JS** | [`src/sdk-js`](../../src/sdk-js) — `Client`, dependency-free (global `fetch`), tested end-to-end | `npm install agentraas` (once published — see its README) |
-| **n8n** | [`n8n-nodes-agentraas`](../n8n-nodes-agentraas) — a real community node (TypeScript, compiles against `n8n-workflow`) | `npm install n8n-nodes-agentraas` in your n8n instance, or **Settings → Community Nodes** in the UI |
+| **TypeScript/JS** | [`src/sdk-js`](../../src/sdk-js) — `Client`, dependency-free (global `fetch`), tested end-to-end | `npm install agentraas` |
+| **n8n** | [`n8n-nodes-agentraas`](https://github.com/sumedhchatse/n8n-nodes-agentraas) — a community node with a credential test, usable as an AI Agent tool | **Settings → Community Nodes** → install `n8n-nodes-agentraas` |
 | **Flowise** | [`flowise-custom-tool`](../flowise-custom-tool) — schema + function to paste into a Custom Tool | Copy-paste, no install (see its README) |
 | **Langflow** | [`langflow-custom-component`](../langflow-custom-component) — a Python `Component` file | Drop into your Langflow custom components directory |
 | **Dify** | No native plugin yet — Dify's HTTP Request node/tool works today: point it at `POST /v1/sdk/:service/:action` with the `X-AgentRaaS-Key` header, same as any other client. | n/a |
