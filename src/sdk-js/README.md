@@ -109,6 +109,17 @@ that actually went through. This SDK doesn't retry automatically; your
 own retry logic (or your agent framework's) can be as aggressive as you
 want.
 
+To decide yourself what counts as "the same action", pass your own key
+instead of relying on the payload hash:
+
+```typescript
+await client.call("stripe", "charge.create", { amount: 5000, currency: "usd" },
+  { idempotencyKey: `order-${orderId}` });
+```
+
+A new key makes it a new action, for example to resend after a 504
+"outcome unknown" once you're sure the first attempt didn't run.
+
 ## Error handling
 
 ```typescript
