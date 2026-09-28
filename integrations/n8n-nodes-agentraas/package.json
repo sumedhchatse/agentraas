@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-agentraas",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Exactly-once execution for AI agent workflows — n8n node for AgentRaaS",
   "keywords": [
     "n8n-community-node-package",
@@ -12,7 +12,7 @@
   "homepage": "https://github.com/sumedhchatse/agentraas",
   "author": {
     "name": "Sumedh Chatse",
-    "email": "support@agentraas.io"
+    "email": "npm@agentraas.io"
   },
   "repository": {
     "type": "git",
