@@ -416,6 +416,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     /* Only the email shrinks; Docs, Guide and Log out keep their size (they squeezed to "D…" at 320px). */
     #user-info > * { flex-shrink: 0; white-space: nowrap; }
     #user-info > #account-btn { flex-shrink: 1; min-width: 0; }
+    /* Phones: only services used today (or failing) instead of every curated service. */
+    .service-pill.idle { display: none; }
+    #service-strip:not(:has(.service-pill:not(.idle)))::after { content: "No service calls in the last 24 hours."; color: var(--muted); font-size: 13px; }
     .stat-sentence { font-size: 16px; }
     .control-group { gap: 6px; }
     .control-group-label { min-width: 0; width: 100%; }
@@ -1596,7 +1599,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         const healthy = svc.circuit_state !== 'open';
         const div = document.createElement('div');
         div.className = 'service-pill';
-        div.innerHTML = `<span class="heartbeat ${healthy ? '' : 'down'}"></span><span class="name">${svc.name.charAt(0).toUpperCase() + svc.name.slice(1)}</span><span class="count">${svc.actions_24h} today</span>`;
+        // Idle = no calls today and nothing wrong; hidden on phones (see the 560px CSS).
+        if (healthy && !Number(svc.actions_24h)) div.classList.add('idle');
+        div.innerHTML = `<span class="heartbeat ${healthy ? '' : 'down'}"></span><span class="name">${escapeHtml(svc.name.charAt(0).toUpperCase() + svc.name.slice(1))}</span><span class="count">${escapeHtml(String(svc.actions_24h))} today</span>`;
         strip.appendChild(div);
       }
     } catch (err) {}
