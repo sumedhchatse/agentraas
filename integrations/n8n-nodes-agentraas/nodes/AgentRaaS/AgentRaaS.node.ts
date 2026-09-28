@@ -14,6 +14,7 @@ export class AgentRaaS implements INodeType {
 		icon: 'file:agentraas.svg',
 		group: ['transform'],
 		version: 1,
+		usableAsTool: true,
 		subtitle: '={{$parameter["service"]}}.{{$parameter["action"]}}',
 		description:
 			'Exactly-once execution for agent actions — wraps any API call with AgentRaaS\'s atomic dedup guarantee, so a workflow retry never double-charges or double-creates anything.',
@@ -37,7 +38,7 @@ export class AgentRaaS implements INodeType {
 				required: true,
 				placeholder: 'stripe',
 				description:
-					'A curated service from your AgentRaaS dashboard\'s Services list, or "custom" for a registered Custom Action.',
+					'A curated service from your AgentRaaS dashboard\'s Services list, or "custom" for a registered Custom Action',
 			},
 			{
 				displayName: 'Action',
@@ -47,14 +48,14 @@ export class AgentRaaS implements INodeType {
 				required: true,
 				placeholder: 'charge.create',
 				description:
-					'Dotted action name for a curated service (see that service\'s docs), or your Custom Action\'s registered name when Service is "custom".',
+					'Dotted action name for a curated service (see that service\'s docs), or your Custom Action\'s registered name when Service is "custom"',
 			},
 			{
 				displayName: 'Payload',
 				name: 'payload',
 				type: 'json',
 				default: '{}',
-				description: 'Request body forwarded to the upstream API.',
+				description: 'Request body forwarded to the upstream API',
 			},
 		],
 	};

@@ -11,7 +11,8 @@
   "license": "MIT",
   "homepage": "https://github.com/sumedhchatse/agentraas",
   "author": {
-    "name": "Sumedh Chatse"
+    "name": "Sumedh Chatse",
+    "email": "support@agentraas.io"
   },
   "repository": {
     "type": "git",
