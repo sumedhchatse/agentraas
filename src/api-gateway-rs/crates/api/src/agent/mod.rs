@@ -26,6 +26,7 @@ pub fn router() -> Router<SharedState> {
     Router::new()
         .route("/v1/webhook/:org_id/:agent_id", post(webhook_handler))
         .route("/v1/sdk/:service/:action", post(sdk_handler))
+        .route("/v1/sdk/whoami", get(whoami))
         .route("/api/v1/agents/connect", post(connect_agent))
         .route("/api/v1/agents/keys", get(list_keys))
         .route("/api/v1/agents/keys/:id", delete(revoke_key))
@@ -196,6 +197,25 @@ async fn sdk_handler(
         },
     )
     .await
+}
+
+/// Side-effect-free "is this agent key valid" check, for integrations that
+/// test a credential before saving it (n8n requires one). Returns the key's
+/// org so a wrong-org setup is visible; says nothing about unknown keys.
+async fn whoami(State(state): State<SharedState>, headers: HeaderMap) -> Response {
+    let api_key = header_value(&headers, "x-agentraas-key").unwrap_or_default();
+    match resolve_org_from_api_key(&state.pg, &api_key).await {
+        Ok(Some(org_id)) => (StatusCode::OK, Json(json!({ "ok": true, "org_id": org_id }))).into(),
+        Ok(None) => (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Invalid or revoked agent key. Create one from the dashboard's Connect Agent panel." })),
+        )
+            .into(),
+        Err(err) => {
+            tracing::error!(?err, "whoami key lookup failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Key lookup failed" }))).into()
+        }
+    }
 }
 
 fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
