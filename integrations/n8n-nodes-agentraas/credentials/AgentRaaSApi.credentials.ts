@@ -1,4 +1,4 @@
-import type { ICredentialType, INodeProperties, IAuthenticateGeneric, Icon } from 'n8n-workflow';
+import type { ICredentialTestRequest, ICredentialType, INodeProperties, IAuthenticateGeneric, Icon } from 'n8n-workflow';
 
 export class AgentRaaSApi implements ICredentialType {
 	name = 'agentRaaSApi';
@@ -55,6 +55,15 @@ export class AgentRaaSApi implements ICredentialType {
 			headers: {
 				'X-AgentRaaS-Key': '={{$credentials.agentKey}}',
 			},
+		},
+	};
+
+	// Checks the key without doing anything (GET /v1/sdk/whoami, 401 if the
+	// key is unknown or revoked).
+	test: ICredentialTestRequest = {
+		request: {
+			baseURL: '={{$credentials.baseUrl}}',
+			url: '/v1/sdk/whoami',
 		},
 	};
 }

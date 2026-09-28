@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-agentraas",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Exactly-once execution for AI agent workflows — n8n node for AgentRaaS",
   "keywords": [
     "n8n-community-node-package",

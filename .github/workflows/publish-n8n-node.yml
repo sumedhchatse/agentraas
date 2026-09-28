@@ -1,0 +1,31 @@
+# Publishes integrations/n8n-nodes-agentraas to npm with a provenance
+# statement, which n8n requires before listing a community node. Runs only
+# in the public repo (provenance must point at public source), on a tag
+# like n8n-nodes-agentraas-v0.1.1. Auth is npm trusted publishing: the
+# package's npmjs.com settings name this repo and this workflow file.
+name: Publish n8n node
+
+on:
+  push:
+    tags: ['n8n-nodes-agentraas-v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'sumedhchatse/agentraas'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/n8n-nodes-agentraas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish --provenance --access public
