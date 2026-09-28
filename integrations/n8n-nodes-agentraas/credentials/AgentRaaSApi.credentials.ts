@@ -1,9 +1,11 @@
-import type { ICredentialType, INodeProperties, IAuthenticateGeneric } from 'n8n-workflow';
+import type { ICredentialType, INodeProperties, IAuthenticateGeneric, Icon } from 'n8n-workflow';
 
 export class AgentRaaSApi implements ICredentialType {
 	name = 'agentRaaSApi';
 
 	displayName = 'AgentRaaS API';
+
+	icon: Icon = 'file:../nodes/AgentRaaS/agentraas.svg';
 
 	documentationUrl = 'https://github.com/sumedhchatse/agentraas';
 
