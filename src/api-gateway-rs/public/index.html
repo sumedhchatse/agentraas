@@ -402,7 +402,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   }
 
   @media (max-width: 880px) {
-    .charts-row { grid-template-columns: 1fr; }
+    .charts-row { grid-template-columns: minmax(0, 1fr); }
     .main-grid { grid-template-columns: 1fr; }
     .log-row { grid-template-columns: 56px 1fr; row-gap: 3px; }
     .log-row .dur, .log-row .status-word { grid-column: 2; justify-self: start; }
@@ -413,6 +413,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     header.top { flex-direction: column; align-items: flex-start; gap: 12px; }
     #user-info { align-self: stretch; justify-content: space-between; }
     .user-email-btn { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Only the email shrinks; Docs, Guide and Log out keep their size (they squeezed to "D…" at 320px). */
+    #user-info > * { flex-shrink: 0; white-space: nowrap; }
+    #user-info > #account-btn { flex-shrink: 1; min-width: 0; }
     .stat-sentence { font-size: 16px; }
     .control-group { gap: 6px; }
     .control-group-label { min-width: 0; width: 100%; }
