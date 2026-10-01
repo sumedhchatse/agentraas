@@ -169,6 +169,38 @@ In GitHub Actions:
     run: python my_agent.py
 ```
 
+## Keep rules in Git: `agentraas apply`
+
+Describe a server's dedup rules, validation rules, action policies and
+spend caps in YAML, review them like code, and apply them from CI:
+
+```bash
+pip install "agentraas[apply]"
+```
+
+```yaml
+# agentraas.yaml
+apiVersion: agentraas.io/v1alpha1
+kind: DedupRule
+metadata: {name: charge-once, org: org_acme}
+spec: {service: stripe, action: charges.create, fields: [customer, amount], ttlSeconds: 300}
+---
+apiVersion: agentraas.io/v1alpha1
+kind: SpendCap
+metadata: {org: org_acme}
+spec: {service: stripe, action: refunds.create, window: day, maxCalls: 100, onExceed: block}
+```
+
+```bash
+export AGENTRAAS_URL=https://agentraas.example.com AGENTRAAS_EMAIL=ci@acme.com AGENTRAAS_PASSWORD=...
+agentraas apply -f agentraas.yaml --dry-run   # print the plan
+agentraas apply -f agentraas.yaml             # create what's missing, replace what changed
+agentraas apply -f agentraas.yaml --prune     # also delete rules the file doesn't list
+```
+
+Kinds: `DedupRule`, `ValidationRule`, `ActionPolicy`, `SpendCap`. Spec keys
+are the API's fields in camelCase. Running it twice changes nothing.
+
 ## Local tunnel: test webhooks against your laptop
 
 `agentraas tunnel` prints a public URL and replays every request sent to it
