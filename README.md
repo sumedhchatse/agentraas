@@ -2,9 +2,9 @@
 
 # AgentRaaS
 
-**The agent reliability platform.**
+**The reliability layer for what AI agents do.**
 
-AgentRaaS sits between your AI agents and every real-world action, giving you three things at once, not one trick: **reliability** (exactly-once execution, circuit breaking, proven under real concurrent load, not just claimed), **responsibility** (budget/loop limits and human-in-the-loop approval before the calls that matter), and **accountability** (a full audit trail and per-agent identity — scope-restricted credentials — for every action taken). Connect it via webhook, SDK-style headers, or native MCP. Self-hosted or cloud.
+AgentRaaS sits between your AI agents and every real-world action, giving you three things at once, not one trick: **reliability** (exactly-once execution, circuit breaking, proven under real concurrent load, not just claimed), **responsibility** (action policies for what each agent may do and where it may send data, budget/loop limits, and human-in-the-loop approval before the calls that matter), and **accountability** (a full audit trail and per-agent identity — scope-restricted credentials — for every action taken, exportable to your tracing tools over OpenTelemetry). Connect it via webhook, SDK-style headers, or native MCP. Self-hosted or cloud.
 
 ---
 

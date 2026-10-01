@@ -2,12 +2,19 @@
 
 <!-- mcp-name: io.github.sumedhchatse/agentraas -->
 
-Exactly-once execution for AI agents — a thin, dependency-light wrapper
-around [AgentRaaS](https://github.com/sumedhchatse/agentraas)'s SDK-style
-REST gateway. If your agent code calls Stripe, Twilio, HubSpot, or any
-other API directly, wrap it with this client so a retry — yours, your
-framework's, or a flaky network — never becomes a duplicate charge, a
-duplicate contact, or a duplicate message.
+The reliability layer for what AI agents do. Every action your agent
+takes (a charge, an email, a CRM update, a tool call) runs once even when
+it is retried, can be checked against rules before it runs, and is
+recorded. This package brings that to your code:
+
+- `@exactly_once` and `protect_tool` (LangChain/LangGraph): a retry,
+  yours, your framework's or a flaky network's, never becomes a duplicate
+  charge or message. No server needed.
+- `agentraas wrap`: the same for any MCP server's write tools.
+- `agentraas chaos`: finds the calls in your agent that would double up
+  under retries, before production does.
+- `Client`: points your calls at an AgentRaaS server for action policies,
+  human approval, spend caps, circuit breaking and an audit trail.
 
 Works against any AgentRaaS deployment: self-hosted (`./install.sh`,
 free and unlimited on every tier) or AgentRaaS Cloud.
@@ -62,6 +69,25 @@ async def ship(order):
 When you want a dashboard, audit trail, human approval or circuit
 breaking on top, point the same calls at an AgentRaaS server with the
 `Client` below.
+
+## LangChain / LangGraph: exactly-once tool calls
+
+`pip install "agentraas[langchain]"`, then wrap the tools that have side
+effects. Works with LangChain agents, `create_react_agent` and `ToolNode`.
+
+```python
+from agentraas.langchain import protect_tool
+
+tools = [protect_tool(charge_card), protect_tool(send_email), search]
+agent = create_react_agent(model, tools)
+```
+
+When the model calls a protected tool again with the same arguments, or
+the graph re-runs the tool node after a crash or retry, the stored result
+comes back instead of a second charge. Takes the same `store=`, `key=` and
+`ttl=` options as `@exactly_once` above (e.g. `store=RedisStore(...)` for
+several workers, `key=lambda order_id, **_: order_id`). Tool results must
+be JSON-serializable.
 
 ## MCP wrap: exactly-once tool calls for any MCP server
 

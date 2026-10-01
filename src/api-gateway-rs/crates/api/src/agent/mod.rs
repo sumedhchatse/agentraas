@@ -660,6 +660,32 @@ async fn handle_request(
         }
     }
 
+    // Action policies (SPEC-ACTION-POLICIES.md): what this agent may do.
+    // Before breaker/usage/spend caps so a refused call counts against
+    // nothing. Fails closed: a policy we can't read is not a pass.
+    match crate::action_policies::check(state, &org_id, &agent_id, &service, &action, &payload).await {
+        Ok(Some(v)) => {
+            if v.hitl && cfg!(feature = "enterprise") {
+                #[cfg(feature = "enterprise")]
+                return crate::ee::hitl::freeze_and_notify(
+                    state, &req_id, &org_id, &agent_id, &api_key, &service, &action, &payload, &dedup_hash, dedup_ttl_seconds,
+                    crate::ee::hitl::MatchedRule, run_id.as_deref(), step_id.as_deref(),
+                )
+                .await
+                .into();
+            }
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some(v.reason), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            return err_response(StatusCode::FORBIDDEN, &req_id, v.message);
+        }
+        Ok(None) => {}
+        Err(err) => {
+            tracing::error!(?err, "action policy check failed");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
+        }
+    }
+
     let circuit_key = if resolved_route.credential_key.is_empty() {
         service.clone()
     } else {

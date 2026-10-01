@@ -8,5 +8,8 @@ RUN cargo build --release -p api
 FROM docker.io/library/debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/ar-api-rs /usr/local/bin/ar-api-rs
+# Dashboard and pages, so the image runs on its own (Kubernetes, Helm).
+# compose.yaml still bind-mounts ./public over this, so edits there need no rebuild.
+COPY public /public
 EXPOSE 3000
 CMD ["ar-api-rs"]

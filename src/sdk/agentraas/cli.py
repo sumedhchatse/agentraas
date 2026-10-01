@@ -10,6 +10,8 @@ commands:
          agentraas chaos --mock -- python my_agent.py
   tunnel forward webhooks from a public URL to a local port
          agentraas tunnel --port 3000 --org org_acme --agent agent_1 --key ar_live_...
+  apply  make an org's rules match a YAML file kept in Git
+         agentraas apply -f agentraas.yaml [--dry-run] [--prune]
 """
 
 
@@ -25,6 +27,8 @@ def main(argv=None):
         from .chaos import main as run
     elif cmd == "tunnel":
         from .tunnel import main as run
+    elif cmd == "apply":
+        from .apply import main as run
     else:
         print(USAGE, file=sys.stderr)
         return 2

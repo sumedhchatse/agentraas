@@ -15,6 +15,8 @@ fits the burst; the rate-limit check itself still runs on every call.
 Never point this at production.
 
     python3 infra/scripts/bench-overhead.py [--n 500]
+
+For throughput under concurrent load, see infra/bench/ (k6).
 """
 import argparse
 import statistics
@@ -46,6 +48,7 @@ def summary(ms):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=500)
+    ap.add_argument("--setup-only", action="store_true", help="create the bench org and print env vars for infra/bench/load.js")
     args = ap.parse_args()
 
     run = int(time.time())
@@ -62,6 +65,10 @@ def main():
          "UPDATE users SET plan = 'enterprise' WHERE org_id = '{}'".format(org)],
         check=True,
     )
+
+    if args.setup_only:
+        print("export ORG={} AGENT={} KEY={}".format(org, agent, key))
+        return
 
     direct = requests.Session()
     via = requests.Session()
