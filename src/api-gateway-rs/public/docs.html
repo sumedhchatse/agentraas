@@ -235,11 +235,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <a href="#services">Supported services</a>
       <a href="#custom-actions">Custom Actions</a>
       <a href="#action-policies">Action policies</a>
+      <a href="#apply">Rules as code</a>
       <a href="#inbound-webhooks">Inbound webhooks</a>
     </div>
     <div class="group">
       <div class="group-label">Operating</div>
       <a href="#self-hosting">Self-hosting</a>
+      <a href="#helm">Kubernetes (Helm)</a>
+      <a href="#metrics">Metrics</a>
       <a href="#latency">Latency</a>
       <a href="#plans">Plans &amp; limits</a>
       <a href="#troubleshooting">Troubleshooting</a>
@@ -544,6 +547,46 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
       </table>
     </section>
 
+    <section id="apply">
+      <h2>Rules as code <span class="badge free">Free</span></h2>
+      <p>Keep an org's dedup rules, validation rules, action policies and spend caps in a YAML file in your repo, review changes like code, and apply them from CI. <code>agentraas apply</code> makes the server match the file through the normal API: it creates what is missing and replaces what changed. Running it twice changes nothing.</p>
+      <pre><code>pip install "agentraas[apply]"</code></pre>
+      <pre><code># agentraas.yaml
+apiVersion: agentraas.io/v1alpha1
+kind: DedupRule
+metadata:
+  name: charge-once        # for people reading the file; not stored
+  org: org_acme
+spec:
+  service: stripe
+  action: charges.create
+  fields: [customer, amount]
+  ttlSeconds: 300
+---
+apiVersion: agentraas.io/v1alpha1
+kind: ActionPolicy
+metadata: {org: org_acme}
+spec: {agentId: support-bot, service: stripe, action: refunds.create, effect: require, fields: {amount: {max: 5000}}}
+---
+apiVersion: agentraas.io/v1alpha1
+kind: SpendCap
+metadata: {org: org_acme}
+spec: {service: stripe, action: refunds.create, window: day, maxCalls: 100, onExceed: block}</code></pre>
+      <pre><code>export AGENTRAAS_URL=https://agentraas.example.com
+export AGENTRAAS_EMAIL=ci@acme.com AGENTRAAS_PASSWORD=...   # a user with write access to the org
+agentraas apply -f agentraas.yaml --dry-run   # print the plan, change nothing
+agentraas apply -f agentraas.yaml             # apply it
+agentraas apply -f agentraas.yaml --prune     # also delete rules the file doesn't list</code></pre>
+      <table>
+        <tr><th>Kind</th><th>Same as</th><th>One rule per</th></tr>
+        <tr><td><code>DedupRule</code></td><td>Dedup rules</td><td>service + action</td></tr>
+        <tr><td><code>ValidationRule</code></td><td>Validation rules</td><td>service + action</td></tr>
+        <tr><td><code>ActionPolicy</code></td><td><a href="#action-policies">Action policies</a></td><td>agent + service + action + effect</td></tr>
+        <tr><td><code>SpendCap</code></td><td>Spend caps</td><td>agent + service + action + window</td></tr>
+      </table>
+      <p>Spec keys are the API's fields in camelCase (<code>ttl_seconds</code> becomes <code>ttlSeconds</code>, <code>on_violation</code> becomes <code>onViolation</code>). Without <code>--prune</code>, rules made in the dashboard are left alone; with it, every rule of these four kinds in the orgs the file names that the file doesn't list is deleted. The command exits non-zero if any change fails, so a CI job fails with it.</p>
+    </section>
+
     <section id="inbound-webhooks">
       <h2>Inbound webhooks <span class="badge ent">Enterprise</span></h2>
       <p>For the reverse direction: a third party (e.g. WhatsApp) calling <i>into</i> your system. AgentRaaS verifies the provider's real signature (HMAC or ECDSA, whichever that provider uses) before forwarding the payload on to your own destination URL, so you get signature verification without implementing it per provider.</p>
@@ -569,6 +612,54 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><td><code>SMTP_*</code></td><td>Optional. Without it, password-reset links are logged server-side instead of emailed.</td></tr>
       </table>
       <div class="callout"><p>Billing always happens on AgentRaaS Cloud, even for a self-hosted instance: Paddle checkout and your subscription live there. Self-hosting doesn't need its own Paddle account; you just paste the license token it issues you into <code>LICENSE_TOKEN</code>.</p></div>
+    </section>
+
+    <section id="helm">
+      <h2>Kubernetes (Helm)</h2>
+      <p>The repo ships a Helm chart in <code>infra/helm/agentraas</code>. It runs the Community image (<code>ghcr.io/sumedhchatse/agentraas</code>, tag = the chart's app version) with a bundled single-instance Postgres and Redis, or with your own.</p>
+      <pre><code>git clone https://github.com/sumedhchatse/agentraas && cd agentraas
+helm install agentraas ./infra/helm/agentraas \
+  --set publicUrl=https://agentraas.example.com \
+  --set ingress.enabled=true --set ingress.host=agentraas.example.com \
+  --set clientIpHeader=x-real-ip</code></pre>
+      <p>With a managed database and Redis:</p>
+      <pre><code>helm install agentraas ./infra/helm/agentraas \
+  --set postgresql.enabled=false --set externalDatabase.url=postgres://user:pass@host:5432/agentraas \
+  --set redis.enabled=false --set externalRedis.url=redis://host:6379</code></pre>
+      <table>
+        <tr><th>Value</th><th>What it does</th></tr>
+        <tr><td><code>publicUrl</code></td><td>The URL people reach the dashboard at (email links, Connect Agent URLs).</td></tr>
+        <tr><td><code>existingSecret</code></td><td>A Secret holding <code>JWT_SECRET</code>, <code>CREDENTIALS_ENCRYPTION_KEY</code> and, with an external database, <code>DATABASE_URL</code>. Leave empty and the chart generates them on first install and keeps them on upgrade.</td></tr>
+        <tr><td><code>clientIpHeader</code></td><td>The header your ingress writes with the client IP (see <code>CLIENT_IP_HEADER</code> in <a href="#self-hosting">Self-hosting</a>).</td></tr>
+        <tr><td><code>metricsToken</code></td><td>Turns on <a href="#metrics">/metrics</a>.</td></tr>
+        <tr><td><code>extraEnv</code></td><td>Any other environment variable, e.g. <code>SMTP_HOST</code>, <code>LICENSE_TOKEN</code>, <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>.</td></tr>
+        <tr><td><code>replicaCount</code></td><td>Keep 1 with the bundled datastores. The API itself is stateless (dedup state lives in Redis).</td></tr>
+      </table>
+      <p>Every database migration runs before the API starts, in an init container that holds a Postgres advisory lock so replicas don't race; all migrations are safe to re-run. The API runs with a read-only root filesystem and is probed on <code>/health</code>.</p>
+      <div class="callout"><p>Back up <code>CREDENTIALS_ENCRYPTION_KEY</code> (in the generated Secret). Without it, the third-party credentials AgentRaaS stores can't be decrypted. Redis holds the dedup slots: run it with persistence, or a restart reopens recent calls to duplicates.</p></div>
+    </section>
+
+    <section id="metrics">
+      <h2>Metrics (Prometheus)</h2>
+      <p><code>GET /metrics</code> serves Prometheus text format: how many calls AgentRaaS handled and how long it took to answer them, by service and outcome. It is off (404) until you set <code>METRICS_TOKEN</code>, and then needs that token as a bearer token. There is no org label, so one token never reveals another tenant's traffic.</p>
+      <pre><code># prometheus.yml
+scrape_configs:
+  - job_name: agentraas
+    scheme: https
+    authorization:
+      credentials: your-metrics-token
+    static_configs:
+      - targets: [agentraas.example.com]</code></pre>
+      <table>
+        <tr><th>Metric</th><th>Type</th><th>Labels</th></tr>
+        <tr><td><code>agentraas_calls_total</code></td><td>counter</td><td><code>service</code>, <code>status</code> (<code>success</code>, <code>deduplicated</code>, <code>blocked</code>, <code>error</code>, ...)</td></tr>
+        <tr><td><code>agentraas_call_duration_ms</code></td><td>histogram (5 ms to 10 s)</td><td><code>service</code>, <code>status</code></td></tr>
+      </table>
+      <pre><code># duplicates caught per second, by service
+sum by (service) (rate(agentraas_calls_total{status="deduplicated"}[5m]))
+# p95 time to answer
+histogram_quantile(0.95, sum by (le) (rate(agentraas_call_duration_ms_bucket[5m])))</code></pre>
+      <p>Counters live in memory and reset when the server restarts, which Prometheus' <code>rate()</code> handles. For per-call detail (which agent, which run), use the <a href="#self-hosting">OpenTelemetry export</a> instead.</p>
     </section>
 
     <section id="latency">
