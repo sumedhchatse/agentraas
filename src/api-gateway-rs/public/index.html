@@ -22,23 +22,23 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
      ledger" values until 2026-09-15; swapped for a plain neutral
      cool-dark scale (see landing.html's :root comment). Accent colors
      unchanged. */
-  /* 2026-09-26: switched to a dark theme (was light/sky-blue) — same
-     hues, brightened accents so they hold contrast on the dark panels. */
+  /* 2026-10-01: light neutral theme, matching the site. Graphite primary
+     buttons, deep blue for status/data, every text colour WCAG AA. */
   :root {
-    color-scheme: dark;
-    --bg: #0F1B26;
-    --panel: #172633;
-    --panel-2: #1D2F3E;
-    --border: #2A3F50;
-    --text: #E3ECF2;
-    --muted: #93A9B9;
-    --faint: #5E7688;
-    --signal: #4BA3DB;
-    --signal-dim: #16344A;
-    --claim: #5FAE85;
-    --alert: #E5655D;
-    --dedup: #E0BF5C;
-    --info: #8FA6C6;
+    color-scheme: light;
+    --bg: #F6F7F9;
+    --panel: #FFFFFF;
+    --panel-2: #F3F4F6;
+    --border: #E4E7EB;
+    --text: #0E1116;
+    --muted: #4A5260;
+    --faint: #626B78;
+    --signal: #1F5F99;
+    --signal-dim: #EEF4FA;
+    --claim: #17773F;
+    --alert: #B7322A;
+    --dedup: #9A5B00;
+    --info: #1F5F99;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -69,7 +69,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   #user-info { display: none; align-items: center; gap: 14px; font-size: 12.5px; color: var(--muted); }
   #user-info button {
     background: none; border: 1px solid var(--border); color: var(--text);
-    padding: 6px 13px; font-size: 12.5px; font-family: inherit; border-radius: 20px; cursor: pointer;
+    padding: 6px 13px; font-size: 12.5px; font-family: inherit; border-radius: 6px; cursor: pointer;
   }
   #user-info button:hover { border-color: var(--faint); }
 
@@ -85,16 +85,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   }
   .field input:focus { outline: none; border-color: var(--signal); }
   button.primary {
-    width: 100%; background: var(--signal); color: var(--bg); border: none; border-radius: 8px;
+    width: 100%; background: #111418; color: #FFFFFF; border: none; border-radius: 8px;
     padding: 12px; font-size: 14px; font-weight: 700; font-family: 'Archivo', sans-serif; cursor: pointer; margin-top: 4px;
   }
-  button.primary:hover { background: #FFB85C; }
+  button.primary:hover { background: #2A2F36; }
   button.primary:disabled { opacity: 0.5; cursor: default; }
   .switch-mode { margin-top: 18px; font-size: 13px; color: var(--muted); text-align: center; }
   .switch-mode a { color: var(--signal); cursor: pointer; text-decoration: none; }
   .switch-mode a:hover { text-decoration: underline; }
   #auth-error, #reset-error {
-    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #F0A69C;
+    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #B7322A;
     padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px; display: none;
   }
   #forgot-message {
@@ -135,10 +135,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; font-size: 13px;
   }
   #usage-over-limit-banner.exempt {
-    background: rgba(217,164,65,0.12); border: 1px solid var(--dedup); color: #F0CB8A;
+    background: rgba(217,164,65,0.12); border: 1px solid var(--dedup); color: #7A4800;
   }
   #usage-over-limit-banner.cloud {
-    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #F0A69C;
+    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #B7322A;
   }
   #usage-over-limit-banner a { color: inherit; font-weight: 600; text-decoration: underline; }
 
@@ -159,21 +159,21 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .btn {
     display: flex; align-items: center; gap: 6px;
     background: var(--panel); border: 1px solid var(--border); color: var(--text);
-    padding: 8px 14px; font-size: 12.5px; font-family: inherit; border-radius: 20px; cursor: pointer;
+    padding: 8px 14px; font-size: 12.5px; font-family: inherit; border-radius: 6px; cursor: pointer;
   }
   .btn:hover { border-color: var(--faint); }
-  .btn.filled { background: var(--signal); color: var(--bg); border-color: var(--signal); font-weight: 700; }
-  .btn.filled:hover { background: #FFB85C; }
+  .btn.filled { background: #111418; color: #FFFFFF; border-color: #111418; font-weight: 700; }
+  .btn.filled:hover { background: #2A2F36; border-color: #2A2F36; }
   .console-label {
     font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
     color: var(--muted); margin-bottom: 10px;
   }
-  .ranges { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 3px; }
+  .ranges { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
   .ranges button {
     background: none; border: none; color: var(--muted); font-family: inherit; font-size: 12px;
-    padding: 6px 13px; border-radius: 16px; cursor: pointer; transition: color 0.15s, background 0.15s;
+    padding: 6px 13px; border-radius: 5px; cursor: pointer; transition: color 0.15s, background 0.15s;
   }
-  .ranges button:hover:not(.active):not(:disabled) { color: var(--text); background: rgba(255,255,255,0.04); }
+  .ranges button:hover:not(.active):not(:disabled) { color: var(--text); background: rgba(14,17,22,0.04); }
   .ranges button.active { background: var(--panel-2); color: var(--text); }
 
   /* Reading-sentence stat line, not a card grid */
@@ -200,7 +200,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   .service-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
   .service-pill {
     display: flex; align-items: center; gap: 8px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
     padding: 8px 14px 8px 10px; font-size: 12.5px;
   }
   .heartbeat { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); flex-shrink: 0; }
@@ -245,7 +245,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
   /* Modals */
   .modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(6,9,16,0.72);
+    display: none; position: fixed; inset: 0; background: rgba(14,17,22,0.45);
     align-items: center; justify-content: center; z-index: 50; padding: 20px;
   }
   .modal {
@@ -303,7 +303,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   }
   .admin-tab.active .admin-tab-range { color: var(--signal); }
 
-  .badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
   .badge.verified { background: rgba(43,127,184,0.14); color: var(--signal); }
   .badge.unverified { background: rgba(226,88,74,0.14); color: var(--alert); }
   .badge.admin-role { background: rgba(108,142,239,0.14); color: var(--info); }
@@ -329,7 +329,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   }
 
   .modal-error {
-    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #F0A69C;
+    background: rgba(226,88,74,0.12); border: 1px solid var(--alert); color: #B7322A;
     padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px; display: none;
   }
   .endpoint-block { margin-bottom: 16px; }
@@ -361,20 +361,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     border-radius: 8px; padding: 5px 11px; font-size: 11px; cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s;
   }
   .cred-row button.revoke:hover { background: rgba(226,88,74,0.12); border-color: var(--alert); }
-  .cred-row.clickable:hover { background: rgba(255,255,255,0.02); }
+  .cred-row.clickable:hover { background: rgba(14,17,22,0.03); }
 
   /* Session / error states */
   #session-banner {
-    display: none; background: rgba(217,164,65,0.12); border: 1px solid var(--dedup); color: #F0CB8A;
+    display: none; background: rgba(217,164,65,0.12); border: 1px solid var(--dedup); color: #7A4800;
     padding: 10px 13px; font-size: 13px; margin-bottom: 15px; border-radius: 8px;
   }
   .panel-error {
     display: none; align-items: center; justify-content: space-between; gap: 10px;
-    background: rgba(226,88,74,0.1); border: 1px solid var(--alert); color: #F0A69C;
+    background: rgba(226,88,74,0.1); border: 1px solid var(--alert); color: #B7322A;
     padding: 9px 12px; font-size: 12.5px; border-radius: 8px; margin-bottom: 10px;
   }
   .panel-error button {
-    background: none; border: 1px solid var(--alert); color: #F0A69C; border-radius: 14px;
+    background: none; border: 1px solid var(--alert); color: #B7322A; border-radius: 6px;
     padding: 4px 11px; font-size: 11.5px; cursor: pointer; font-family: inherit; flex-shrink: 0;
   }
 
@@ -526,7 +526,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="caption"><span class="pulse-dot"></span> Watching your agents live</div>
       <svg viewBox="0 0 800 46" preserveAspectRatio="none">
         <path d="M0,23 L20,23 L28,8 L36,38 L44,23 L60,23 L68,14 L76,32 L84,23 L110,23 L118,6 L126,40 L134,23 L160,23 L168,17 L176,29 L184,23 L400,23 L420,23 L428,8 L436,38 L444,23 L460,23 L468,14 L476,32 L484,23 L510,23 L518,6 L526,40 L534,23 L560,23 L568,17 L576,29 L584,23 L800,23"
-          fill="none" stroke="#4BA3DB" stroke-width="1.4" opacity="0.55"/>
+          fill="none" stroke="#1F5F99" stroke-width="1.4" opacity="0.55"/>
       </svg>
     </div>
 
@@ -565,6 +565,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <button class="btn" id="dedup-rules-btn">Dedup rules</button>
           <button class="btn" id="hitl-rules-btn">HITL rules</button>
           <button class="btn" id="spendcap-rules-btn">Spend caps</button>
+          <button class="btn" id="policy-rules-btn">Action policies</button>
           <button class="btn" id="pruning-btn">Output pruning</button>
         </div>
         <div class="control-group">
@@ -895,6 +896,40 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <h3 style="margin-top:26px;">Saved rules</h3>
     <div id="hitl-list"></div>
     <button class="close-btn" id="hitl-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Action Policies modal -->
+<div class="modal-overlay" id="policy-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Action policies">
+    <h3>Action policies</h3>
+    <p class="sub">What an agent is allowed to do. "Never allow" blocks a service.action outright (use * as the action for every action of a service). "Only allow when" lets a call through only if its payload passes the limits, written like a validation rule; <code>domains</code> restricts an email or URL field to your own domains. Every matching policy applies. Leave Agent ID blank for every agent in the org.</p>
+    <div class="modal-error" id="policy-error"></div>
+    <form id="policy-form">
+      <div class="field"><label for="policy-org">Org ID</label><input type="text" id="policy-org" placeholder="org_acme" required></div>
+      <div class="field"><label for="policy-agent">Agent ID (optional)</label><input type="text" id="policy-agent" placeholder="leave blank for every agent"></div>
+      <div class="field"><label for="policy-service">Service</label><input type="text" id="policy-service" placeholder="stripe (or custom)" required></div>
+      <div class="field"><label for="policy-action">Action</label><input type="text" id="policy-action" placeholder="refunds.create, or * for all" required></div>
+      <div class="field"><label for="policy-effect">Policy</label>
+        <select id="policy-effect">
+          <option value="require">Only allow when the payload passes these limits</option>
+          <option value="deny">Never allow</option>
+        </select>
+      </div>
+      <div class="field" id="policy-fields-wrap"><label for="policy-fields">Limits (JSON)</label>
+        <textarea id="policy-fields" rows="3" placeholder='{"amount": {"max": 50}, "to": {"domains": ["acme.com"]}}' style="width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:ui-monospace,monospace;font-size:12.5px;resize:vertical;"></textarea>
+      </div>
+      <div class="field"><label for="policy-violation">When broken</label>
+        <select id="policy-violation">
+          <option value="block">Block the call</option>
+          <option value="hitl">Route to approval (Team+)</option>
+        </select>
+      </div>
+      <button type="submit" class="primary" id="policy-submit">Save policy</button>
+    </form>
+    <h3 style="margin-top:26px;">Saved policies</h3>
+    <div id="policy-list"></div>
+    <button class="close-btn" id="policy-modal-close">Close</button>
   </div>
 </div>
 
@@ -1235,8 +1270,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   let anyModalOpen = false;
   let activityLimit = 50;
   let activityRows = [];
-  const MUTED = '#93A9B9';
-  const GRID = '#2A3F50';
+  const MUTED = '#4A5260';
+  const GRID = '#E4E7EB';
   const CHART_FONT = { family: "'Archivo', sans-serif", size: 11 };
 
   function setMode(next) {
@@ -1552,7 +1587,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       const data = {
         labels: ['Success', 'Deduplicated', 'Blocked', 'Errors'],
         datasets: [{ data: [Number(s.success)||0, Number(s.deduplicated)||0, Number(s.blocked)||0, Number(s.errors)||0],
-          backgroundColor: ['#4E8B6B', '#D9B54B', '#D9463F', '#6B3226'], borderColor: '#172633', borderWidth: 2 }],
+          backgroundColor: ['#4E8B6B', '#D9B54B', '#D9463F', '#6B3226'], borderColor: '#FFFFFF', borderWidth: 2 }],
       };
       const ctx = document.getElementById('status-chart');
       if (statusChart) { statusChart.data = data; statusChart.update(); }
@@ -2517,6 +2552,77 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     } catch (err) {}
   }
 
+  // ─── Action Policies modal ───
+  const policyModalOverlay = document.getElementById('policy-modal-overlay');
+  const policyForm = document.getElementById('policy-form');
+  const policyError = document.getElementById('policy-error');
+  const policySubmit = document.getElementById('policy-submit');
+  const policyEffect = document.getElementById('policy-effect');
+  const showPolicyError = (msg) => { policyError.textContent = msg; policyError.style.display = 'block'; };
+  const syncPolicyFields = () => { document.getElementById('policy-fields-wrap').style.display = policyEffect.value === 'require' ? '' : 'none'; };
+  policyEffect.addEventListener('change', syncPolicyFields);
+
+  document.getElementById('policy-rules-btn').addEventListener('click', () => {
+    policyError.style.display = 'none'; policyForm.reset(); syncPolicyFields();
+    policyModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    document.getElementById('policy-org').focus();
+    loadPolicyList();
+  });
+  document.getElementById('policy-modal-close').addEventListener('click', () => { policyModalOverlay.style.display = 'none'; anyModalOpen = false; });
+  policyModalOverlay.addEventListener('click', (e) => { if (e.target === policyModalOverlay) { policyModalOverlay.style.display = 'none'; anyModalOpen = false; } });
+
+  policyForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); policyError.style.display = 'none';
+    const effect = policyEffect.value;
+    let fields = null;
+    if (effect === 'require') {
+      try { fields = JSON.parse(document.getElementById('policy-fields').value); }
+      catch (err) { showPolicyError('Limits must be valid JSON, like {"amount": {"max": 50}}.'); return; }
+    }
+    policySubmit.disabled = true;
+    const restoreText = withLoadingText(policySubmit, 'Saving…');
+    try {
+      const res = await fetch('/api/v1/action-policies', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({
+          org_id: document.getElementById('policy-org').value.trim(),
+          agent_id: document.getElementById('policy-agent').value.trim() || null,
+          service: document.getElementById('policy-service').value.trim(),
+          action: document.getElementById('policy-action').value.trim(),
+          effect, fields,
+          on_violation: document.getElementById('policy-violation').value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showPolicyError(data.error || 'Could not save policy.'); return; }
+      policyForm.reset(); syncPolicyFields(); loadPolicyList();
+    } catch (err) { showPolicyError('Could not reach the server.'); }
+    finally { policySubmit.disabled = false; restoreText(); }
+  });
+
+  async function loadPolicyList() {
+    const list = document.getElementById('policy-list');
+    try {
+      const res = await fetch('/api/v1/action-policies', { credentials: 'include' });
+      if (!res.ok) return;
+      const rows = (await res.json()).policies || [];
+      if (!rows.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No action policies yet.</div>'; return; }
+      list.innerHTML = '';
+      for (const row of rows) {
+        const scope = row.agent_id ? `agent ${escapeHtml(row.agent_id)}` : 'every agent';
+        const rule = row.effect === 'deny' ? 'never allowed' : `only when ${escapeHtml(JSON.stringify(row.fields))}`;
+        const then = row.on_violation === 'hitl' ? 'route to approval' : 'block';
+        const div = document.createElement('div');
+        div.className = 'rule-summary-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(row.service)}.${escapeHtml(row.action)} (${escapeHtml(row.org_id)})</div><div class="meta">${scope}: ${rule}; otherwise ${then}</div></div><button class="revoke delete-policy" data-id="${Number(row.id)}">Delete</button>`;
+        list.appendChild(div);
+      }
+      list.querySelectorAll('.delete-policy').forEach((btn) => {
+        btn.addEventListener('click', async () => { await fetch(`/api/v1/action-policies/${btn.dataset.id}`, { method: 'DELETE', credentials: 'include' }); loadPolicyList(); });
+      });
+    } catch (err) {}
+  }
+
   // ─── Dev Tunnel inspector modal ───
   const tunnelModalOverlay = document.getElementById('tunnel-modal-overlay');
   const tunnelError = document.getElementById('tunnel-error');
@@ -2781,7 +2887,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       if (!data.services.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No services configured.</div>'; return; }
       list.innerHTML = '';
       for (const svc of data.services) {
-        const uptimeColor = svc.uptime_pct >= 99.9 ? 'var(--signal)' : svc.uptime_pct >= 99 ? '#E2B24A' : 'var(--alert)';
+        const uptimeColor = svc.uptime_pct >= 99.9 ? 'var(--signal)' : svc.uptime_pct >= 99 ? '#9A5B00' : 'var(--alert)';
         const div = document.createElement('div');
         div.className = 'cred-row';
         div.innerHTML = `<div class="info"><div class="svc">${svc.service.charAt(0).toUpperCase() + svc.service.slice(1)}</div><div class="meta">${svc.total_actions} action${svc.total_actions === 1 ? '' : 's'}${svc.success_rate !== null ? ` · ${svc.success_rate}% success` : ''}${svc.duplicates_prevented > 0 ? ` · ${svc.duplicates_prevented} duplicate${svc.duplicates_prevented === 1 ? '' : 's'} prevented` : ''}</div></div><div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:15px;color:${uptimeColor};">${svc.uptime_pct}% uptime</div>`;

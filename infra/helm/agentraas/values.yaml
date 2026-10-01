@@ -1,0 +1,70 @@
+# Community edition image. Its tag defaults to the chart's appVersion.
+image:
+  repository: ghcr.io/sumedhchatse/agentraas
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Keep 1 unless Redis and Postgres are external and shared: the API is
+# stateless, dedup state lives in Redis.
+replicaCount: 1
+
+# The URL people reach the dashboard at (used in emails and links).
+publicUrl: http://localhost:3000
+
+# Header your ingress/proxy writes with the real client IP, used for rate
+# limiting. Leave empty if there is no proxy in front. Never use
+# X-Forwarded-For unless your proxy overwrites it.
+clientIpHeader: ""
+
+# Secrets. Leave empty to generate them on first install (kept on upgrade),
+# or set existingSecret to a Secret with the keys JWT_SECRET,
+# CREDENTIALS_ENCRYPTION_KEY (base64 of 32 random bytes) and, when the
+# bundled database is off, DATABASE_URL. Back up CREDENTIALS_ENCRYPTION_KEY:
+# without it the stored third-party credentials cannot be decrypted.
+existingSecret: ""
+jwtSecret: ""
+credentialsEncryptionKey: ""
+
+# Prometheus /metrics bearer token. Empty = /metrics returns 404.
+metricsToken: ""
+
+# Extra environment variables for the API (SMTP_HOST, LICENSE_TOKEN, ...).
+extraEnv: {}
+
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {memory: 512Mi}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  host: agentraas.example.com
+  annotations: {}
+  tls: []
+
+# Bundled single-instance Postgres. For production, prefer a managed
+# database: set enabled=false and externalDatabase.url (or DATABASE_URL in
+# existingSecret). Migrations run on every API start either way.
+postgresql:
+  enabled: true
+  image: docker.io/postgres:15-alpine
+  password: ""
+  storage: 10Gi
+  storageClass: ""
+externalDatabase:
+  url: ""
+
+# Bundled single-instance Redis with append-only persistence. Dedup slots
+# live here: losing them reopens recent calls to duplicates.
+redis:
+  enabled: true
+  image: docker.io/redis:7-alpine
+  storage: 2Gi
+  storageClass: ""
+externalRedis:
+  url: ""

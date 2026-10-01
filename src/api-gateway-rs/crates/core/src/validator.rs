@@ -11,7 +11,8 @@ pub fn validate_fields(payload: &Value, fields: &Value) -> Option<String> {
     let fields_obj = fields.as_object()?;
 
     for (field_name, field_rules) in fields_obj {
-        let value = payload.get(field_name);
+        // "*" names the whole payload (for rules like no_secrets).
+        let value = if field_name == "*" { Some(payload) } else { payload.get(field_name) };
         let is_null_ish = matches!(value, None | Some(Value::Null))
             || matches!(value, Some(Value::String(s)) if s.is_empty());
 
@@ -68,6 +69,27 @@ pub fn validate_fields(payload: &Value, fields: &Value) -> Option<String> {
             }
         }
 
+        if field_rules.get("no_secrets").and_then(Value::as_bool) == Some(true) {
+            if let Some(kind) = find_secret(value) {
+                // Never echo the secret itself back.
+                return Some(format!("{field_name} contains what looks like a {kind}; refusing to send it"));
+            }
+        }
+
+        // Allowed domains for an email address or URL (or a list of them,
+        // e.g. an email API's `to: [...]`): exact domain or a subdomain.
+        if let Some(domains) = field_rules.get("domains").and_then(Value::as_array) {
+            let allowed: Vec<&str> = domains.iter().filter_map(Value::as_str).collect();
+            let values: Vec<&str> = match value {
+                Value::String(s) => vec![s.as_str()],
+                Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
+                _ => vec![],
+            };
+            if let Some(bad) = values.iter().find(|v| !domain_allowed(v, &allowed)) {
+                return Some(format!("{field_name} ({bad}) is not in an allowed domain: {}", allowed.join(", ")));
+            }
+        }
+
         if let Value::String(s) = value {
             if let Some(max_len) = field_rules.get("maxLength").and_then(Value::as_u64) {
                 if s.chars().count() as u64 > max_len {
@@ -105,6 +127,76 @@ pub fn validate_fields(payload: &Value, fields: &Value) -> Option<String> {
     }
 
     None
+}
+
+/// Credential formats an agent should never send out: a prompt-injected
+/// agent's usual goal is to leak one. (prefix, min token chars after it, name)
+const SECRET_PREFIXES: [(&str, usize, &str); 14] = [
+    ("sk_live_", 16, "Stripe secret key"),
+    ("rk_live_", 16, "Stripe restricted key"),
+    ("whsec_", 16, "webhook signing secret"),
+    ("sk-ant-", 20, "Anthropic API key"),
+    ("sk-proj-", 20, "OpenAI API key"),
+    ("sk-", 32, "API secret key"),
+    ("AKIA", 16, "AWS access key"),
+    ("ghp_", 30, "GitHub token"),
+    ("gho_", 30, "GitHub token"),
+    ("ghs_", 30, "GitHub token"),
+    ("github_pat_", 30, "GitHub token"),
+    ("xoxb-", 20, "Slack token"),
+    ("xoxp-", 20, "Slack token"),
+    ("ar_live_", 16, "AgentRaaS API key"),
+];
+
+fn find_secret(v: &Value) -> Option<&'static str> {
+    match v {
+        Value::String(s) => find_secret_in_str(s),
+        Value::Array(a) => a.iter().find_map(find_secret),
+        Value::Object(o) => o.values().find_map(find_secret),
+        _ => None,
+    }
+}
+
+fn find_secret_in_str(s: &str) -> Option<&'static str> {
+    if s.contains("PRIVATE KEY-----") {
+        return Some("private key");
+    }
+    let token_char = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+    for (prefix, min_len, kind) in SECRET_PREFIXES {
+        for (i, _) in s.match_indices(prefix) {
+            // Must start a token, not sit inside a longer word ("task-..." isn't "sk-").
+            let starts_token = s[..i].chars().next_back().map_or(true, |c| !token_char(c));
+            let tail = s[i + prefix.len()..].chars().take_while(|c| token_char(*c)).count();
+            if starts_token && tail >= min_len {
+                return Some(kind);
+            }
+        }
+    }
+    None
+}
+
+/// The host an email address or URL points at, lowercased: the part after
+/// the last `@` for an email, the authority minus userinfo/port for a URL,
+/// otherwise the string itself (a bare domain).
+pub fn host_of(s: &str) -> String {
+    let s = s.trim();
+    let host = if let Some((_, rest)) = s.split_once("://") {
+        let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+        let authority = authority.rsplit('@').next().unwrap_or("");
+        authority.split(':').next().unwrap_or("")
+    } else {
+        s.rsplit('@').next().unwrap_or("")
+    };
+    host.trim_end_matches('.').to_ascii_lowercase()
+}
+
+fn domain_allowed(s: &str, allowed: &[&str]) -> bool {
+    let host = host_of(s);
+    !host.is_empty()
+        && allowed.iter().any(|d| {
+            let d = d.trim().trim_start_matches('.').to_ascii_lowercase();
+            host == d || host.ends_with(&format!(".{d}"))
+        })
 }
 
 fn json_type_name(v: &Value) -> &'static str {
@@ -203,6 +295,19 @@ pub fn is_valid_rule_definition(fields: &Value) -> Option<String> {
         if let Some(format) = rules.get("format").and_then(Value::as_str).filter(|_| rules.get("format").is_some_and(|v| !v.is_null())) {
             if !["email", "e164"].contains(&format) {
                 return Some(format!("Field \"{field_name}\": format only supports \"email\" or \"e164\" currently."));
+            }
+        }
+        for key in ["no_secrets", "new_destination"] {
+            if rules.get(key).is_some_and(|v| !v.is_null() && !v.is_boolean()) {
+                return Some(format!("Field \"{field_name}\": {key} must be true or false."));
+            }
+        }
+        if let Some(domains) = rules.get("domains").filter(|v| !v.is_null()) {
+            let valid = domains
+                .as_array()
+                .is_some_and(|a| !a.is_empty() && a.iter().all(|d| d.as_str().is_some_and(|s| !s.trim().is_empty() && !s.contains(['@', '/']))));
+            if !valid {
+                return Some(format!("Field \"{field_name}\": domains must be a non-empty list of domain names (like \"acme.com\")."));
             }
         }
         if let Some(enum_val) = rules.get("enum").filter(|v| !v.is_null()) {
@@ -332,5 +437,44 @@ mod tests {
     fn max_field_definition_requires_non_empty_string() {
         assert!(is_valid_rule_definition(&json!({ "amount": { "type": "number", "maxField": "" } })).is_some());
         assert!(is_valid_rule_definition(&json!({ "amount": { "type": "number", "maxField": "balance" } })).is_none());
+    }
+
+    #[test]
+    fn domains_rule_matches_email_url_and_subdomain_only() {
+        let fields = json!({ "to": { "domains": ["acme.com"] } });
+        for ok in ["bob@acme.com", "Bob@Mail.ACME.com", "https://acme.com/x", "https://u:p@api.acme.com:8443/y"] {
+            assert_eq!(validate_fields(&json!({ "to": ok }), &fields), None, "{ok}");
+        }
+        for bad in ["bob@evilacme.com", "bob@acme.com.evil.io", "https://acme.com@evil.io/", "evil.io", ""] {
+            assert!(validate_fields(&json!({ "to": bad }), &fields).is_some(), "{bad}");
+        }
+        assert_eq!(validate_fields(&json!({ "to": ["a@acme.com", "b@x.acme.com"] }), &fields), None);
+        assert!(validate_fields(&json!({ "to": ["a@acme.com", "b@gmail.com"] }), &fields).is_some());
+    }
+
+    #[test]
+    fn domains_definition_must_be_plain_domain_names() {
+        assert!(is_valid_rule_definition(&json!({ "to": { "domains": [] } })).is_some());
+        assert!(is_valid_rule_definition(&json!({ "to": { "domains": ["a@acme.com"] } })).is_some());
+        assert!(is_valid_rule_definition(&json!({ "to": { "domains": ["acme.com"] } })).is_none());
+    }
+
+    #[test]
+    fn no_secrets_finds_keys_anywhere_without_echoing_them() {
+        let fields = json!({ "*": { "no_secrets": true } });
+        let key = format!("sk_live_{}", "a1B2c3D4e5F6g7H8");
+        let payload = json!({ "to": "a@b.com", "body": { "lines": ["hi", format!("here: {key} thanks")] } });
+        let err = validate_fields(&payload, &fields).unwrap();
+        assert!(err.contains("Stripe secret key") && !err.contains(&key), "{err}");
+        assert!(validate_fields(&json!({ "k": "-----BEGIN RSA PRIVATE KEY-----" }), &fields).is_some());
+        assert!(validate_fields(&json!({ "k": format!("AKIA{}", "ABCDEFGHIJKLMNOP") }), &fields).is_some());
+    }
+
+    #[test]
+    fn no_secrets_ignores_lookalikes() {
+        let fields = json!({ "body": { "no_secrets": true } });
+        for ok in ["ask-me-anything-about-this-product-please-now-ok", "task-1234", "sk_live_short", "Refund for order sk_test_123"] {
+            assert_eq!(validate_fields(&json!({ "body": ok }), &fields), None, "{ok}");
+        }
     }
 }

@@ -41,6 +41,9 @@ fn build_payload_schema(fields: &Value) -> Value {
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
     for (name, rules) in obj {
+        if name == "*" {
+            continue; // whole-payload rule (e.g. no_secrets), not a property
+        }
         let is_array = rules.get("type").and_then(Value::as_str) == Some("array");
         let mut prop = serde_json::Map::new();
         for key in ["type", "format", "enum"] {

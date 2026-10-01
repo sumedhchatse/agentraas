@@ -45,7 +45,11 @@ services:
     restart: always
 
   ar-minio:
-    image: quay.io/minio/minio:latest
+    # Docker Hub and quay.io both refuse anonymous MinIO pulls now; Chainguard's
+    # free image still pulls. It defaults to UID 65532, so run as root like the
+    # old image did, or existing ./data/minio files become unwritable.
+    image: cgr.dev/chainguard/minio:latest
+    user: "0"
     container_name: ar-minio
     hostname: ar-minio
     networks:

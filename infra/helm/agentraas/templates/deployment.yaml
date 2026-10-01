@@ -1,0 +1,91 @@
+{{- $name := include "agentraas.name" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "agentraas.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: api}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: api}
+      annotations:
+        # Restart the API when the migrations or service catalog change.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Every migration is safe to re-run, so all of them run on each start,
+        # in one session holding an advisory lock so replicas don't race.
+        - name: migrate
+          image: {{ .Values.postgresql.image }}
+          envFrom: [{secretRef: {name: {{ include "agentraas.secretName" . }}}}]
+          command: ["sh", "-c"]
+          args:
+            - |
+              until pg_isready -q -d "$DATABASE_URL"; do echo "waiting for postgres"; sleep 2; done
+              { echo "SELECT pg_advisory_lock(727274);"; for f in /migrations/*.sql; do echo "\\i $f"; done; } \
+                | psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q
+          volumeMounts: [{name: migrations, mountPath: /migrations}]
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: http, containerPort: 3000}]
+          envFrom: [{secretRef: {name: {{ include "agentraas.secretName" . }}}}]
+          env:
+            - {name: PORT, value: "3000"}
+            - {name: RUST_LOG, value: info}
+            - {name: DEPLOYMENT_MODE, value: self-hosted}
+            - {name: REDIS_URL, value: {{ include "agentraas.redisUrl" . | quote }}}
+            - {name: PUBLIC_URL, value: {{ .Values.publicUrl | quote }}}
+            {{- with .Values.clientIpHeader }}
+            - {name: CLIENT_IP_HEADER, value: {{ . | quote }}}
+            {{- end }}
+            {{- range $k, $v := .Values.extraEnv }}
+            - {name: {{ $k }}, value: {{ $v | quote }}}
+            {{- end }}
+          volumeMounts: [{name: config, mountPath: /config, readOnly: true}]
+          readinessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 10}
+          livenessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 20, failureThreshold: 6, initialDelaySeconds: 10}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true}
+      volumes:
+        - {name: config, configMap: {name: {{ $name }}-config}}
+        - {name: migrations, configMap: {name: {{ $name }}-migrations}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "agentraas.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: api}
+  ports: [{name: http, port: {{ .Values.service.port }}, targetPort: http}]
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels: {{- include "agentraas.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths: [{path: /, pathType: Prefix, backend: {service: {name: {{ $name }}, port: {name: http}}}}]
+{{- end }}

@@ -871,6 +871,8 @@ pub async fn log_audit(
     {
         tracing::error!(?err, "audit log failed");
     }
+    crate::metrics::record(service, status, duration_ms);
+    crate::otel::export(crate::otel::Event { req_id, org_id, agent_id, service, action, status, error_type, duration_ms, run_id, step_id });
 }
 
 /// Only for genuine upstream failures (the target API itself returned an

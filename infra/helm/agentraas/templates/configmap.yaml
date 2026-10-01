@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agentraas.name" . }}-config
+  labels: {{- include "agentraas.labels" . | nindent 4 }}
+data:
+  services.json: |-
+{{ .Files.Get "services.json" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agentraas.name" . }}-migrations
+  labels: {{- include "agentraas.labels" . | nindent 4 }}
+data:
+{{ (.Files.Glob "migrations/*.sql").AsConfig | indent 2 }}

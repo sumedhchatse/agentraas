@@ -15,12 +15,15 @@ mod long_tail;
 mod mcp;
 mod mcp_servers;
 mod notifications;
+mod metrics;
+mod otel;
 mod pages;
 mod pruning_settings;
 mod rules;
 mod schema_drift;
 mod self_host;
 mod spend_caps;
+mod action_policies;
 mod state;
 mod tunnel;
 mod util;
@@ -221,9 +224,11 @@ async fn main() -> anyhow::Result<()> {
         .merge(agentgateway::router())
         .merge(licensing::router())
         .merge(spend_caps::router())
+        .merge(action_policies::router())
         .merge(tunnel::router())
         .merge(schema_drift::router())
-        .merge(long_tail::router());
+        .merge(long_tail::router())
+        .merge(metrics::router());
     #[cfg(feature = "enterprise")]
     let app = app
         .merge(ee::sso::router())
@@ -269,7 +274,7 @@ async fn health(State(state): State<SharedState>) -> impl IntoResponse {
 
     (
         status,
-        Json(json!({ "ok": db_ok && redis_ok, "postgres": db_ok, "redis": redis_ok })),
+        Json(json!({ "ok": db_ok && redis_ok, "postgres": db_ok, "redis": redis_ok, "version": env!("CARGO_PKG_VERSION") })),
     )
 }
 
