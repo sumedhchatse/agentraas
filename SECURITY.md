@@ -51,6 +51,11 @@ servers, notification webhooks, inbound-webhook destinations) goes through
   including IPv4 addresses embedded in IPv6 (`::ffff:a.b.c.d` and the
   transition forms).
 
+The same guard covers SSO: the issuer URL an org admin enters, and the
+token and JWKS endpoints its discovery document names, are checked before
+the server calls them. Slack approval callbacks are only sent to
+`https://hooks.slack.com/`.
+
 The check runs when a URL is registered **and again on every forward**
 (`crates/api/src/agent/forward.rs`), so a DNS record changed after
 registration is caught on the next call. The shared HTTP client never
@@ -73,7 +78,9 @@ ranges if the gateway shares a network with sensitive services.
   `iv:tag:ciphertext`. The authentication tag makes tampering detectable.
   The server refuses to start with a missing or malformed key.
 - Agent API keys and one-time email/reset tokens are stored only as SHA-256
-  hashes; a raw API key is shown once at creation. Passwords are bcrypt.
+  hashes; a raw API key is shown once at creation. A call held for human
+  approval keeps the key's first 16 characters and its hash, never the key
+  (since 0.9.1; migration 051 converts older rows). Passwords are bcrypt.
   Dashboard sessions are signed JWTs and are not stored server-side.
 - Audit-log rows keep a masked API key and, outside Enterprise redaction
   mode, a size-limited payload preview. The OpenTelemetry export never
@@ -110,6 +117,18 @@ client IP for rate limiting comes only from the header named in
 `CLIENT_IP_HEADER` (set it to the header your proxy writes, e.g.
 `cf-connecting-ip`); `X-Forwarded-For` is never trusted. `/metrics` is off
 unless `METRICS_TOKEN` is set and then requires it as a bearer token.
+Every response carries `X-Frame-Options: DENY` (the dashboard can't be
+framed for clickjacking), `X-Content-Type-Options: nosniff` and a strict
+`Referrer-Policy`; production adds HSTS. There is no Content-Security-Policy
+yet: the pages use inline scripts.
+
+### Every way in gets the same checks
+
+Webhook, SDK-style REST and MCP tool calls all pass through action
+policies, spend caps, validation, dedup, the circuit breaker and usage
+limits. Over MCP, a rule that would send a call for human approval blocks
+it instead (an MCP client waits for its answer), so it never runs
+unapproved.
 
 ## Disclosure
 

@@ -712,6 +712,7 @@ async fn handle_request(
         }
         Err(err) => {
             tracing::error!(?err, "get_circuit_state failed");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
             return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
         }
     }
@@ -720,6 +721,7 @@ async fn handle_request(
         Ok(u) => u,
         Err(err) => {
             tracing::error!(?err, "check_usage_limit failed");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
             return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
         }
     };
@@ -765,6 +767,7 @@ async fn handle_request(
         Ok(_) => {}
         Err(err) => {
             tracing::error!(err = %err.message, "spend cap check failed");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
             return err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred.");
         }
     }

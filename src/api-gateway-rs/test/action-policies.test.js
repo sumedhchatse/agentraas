@@ -104,3 +104,35 @@ test('no_secrets blocks a leaked key; new_destination needs an approver', async 
   const clean = await call('refund for order 1234');
   assert.equal(clean.status, 200, JSON.stringify(clean.data));
 });
+
+test('MCP tool calls obey action policies and spend caps (no bypass around the webhook)', async () => {
+  const orgId = `org_policy_mcp_${RUN_ID}`;
+  const agent = `agent_mcp_${RUN_ID}`;
+  const cookie = await registerAndVerify(`policy-mcp-${RUN_ID}@internal.test`, 'validpassword123', orgId);
+  const headers = { headers: { Cookie: cookie } };
+  const key = (await client.post('/api/v1/agents/connect', { org_id: orgId, agent_id: agent, label: 'mcp policy test' }, headers)).data.api_key;
+  const mcpCall = (amount) =>
+    client.post(
+      '/mcp',
+      { jsonrpc: '2.0', id: amount, method: 'tools/call',
+        params: { name: 'mockpay_payment_create', arguments: { org_id: orgId, agent_id: agent, payload: { amount, fail: false } } } },
+      { headers: { 'x-agentraas-key': key } }
+    );
+
+  const before = await mcpCall(1);
+  assert.equal(before.data.result.isError, false, `baseline MCP call runs: ${JSON.stringify(before.data)}`);
+
+  const deny = await client.post('/api/v1/action-policies', { org_id: orgId, agent_id: agent, service: 'mockpay', action: '*', effect: 'deny' }, headers);
+  assert.equal(deny.status, 200, JSON.stringify(deny.data));
+  const denied = await mcpCall(2);
+  assert.equal(denied.data.result.isError, true, `a deny policy must block the MCP call too: ${JSON.stringify(denied.data)}`);
+  assert.match(JSON.stringify(denied.data), new RegExp(`action policy #${deny.data.id}`));
+  await client.delete(`/api/v1/action-policies/${deny.data.id}`, headers);
+
+  const cap = await client.post('/api/v1/spend-cap-rules', { org_id: orgId, agent_id: agent, service: 'mockpay', action: 'payment.create', window: 'day', max_calls: 1, on_exceed: 'block' }, headers);
+  assert.equal(cap.status, 200, JSON.stringify(cap.data));
+  assert.equal((await mcpCall(3)).data.result.isError, false, 'first call under the cap runs');
+  const capped = await mcpCall(4);
+  assert.equal(capped.data.result.isError, true, `the second call is over the cap: ${JSON.stringify(capped.data)}`);
+  assert.match(JSON.stringify(capped.data), /Spend cap exceeded/);
+});

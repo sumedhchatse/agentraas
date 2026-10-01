@@ -128,6 +128,23 @@ pub fn select_dedup_hash_mode<'a>(
 }
 
 #[cfg(test)]
+mod stored_key_ref_tests {
+    use super::*;
+
+    #[test]
+    fn keeps_a_display_prefix_and_no_usable_key() {
+        let key = "ar_live_0123456789abcdef0123456789abcdef0123456789ab";
+        let r = stored_key_ref(key);
+        assert!(r.starts_with("ar_live_01234567#sha256:"));
+        assert!(!r.contains("89abcdef0123"), "the rest of the key must not be stored");
+        assert_eq!(stored_key_hash(&r).unwrap().len(), 64);
+        assert_eq!(mask_api_key_for_audit(&r), "ar_live_…");
+        assert_eq!(stored_key_ref("anonymous"), "anonymous");
+        assert_eq!(stored_key_hash("anonymous"), None);
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -910,6 +927,39 @@ pub async fn write_dead_letter_queue(
     {
         tracing::warn!(?err, req_id, "dead-letter queue write failed");
     }
+}
+
+/// What a held call (`hitl_requests.api_key`) stores instead of the raw
+/// agent key: its first 16 characters (so the audit log still shows
+/// `ar_live_…`) and its SHA-256. A database dump or backup then holds no
+/// usable key. "anonymous" (an org with no keys yet) is kept as is.
+pub fn stored_key_ref(api_key: &str) -> String {
+    if api_key.is_empty() || api_key == "anonymous" {
+        return api_key.to_string();
+    }
+    use sha2::{Digest, Sha256};
+    let prefix: String = api_key.chars().take(16).collect();
+    format!("{prefix}#sha256:{}", hex::encode(Sha256::digest(api_key.as_bytes())))
+}
+
+/// The hash half of a `stored_key_ref`, if it has one.
+pub fn stored_key_hash(key_ref: &str) -> Option<&str> {
+    key_ref.split_once("#sha256:").map(|(_, h)| h)
+}
+
+/// `verify_api_key` for a key stored with `stored_key_ref`: is it still a
+/// live, unrevoked key for this org and agent?
+pub async fn verify_stored_key_ref(pg: &PgPool, key_ref: &str, org_id: &str, agent_id: &str) -> Result<bool, sqlx::Error> {
+    let Some(hash) = stored_key_hash(key_ref) else {
+        return Ok(verify_api_key(pg, key_ref, org_id, agent_id).await?.ok);
+    };
+    let found: Option<i32> = sqlx::query_scalar("SELECT 1 FROM api_keys WHERE key_hash=$1 AND org_id=$2 AND agent_id=$3 AND revoked_at IS NULL")
+        .bind(hash)
+        .bind(org_id)
+        .bind(agent_id)
+        .fetch_optional(pg)
+        .await?;
+    Ok(found.is_some())
 }
 
 fn mask_api_key_for_audit(api_key: &str) -> String {

@@ -533,31 +533,31 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         // check for the matching REST-side guard.
         let is_streamed = existing.as_ref().and_then(|v| v.get("streamed")).and_then(Value::as_bool).unwrap_or(false);
         let Some(existing) = existing else {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request is already being processed. Retry shortly.", "reqId": req_id }), true);
         };
         if dedup::is_stale_pending(&existing, crate::agent::now_ms()) {
-            crate::agent::settle_stale_claim(state, &mut conn, &claim.key, &existing, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, &payload, &dedup_hash).await;
+            crate::agent::settle_stale_claim(state, &mut conn, &claim.key, &existing, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, &payload, &dedup_hash).await;
         }
         if dedup::is_outcome_unknown(&existing) || dedup::is_stale_pending(&existing, crate::agent::now_ms()) {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("outcome_unknown"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("outcome_unknown"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": crate::agent::OUTCOME_UNKNOWN_RETRY_MESSAGE, "reqId": req_id }), true);
         }
         if is_pending {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_in_progress"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request is already being processed. Retry shortly.", "reqId": req_id }), true);
         }
         if is_streamed {
-            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_of_streamed_response"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("duplicate_of_streamed_response"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": "An identical request was already served as a streaming response and cannot be replayed. Wait for the dedup window to expire, or use a new idempotency_key.", "reqId": req_id }), true);
         }
         if let Some(existing_digest) = existing.get("__payloadDigest").and_then(Value::as_str) {
             if idempotency_key.is_some() && existing_digest != payload_digest {
-                log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("idempotency_key_reused"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("idempotency_key_reused"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
                 return jsonrpc_result(id, json!({ "error": "This idempotency_key was already used with a different payload. Use a new key for a different request.", "reqId": req_id }), true);
             }
         }
-        log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "deduplicated", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "deduplicated", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
         let mut cached = existing;
         if let Value::Object(ref mut map) = cached {
             map.remove("__payloadDigest");
@@ -578,8 +578,26 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
     if let Ok(Some(rule)) = get_effective_validation_rule(state, &org_id, &resolved_service_name, &resolved_action_name).await {
         if let Some(validation_error) = validator::validate_fields(&payload, &rule.fields) {
             let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("validation_failed"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("validation_failed"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             return jsonrpc_result(id, json!({ "error": validation_error, "reqId": req_id }), true);
+        }
+    }
+
+    // Action policies, same gate as the webhook/SDK path (agent::mod). An
+    // MCP caller waits for its answer, so a policy that would send the call
+    // for approval blocks it here instead: fail closed, never skip.
+    match crate::action_policies::check(state, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, &payload).await {
+        Ok(Some(v)) => {
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some(v.reason), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            let message = if v.hitl { format!("{} Approval can't be requested over MCP; send this call through the webhook to have it approved.", v.message) } else { v.message };
+            return jsonrpc_result(id, json!({ "error": message, "reqId": req_id }), true);
+        }
+        Ok(None) => {}
+        Err(err) => {
+            tracing::error!(?err, "action policy check failed");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
         }
     }
 
@@ -600,27 +618,50 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             }
             if state_str == "open" {
                 let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-                log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("circuit_open"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+                log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("circuit_open"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
                 return jsonrpc_result(id, json!({ "error": format!("Circuit breaker open for {resolved_service_name}"), "reqId": req_id }), true);
             }
         }
         Err(err) => {
             tracing::error!(?err, "get_circuit_state failed");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
             return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
         }
     }
 
     let Ok(usage) = check_usage_limit(state, &org_id).await else {
+        let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
         return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
     };
     if !usage.ok {
         let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
-        log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "blocked", Some("usage_limit_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+        log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("usage_limit_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
         return jsonrpc_result(
             id,
             json!({ "error": format!("Monthly limit of the free Cloud account reached ({}/{} actions this month). Self-hosting is free with no limit: https://agentraas.io/docs#self-hosting", usage.count, usage.limit), "reqId": req_id }),
             true,
         );
+    }
+
+    // Spend/call caps, as on the webhook/SDK path. An "hitl" cap blocks here
+    // for the same reason as above.
+    match crate::spend_caps::check_and_increment(state, &org_id, &agent_id, &resolved_service_name, &resolved_action_name).await {
+        Ok(check) if !check.allowed => {
+            let rule = check.rule.expect("allowed=false implies a matched rule");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("spend_cap_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            return jsonrpc_result(
+                id,
+                json!({ "error": format!("Spend cap exceeded for {resolved_service_name}.{resolved_action_name}: {}/{} calls this {} (rule #{}).", check.count, rule.max_calls, rule.window, rule.id), "reqId": req_id }),
+                true,
+            );
+        }
+        Ok(_) => {}
+        Err(err) => {
+            tracing::error!(err = %err.message, "spend cap check failed");
+            let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
+            return jsonrpc_result(id, json!({ "error": "An internal error occurred.", "reqId": req_id }), true);
+        }
     }
 
     let forward_result = if let Some(mcp_route) = &resolved_mcp_route {
@@ -646,7 +687,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
                 let _ = agentraas_core::checkpoint::write_checkpoint(&mut conn, &checkpoint_key, &stored, state.checkpoint_ttl_seconds).await;
             }
             let _ = increment_monthly_usage(state, &org_id).await;
-            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
 
             if let Value::Object(ref mut map) = result {
                 map.insert("reqId".to_string(), Value::String(req_id.clone()));
@@ -666,7 +707,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
                     }
                 }
             }
-            log_audit(&state.pg, &req_id, &api_key, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "error", Some(&err.message), start.elapsed().as_millis() as i64, None, false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
             tracing::error!(req_id, error = %err.message, "MCP request failed");
             let response_message = if err.outcome_unknown {
                 crate::agent::OUTCOME_UNKNOWN_MESSAGE.to_string()
@@ -677,7 +718,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
             };
             if err.upstream_status.is_some() || err.outcome_unknown {
                 let dlq_message = if err.outcome_unknown { format!("{}{}", crate::agent::OUTCOME_UNKNOWN_DLQ_PREFIX, err.message) } else { err.message.clone() };
-                crate::agent::db::write_dead_letter_queue(state, &req_id, &org_id, "mcp-agent", &resolved_service_name, &resolved_action_name, &payload, &dlq_message, Some(&dedup_hash)).await;
+                crate::agent::db::write_dead_letter_queue(state, &req_id, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, &payload, &dlq_message, Some(&dedup_hash)).await;
             }
             jsonrpc_result(id, json!({ "error": response_message, "reqId": req_id }), true)
         }
