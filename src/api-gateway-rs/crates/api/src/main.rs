@@ -237,7 +237,23 @@ async fn main() -> anyhow::Result<()> {
         .merge(ee::output_sanitization::router())
         .merge(ee::hitl::router())
         .merge(ee::identity::router());
+    let hsts = state.is_production;
     let app = app.fallback(pages::not_found).with_state(state);
+    // Browser hardening on every response: no framing (the dashboard's
+    // Approve/Revoke buttons can't be clickjacked), no MIME sniffing, no
+    // full URLs leaking in Referer. HSTS only where the site is HTTPS-only.
+    // ponytail: no Content-Security-Policy yet, the pages rely on inline scripts.
+    use axum::http::{header, HeaderValue};
+    use tower_http::set_header::SetResponseHeaderLayer;
+    let app = app
+        .layer(SetResponseHeaderLayer::if_not_present(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY")))
+        .layer(SetResponseHeaderLayer::if_not_present(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
+        .layer(SetResponseHeaderLayer::if_not_present(header::REFERRER_POLICY, HeaderValue::from_static("strict-origin-when-cross-origin")));
+    let app = if hsts {
+        app.layer(SetResponseHeaderLayer::if_not_present(header::STRICT_TRANSPORT_SECURITY, HeaderValue::from_static("max-age=31536000")))
+    } else {
+        app
+    };
 
     let port: u16 = std::env::var("PORT")
         .ok()

@@ -1911,7 +1911,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       for (const row of rows) {
         const div = document.createElement('div');
         div.className = 'cred-row';
-        const svcLabel = row.service.charAt(0).toUpperCase() + row.service.slice(1) + (row.end_user_id ? ` — end-user ${escapeHtml(row.end_user_id)}` : '');
+        const svcLabel = escapeHtml(row.service.charAt(0).toUpperCase() + row.service.slice(1)) + (row.end_user_id ? ` — end-user ${escapeHtml(row.end_user_id)}` : '');
         div.innerHTML = `<div class="info"><div class="svc">${svcLabel} — ${escapeHtml(row.org_id)}</div><div class="meta">${escapeHtml(row.masked_preview)}</div></div><button class="revoke" data-id="${row.id}">Revoke</button>`;
         list.appendChild(div);
       }
