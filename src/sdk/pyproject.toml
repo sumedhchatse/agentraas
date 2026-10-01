@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentraas"
-version = "0.7.0"
+version = "0.8.0"
 description = "Reliability layer for AI agent actions: exactly-once tool calls (@exactly_once, LangChain protect_tool, MCP wrap), a chaos tester for duplicate calls, and the AgentRaaS client for policies, approvals and audit"
 readme = "README.md"
 license = { file = "LICENSE" }
