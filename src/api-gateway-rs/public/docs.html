@@ -254,7 +254,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <section id="introduction">
       <h1>Documentation</h1>
       <p class="lead">Everything you need to wire an agent through AgentRaaS: authentication, the two calling styles, MCP, SDKs, and self-hosting reference.</p>
-      <p style="margin-top:14px;">AgentRaaS sits between your agent and the real API it's calling (Stripe, Twilio, your own internal endpoint, anything). It claims an atomic dedup slot before forwarding anything, so a retry from your agent, your framework, or a flaky network never becomes a second real charge, message, or side effect. Every call is logged with a per-agent identity for a full audit trail.</p>
+      <p style="margin-top:14px;">AgentRaaS is the reliability layer between your agents and the APIs they call (Stripe, Twilio, your own internal endpoint, any MCP server). Every call goes through four checks before anything real happens:</p>
+      <ul>
+        <li><b>Run once.</b> The call claims an atomic dedup slot in Redis, so a retry from your agent, your framework or a flaky network gets the first result back instead of a second charge, message or side effect.</li>
+        <li><b>Allowed?</b> <a href="#action-policies">Action policies</a> decide what each agent may do and where it may send data; spend caps limit how often it may do it.</li>
+        <li><b>Needs a human?</b> Risky calls wait for approval instead of running.</li>
+        <li><b>Recorded.</b> Every decision lands in one audit log with a per-agent identity, and goes out to your own tools through <a href="#metrics">Prometheus</a> and OpenTelemetry.</li>
+      </ul>
       <p>New to AgentRaaS? Start with <a href="/guide">Getting started</a> for the click-by-click walkthrough of connecting your first agent. This page is the reference once you're wiring things up for real.</p>
     </section>
 
