@@ -409,7 +409,7 @@ POST /webhooks/stripe -> 200 (4ms)</code></pre>
         <tr><td><code>action</code></td><td>Yes</td><td>Which operation on that service.</td></tr>
         <tr><td><code>payload</code></td><td>No</td><td>Fields the action needs, matching the real API's own shape.</td></tr>
         <tr><td><code>end_user_id</code></td><td>No</td><td>Your own identifier for who this action was on behalf of. Shows up in the audit trail.</td></tr>
-        <tr><td><code>resource_id</code></td><td>No</td><td>Your own identifier for what was acted on (an order id, a ticket id, etc.).</td></tr>
+        <tr><td><code>resource_id</code></td><td>No</td><td>Your own identifier for what was acted on (an order id, a ticket id, etc.). While one call naming it is in flight, a second call naming the same <code>resource_id</code> gets <code>409</code> instead of racing it; the lock is released when the first call finishes.</td></tr>
       </table>
       <p>A successful response, first call vs. a retry of the same request:</p>
       <pre><code>&#8594; 200 OK   // first call, forwarded, result cached
