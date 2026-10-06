@@ -28,3 +28,6 @@ CREATE TABLE IF NOT EXISTS billing_charges (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (org_id, month)
 );
+
+-- Every proxied call on Cloud asks "is this org on payg?" (billing::is_payg_org).
+CREATE INDEX IF NOT EXISTS idx_users_payg_org ON users (org_id) WHERE plan = 'payg';
