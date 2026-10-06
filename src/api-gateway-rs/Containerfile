@@ -3,7 +3,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml ./
 COPY crates ./crates
-RUN cargo build --release -p api
+# --features enterprise: every build is the full edition (SSO, RBAC, DLP,
+# HITL, inbound-webhook HMAC). The ee/ code is FSL-licensed, see LICENSE.md.
+RUN cargo build --release -p api --features enterprise
 
 FROM docker.io/library/debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*

@@ -1,0 +1,22 @@
+# compose.ee.yaml — Enterprise stack overlay
+#
+# Usage:
+#   podman-compose -f compose.yaml -f compose.ee.yaml up -d
+#
+# This overlays additional Enterprise-only services/config on top of the
+# community compose.yaml, rather than duplicating the whole stack — the
+# standard docker-compose multi-file override pattern.
+#
+# All ee/ modules (auth, hmac, dlp, rate_limiter) are implemented and ship
+# in src/ee, mounted by compose.yaml. None of them need service/env config
+# beyond ENTERPRISE_MODE below — they're Redis-backed like the existing
+# dedup logic, reusing the connection compose.yaml already provides.
+
+version: "3.8"
+services:
+  ar-api:
+    environment:
+      ENTERPRISE_MODE: "true"
+      # Additional ee/-specific env vars land here as each module ships.
+      # (auth/SSO needs none beyond PUBLIC_URL, already set in compose.yaml —
+      # per-org IdP config lives in the sso_configs table, not env vars.)
