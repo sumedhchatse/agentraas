@@ -1,6 +1,6 @@
 {
   "name": "agentraas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Exactly-once execution for AI agents — TypeScript/JavaScript SDK for AgentRaaS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +17,9 @@
     "mcp",
     "webhooks",
     "n8n",
-    "reliability"
+    "reliability",
+    "ai-sdk",
+    "vercel-ai"
   ],
   "license": "MIT",
   "author": "Sumedh Chatse",

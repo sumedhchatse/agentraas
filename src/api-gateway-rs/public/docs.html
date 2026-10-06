@@ -217,6 +217,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="group-label">No server</div>
       <a href="#library-mode">Library mode</a>
       <a href="#langchain">LangChain &amp; LangGraph</a>
+      <a href="#crewai">CrewAI</a>
+      <a href="#ai-sdk">Vercel AI SDK</a>
       <a href="#mcp-wrap">MCP wrap</a>
       <a href="#chaos-tester">Chaos tester</a>
       <a href="#tunnel">Local tunnel</a>
@@ -311,6 +313,28 @@ async def ship(order):
 tools = [protect_tool(charge_card), protect_tool(send_email), search]
 agent = create_react_agent(model, tools)</code></pre>
       <p>Takes the same <code>store</code>, <code>key</code> and <code>ttl</code> options as <a href="#library-mode">library mode</a>, e.g. <code>protect_tool(refund, store=RedisStore(url), key=lambda order_id, **_: order_id)</code>. Tool results must be JSON-serializable.</p>
+    </section>
+
+    <section id="crewai">
+      <h2>CrewAI <span class="badge free">Free</span></h2>
+      <p>Exactly-once tool calls for CrewAI agents. Wrap the tools that have side effects, either <code>BaseTool</code> subclasses or <code>@tool</code> functions; when the agent calls one again with the same arguments, or a crew is kicked off again after a crash, the first result comes back instead of a second charge.</p>
+      <pre><code>pip install "agentraas[crewai]"</code></pre>
+      <pre><code>from agentraas.crewai import protect_tool
+
+agent = Agent(role="Billing", goal="...", backstory="...",
+              tools=[protect_tool(ChargeCardTool()), protect_tool(send_email)])</code></pre>
+      <p>Same <code>store</code>, <code>key</code> and <code>ttl</code> options as <a href="#library-mode">library mode</a>. CrewAI needs Python 3.10 or newer. The original tool object is left unchanged.</p>
+    </section>
+
+    <section id="ai-sdk">
+      <h2>Vercel AI SDK <span class="badge free">Free</span></h2>
+      <p>Exactly-once tool calls for <code>generateText</code> and <code>streamText</code>. Wrap your <code>tools</code> object; when the model calls a tool again with the same input, or a request is retried, the first result comes back instead of a second charge.</p>
+      <pre><code>npm install agentraas</code></pre>
+      <pre><code>import { protectTools, RedisStore } from "agentraas";
+
+const tools = protectTools({ charge, sendEmail, search }, { store: new RedisStore(redis) });
+const result = await generateText({ model, tools, prompt });</code></pre>
+      <p>The key is the tool name plus its input; <code>toolCallId</code> and the other per-call options are passed through, never part of the key. Pass <code>key: (toolName, input) =&gt; input.orderId</code> to key on one field. Use <code>MemoryStore</code> for a single process, <code>RedisStore</code> when several serve requests. Results must be JSON-serializable.</p>
     </section>
 
     <section id="mcp-wrap">

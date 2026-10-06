@@ -7,7 +7,7 @@ takes (a charge, an email, a CRM update, a tool call) runs once even when
 it is retried, can be checked against rules before it runs, and is
 recorded. This package brings that to your code:
 
-- `@exactly_once` and `protect_tool` (LangChain/LangGraph): a retry,
+- `@exactly_once` and `protect_tool` (LangChain/LangGraph, CrewAI): a retry,
   yours, your framework's or a flaky network's, never becomes a duplicate
   charge or message. No server needed.
 - `agentraas wrap`: the same for any MCP server's write tools.
@@ -88,6 +88,24 @@ comes back instead of a second charge. Takes the same `store=`, `key=` and
 `ttl=` options as `@exactly_once` above (e.g. `store=RedisStore(...)` for
 several workers, `key=lambda order_id, **_: order_id`). Tool results must
 be JSON-serializable.
+
+## CrewAI: exactly-once tool calls
+
+`pip install "agentraas[crewai]"` (CrewAI needs Python 3.10+), then wrap the
+tools that have side effects, either `BaseTool` subclasses or `@tool`
+functions:
+
+```python
+from agentraas.crewai import protect_tool
+
+agent = Agent(role="Billing", goal="...", backstory="...",
+              tools=[protect_tool(ChargeCardTool()), protect_tool(send_email)])
+```
+
+When the agent calls a protected tool again with the same arguments, or a
+crew is kicked off again after a crash, the stored result comes back instead
+of a second charge. Same `store=`, `key=` and `ttl=` options as above. The
+original tool object is left unchanged.
 
 ## MCP wrap: exactly-once tool calls for any MCP server
 

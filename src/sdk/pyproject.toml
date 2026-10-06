@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentraas"
-version = "0.8.0"
-description = "Reliability layer for AI agent actions: exactly-once tool calls (@exactly_once, LangChain protect_tool, MCP wrap), a chaos tester for duplicate calls, and the AgentRaaS client for policies, approvals and audit"
+version = "0.9.0"
+description = "Reliability layer for AI agent actions: exactly-once tool calls (@exactly_once, LangChain and CrewAI protect_tool, MCP wrap), a chaos tester for duplicate calls, and the AgentRaaS client for policies, approvals and audit"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Sumedh Chatse" }]
@@ -24,12 +24,13 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["mcp-server", "model-context-protocol", "chaos-testing", "exactly-once", "deduplication", "ai-agents", "idempotency", "mcp", "webhooks", "n8n", "reliability", "langchain", "langgraph"]
+keywords = ["mcp-server", "model-context-protocol", "chaos-testing", "exactly-once", "deduplication", "ai-agents", "idempotency", "mcp", "webhooks", "n8n", "reliability", "langchain", "langgraph", "crewai"]
 
 [project.optional-dependencies]
 redis = ["redis>=4.0"]
 tunnel = ["websocket-client>=1.0"]
 langchain = ["langchain-core>=0.3"]
+crewai = ["crewai>=1.0"]
 apply = ["pyyaml>=5.1"]
 
 [project.scripts]

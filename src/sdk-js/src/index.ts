@@ -147,3 +147,4 @@ export class Client {
 
 export default Client;
 export * from "./local";
+export * from "./ai-sdk";

@@ -35,3 +35,4 @@ target/
 .env
 cookies.txt
 .claude/settings.local.json
+agentraas-dedup.db

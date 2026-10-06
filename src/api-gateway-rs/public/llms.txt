@@ -27,10 +27,11 @@ Measured overhead: 2.1 to 2.4 ms added per call at the median (one machine, Inte
 
 - Free tools, no server or account: `pip install agentraas`
   - Library mode: an `@exactly_once` decorator (`agentraas.local`)
+  - LangChain/LangGraph and CrewAI: `protect_tool` (`agentraas.langchain`, `agentraas.crewai`)
   - Chaos tester: `agentraas chaos --mock -- python my_agent.py`
   - MCP wrap: `agentraas wrap -- npx -y @modelcontextprotocol/server-github`
   - Local webhook tunnel: `agentraas tunnel`
-- JavaScript/TypeScript: `npm install agentraas` (client and `exactlyOnce`)
+- JavaScript/TypeScript: `npm install agentraas` (client, `exactlyOnce`, and `protectTools` for the Vercel AI SDK)
 - n8n: Settings → Community Nodes → install `n8n-nodes-agentraas`
 - Self-host the full platform (free, no action limit): clone the GitHub repository and run `./install.sh`
 - Hosted: a free AgentRaaS Cloud account at https://agentraas.io/dashboard

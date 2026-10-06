@@ -57,6 +57,23 @@ await charge("cus_1", 4200); // retry: cached id, no second charge
   else, use `RedisStore` (node-redis v4+) or implement `DedupStore`.
 - Results must be JSON-serializable.
 
+## Vercel AI SDK: exactly-once tool calls
+
+Wrap the `tools` object you pass to `generateText` or `streamText`:
+
+```ts
+import { protectTools, RedisStore } from "agentraas";
+
+const tools = protectTools({ charge, sendEmail, search }, { store: new RedisStore(redis) });
+const result = await generateText({ model, tools, prompt });
+```
+
+When the model calls a tool again with the same input, or a request is
+retried, the first result comes back instead of a second charge. The key is
+the tool name plus its input (`toolCallId` and the other per-call options
+are passed through, not keyed); pass `key: (toolName, input) => ...` to
+choose your own. Tools without `execute` are left as they are.
+
 ## Quickstart
 
 1. Connect an agent from your AgentRaaS dashboard (**+ Connect Agent**) —
