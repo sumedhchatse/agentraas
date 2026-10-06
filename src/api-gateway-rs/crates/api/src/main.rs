@@ -21,6 +21,7 @@ mod pruning_settings;
 mod rules;
 mod schema_drift;
 mod self_host;
+mod billing;
 mod spend_caps;
 mod action_policies;
 mod state;
@@ -198,6 +199,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     health_checks::spawn_health_check_loop(state.clone());
+    billing::spawn_monthly_charge_loop(state.clone());
     #[cfg(feature = "enterprise")]
     ee::hitl::spawn_hitl_escalation_loop(state.clone());
     tokio::task::spawn_blocking(self_host::build_snapshot);
@@ -217,6 +219,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(dashboard::router())
         .merge(pages::router())
         .merge(self_host::router())
+        .merge(billing::router())
         .merge(pruning_settings::router())
         .merge(chaos_settings::router())
         .merge(agentgateway::router())

@@ -638,7 +638,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &resolved_service_name, &resolved_action_name, "blocked", Some("usage_limit_exceeded"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
         return jsonrpc_result(
             id,
-            json!({ "error": format!("Monthly limit of the free Cloud account reached ({}/{} actions this month). Self-hosting is free with no limit: https://agentraas.io/docs#self-hosting", usage.count, usage.limit), "reqId": req_id }),
+            json!({ "error": usage.exceeded_message(), "reqId": req_id }),
             true,
         );
     }

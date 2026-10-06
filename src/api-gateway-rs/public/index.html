@@ -1129,6 +1129,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <p class="sub">Team: $49/month — HITL approval rules with SLA auto-escalation, up to 3 seats, 10,000 actions/month.</p>
       <button type="button" class="btn filled" id="billing-pro-btn" style="width:100%;justify-content:center;">Upgrade to Team</button>
     </div>
+    <div id="payg-section" style="display:none;margin-bottom:24px;">
+      <p class="sub">Pay as you go: $1 per 1,000 actions that run, after 500 free each month. Duplicates, blocked calls and approval waits are free. You set the monthly cap.</p>
+      <div id="payg-usage" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:8px;"></div>
+      <div id="payg-error" class="modal-error"></div>
+      <button type="button" class="btn secondary" id="payg-start-btn" style="display:none;width:100%;justify-content:center;">Turn on pay as you go</button>
+      <div id="payg-cap-row" style="display:none;gap:8px;">
+        <label for="payg-cap-input" class="sub" style="align-self:center;">Monthly cap ($)</label>
+        <input type="number" id="payg-cap-input" min="1" max="100000" step="1" style="width:110px;">
+        <button type="button" class="btn secondary" id="payg-cap-save">Save cap</button>
+      </div>
+    </div>
     <p class="sub" style="margin-bottom:24px;">Need client tenants, white-label branding, HA clustering, SSO, or DLP? <a href="mailto:hello@agentraas.io">Contact sales about Enterprise</a>.</p>
 
     <div id="branding-section" style="display:none;margin-bottom:24px;">
@@ -1234,8 +1245,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   let currentUserEmail = '';
   let currentUserOrgId = '';
   let currentPlanTier = 'free';
-  const TIER_RANK = { free: 0, team: 1, enterprise: 2 };
-  const CONSOLE_LABELS = { free: 'Community Console', team: 'Team Console', enterprise: 'Enterprise Console' };
+  const TIER_RANK = { free: 0, team: 1, enterprise: 2, payg: 2 };
+  const CONSOLE_LABELS = { free: 'Community Console', team: 'Team Console', enterprise: 'Enterprise Console', payg: 'Pay as you go Console' };
 
   // Each tier gets its own console layout, not just locked buttons: a
   // Community org's control bar only shows what it can actually use.
@@ -3232,8 +3243,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   // users.plan was set by hand before the tier rename (Pro -> Team,
   // Agency folded into Enterprise) — same aliasing Tier::from_plan_str
   // does server-side.
-  const SEAT_LIMITS = { free: 1, team: 3, pro: 3, enterprise: null, agency: null };
-  const PLAN_LABELS = { free: 'Free', team: 'Team', pro: 'Team', enterprise: 'Enterprise', agency: 'Enterprise' };
+  const SEAT_LIMITS = { free: 1, team: 3, pro: 3, enterprise: null, agency: null, payg: null };
+  const PLAN_LABELS = { free: 'Free', team: 'Team', pro: 'Team', enterprise: 'Enterprise', agency: 'Enterprise', payg: 'Pay as you go' };
 
   async function loadBillingPlanState() {
     const planEl = document.getElementById('billing-current-plan');
@@ -3243,14 +3254,57 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
       const data = await res.json();
       const plan = data.user?.plan || 'free';
-      const isEnterprise = plan === 'enterprise' || plan === 'agency';
+      const isEnterprise = plan === 'enterprise' || plan === 'agency' || plan === 'payg';
       planEl.textContent = `You are on the ${escapeHtml(PLAN_LABELS[plan] || 'Free')} plan.`;
       proSection.style.display = (plan === 'free') ? 'block' : 'none';
       brandingSection.style.display = isEnterprise ? 'block' : 'none';
     } catch (err) {
       planEl.textContent = 'Could not load plan status.';
     }
+    loadPaygState();
   }
+
+  // Shown only once billing.rs is switched on (BILLING_PAYG_ENABLED), or
+  // to an org already on pay as you go.
+  async function loadPaygState() {
+    const section = document.getElementById('payg-section');
+    section.style.display = 'none';
+    if (!currentUserOrgId) return;
+    try {
+      const res = await fetch(`/api/v1/billing/usage?org_id=${encodeURIComponent(currentUserOrgId)}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const u = await res.json();
+      if (!u.enabled && !u.payg) return;
+      section.style.display = 'block';
+      document.getElementById('payg-usage').textContent = u.payg
+        ? `${u.month}: ${u.actions} actions ran (${u.free_actions} free). So far: $${(u.estimated_cents / 100).toFixed(2)}. Cap: $${u.monthly_cap_usd}.`
+        : `${u.month}: ${u.actions} actions ran of ${u.free_actions} free.`;
+      document.getElementById('payg-start-btn').style.display = u.payg ? 'none' : 'flex';
+      document.getElementById('payg-cap-row').style.display = u.payg ? 'flex' : 'none';
+      document.getElementById('payg-cap-input').value = u.monthly_cap_usd;
+    } catch (err) {}
+  }
+
+  document.getElementById('payg-start-btn').addEventListener('click', () => {
+    startCheckout('payg', document.getElementById('payg-start-btn'), document.getElementById('payg-error'));
+  });
+
+  document.getElementById('payg-cap-save').addEventListener('click', async () => {
+    const errorBox = document.getElementById('payg-error');
+    errorBox.style.display = 'none';
+    const cap = parseInt(document.getElementById('payg-cap-input').value, 10);
+    try {
+      const res = await fetch('/api/v1/billing/usage', {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org_id: currentUserOrgId, monthly_cap_usd: cap }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errorBox.textContent = data.error || 'Could not save the cap.'; errorBox.style.display = 'block'; return; }
+      loadPaygState();
+    } catch (err) {
+      errorBox.textContent = 'Could not save the cap.'; errorBox.style.display = 'block';
+    }
+  });
 
   let paddleLoaded = false;
   function loadPaddleScript() {

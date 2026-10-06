@@ -15,6 +15,14 @@ safe to re-run.
 
 ## [Unreleased]
 
+### Added
+- Pay-as-you-go Cloud billing, off by default (`BILLING_PAYG_ENABLED`): a
+  `payg` plan with every feature, $1 per 1,000 actions that ran after the
+  free monthly allowance, a per-org monthly cap
+  (`GET/PUT /api/v1/billing/usage`), and a monthly Paddle charge job.
+  Duplicates, blocked calls and approval waits are never billed. Migration
+  `052_payg_billing.sql`.
+
 ### Removed
 - License tokens: `LICENSE_TOKEN`, `GET /api/v1/licensing/token` and the
   dashboard's "Your license" panel. Self-hosting needs none (0.10.0).

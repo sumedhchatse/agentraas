@@ -440,6 +440,9 @@ pub async fn get_effective_limit(state: &SharedState, org_id: &str) -> Result<i6
     if let Some(limit) = override_limit {
         return Ok(limit as i64);
     }
+    if crate::billing::is_payg_org(&state.pg, org_id).await? {
+        return crate::billing::payg_limit(state, org_id).await;
+    }
     let plan = get_org_owner_plan(&state.pg, org_id).await?;
     Ok(match agentraas_core::tier::Tier::from_plan_str(&plan) {
         agentraas_core::tier::Tier::Enterprise => state.enterprise_monthly_limit,
@@ -452,11 +455,24 @@ pub struct UsageCheck {
     pub ok: bool,
     pub count: i64,
     pub limit: i64,
+    pub payg: bool,
+}
+
+impl UsageCheck {
+    /// The 402 text: a payg org hit its own spend cap, anyone else the free
+    /// Cloud allowance (pointed at self-hosting, never at a paid plan).
+    pub fn exceeded_message(&self) -> String {
+        if self.payg {
+            format!("Monthly spend cap reached ({}/{} actions this month). Raise it under Account, or it resets next month.", self.count, self.limit)
+        } else {
+            format!("Monthly limit of the free Cloud account reached ({}/{} actions this month). Self-hosting is free with no limit: https://agentraas.io/docs#self-hosting", self.count, self.limit)
+        }
+    }
 }
 
 pub async fn check_usage_limit(state: &SharedState, org_id: &str) -> Result<UsageCheck, sqlx::Error> {
     if state.deployment_mode != "cloud" {
-        return Ok(UsageCheck { ok: true, count: 0, limit: 0 });
+        return Ok(UsageCheck { ok: true, count: 0, limit: 0, payg: false });
     }
 
     let owner_exempt: Option<i32> = sqlx::query_scalar(
@@ -472,7 +488,7 @@ pub async fn check_usage_limit(state: &SharedState, org_id: &str) -> Result<Usag
     .fetch_optional(&state.pg)
     .await?;
     if owner_exempt.is_some() {
-        return Ok(UsageCheck { ok: true, count: 0, limit: 0 });
+        return Ok(UsageCheck { ok: true, count: 0, limit: 0, payg: false });
     }
 
     let limit = get_effective_limit(state, org_id).await?;
@@ -481,6 +497,7 @@ pub async fn check_usage_limit(state: &SharedState, org_id: &str) -> Result<Usag
         ok: count < limit,
         count,
         limit,
+        payg: crate::billing::is_payg_org(&state.pg, org_id).await?,
     })
 }
 

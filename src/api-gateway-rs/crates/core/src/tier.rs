@@ -27,7 +27,8 @@ impl Tier {
     pub fn from_plan_str(plan: &str) -> Tier {
         match plan {
             "team" | "pro" => Tier::Team,
-            "agency" | "enterprise" => Tier::Enterprise,
+            // "payg": pay-as-you-go Cloud, every feature (billing.rs).
+            "agency" | "enterprise" | "payg" => Tier::Enterprise,
             _ => Tier::Community,
         }
     }
@@ -61,6 +62,7 @@ mod tests {
     fn from_plan_str_maps_known_values() {
         assert_eq!(Tier::from_plan_str("team"), Tier::Team);
         assert_eq!(Tier::from_plan_str("enterprise"), Tier::Enterprise);
+        assert_eq!(Tier::from_plan_str("payg"), Tier::Enterprise);
     }
 
     #[test]

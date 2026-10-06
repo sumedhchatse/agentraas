@@ -330,7 +330,10 @@ async fn billing_checkout_info(State(state): State<SharedState>, user: AuthUser,
     let target_plan = q.plan.unwrap_or_else(|| "team".to_string());
     let price_id_env = match target_plan.as_str() {
         "team" => "PADDLE_TEAM_PRICE_ID",
-        other => return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, format!("plan must be \"team\", got \"{other}\"."))),
+        // The $0/month price that saves the card; usage is charged by billing.rs.
+        "payg" if crate::billing::enabled(&state) => "PADDLE_PAYG_PRICE_ID",
+        "payg" => return Err(ApiError::new(StatusCode::SERVICE_UNAVAILABLE, "Pay as you go is not open yet.")),
+        other => return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, format!("plan must be \"team\" or \"payg\", got \"{other}\"."))),
     };
     let client_token = configured_env("PADDLE_CLIENT_TOKEN");
     let price_id = configured_env(price_id_env);
@@ -473,7 +476,7 @@ async fn put_org_branding(State(state): State<SharedState>, user: AuthUser, Path
         return Err(ApiError::new(StatusCode::FORBIDDEN, "You do not own this org."));
     }
     let plan: Option<String> = sqlx::query_scalar("SELECT plan FROM users WHERE id = $1").bind(user.sub).fetch_optional(&state.pg).await?;
-    if plan.as_deref() != Some("enterprise") {
+    if agentraas_core::tier::Tier::from_plan_str(plan.as_deref().unwrap_or("free")) != agentraas_core::tier::Tier::Enterprise {
         return Err(ApiError::new(StatusCode::PAYMENT_REQUIRED, "White-label branding requires the Enterprise plan."));
     }
     if let Some(name) = &body.display_name {
