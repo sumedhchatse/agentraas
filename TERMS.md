@@ -38,9 +38,7 @@ breaking.
   payment processor and merchant of record; subscribing means you also
   agree to [Paddle's terms](https://www.paddle.com/legal/checkout-buyer-terms).
   A subscription renews automatically each period until you cancel.
-  On a self-hosted deployment, a paid tier's features require applying
-  the license token issued to you — if it lapses or expires without
-  renewal, your deployment falls back to Community automatically.
+  Self-hosting needs no subscription: every feature is included.
 
 ## 3. Service availability
 

@@ -78,7 +78,7 @@ services:
     networks:
       - agentraas-net
     # Secrets (DATABASE_URL, JWT_SECRET, CREDENTIALS_ENCRYPTION_KEY,
-    # SMTP_USER/PASS, PADDLE_*, LICENSE_SIGNING_PRIVATE_KEY, LICENSE_TOKEN)
+    # SMTP_USER/PASS, PADDLE_*)
     # come from .env via env_file, not an explicit `environment:` mapping —
     # see ar-postgres above for why.
     env_file:
@@ -107,11 +107,8 @@ services:
       EXPOSE_DEV_VERIFY_URL: "${EXPOSE_DEV_VERIFY_URL:-false}"
       # DEPLOYMENT_MODE was already ar-api's own convention (cloud vs
       # self-hosted); ar-api-rs never had it wired through either, same
-      # gap as the PADDLE_* vars above. A self-hosted Team/Enterprise
-      # deployment sets LICENSE_TOKEN (from the dashboard's "your license"
-      # panel, a later task) to unlock paid features; missing/invalid/
-      # expired always degrades gracefully to Community, never blocks
-      # startup.
+      # gap as the PADDLE_* vars above. Anything but "cloud" is self-host:
+      # every feature on, no usage limit.
       DEPLOYMENT_MODE: "${DEPLOYMENT_MODE:-cloud}"
       # Enterprise features (SSO/RBAC/DLP/inbound-webhook HMAC/maintenance)
       # are opt-in even here — this only ever affects ar-api-rs, never the
@@ -141,12 +138,6 @@ services:
       # never writable from this container.
       - ./src/api-gateway-rs/public:/public:ro,z
       - .:/repo:ro,z
-      # SPEC-M7.md: the prebuilt Enterprise-image tarball, exported by
-      # the deploy host (this container has no podman/container-runtime
-      # access to do that itself) - see project_plan/deploy.md's extra
-      # M7 deploy step. Missing/empty directory is fine; self_host.rs
-      # degrades to a clear 503 on the Team+ download path, not a crash.
-      - ./self-host-artifacts:/self-host-artifacts:ro,z
     # on-failure (not "no"): a cold power-on boot has crashed this once
     # already on "Temporary failure in name resolution" (DNS not ready
     # ~20s after network-online.target fires) with no restart, leaving

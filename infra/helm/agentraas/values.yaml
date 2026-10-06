@@ -29,7 +29,7 @@ credentialsEncryptionKey: ""
 # Prometheus /metrics bearer token. Empty = /metrics returns 404.
 metricsToken: ""
 
-# Extra environment variables for the API (SMTP_HOST, LICENSE_TOKEN, ...).
+# Extra environment variables for the API (SMTP_HOST, OTEL_EXPORTER_OTLP_ENDPOINT, ...).
 extraEnv: {}
 
 resources:

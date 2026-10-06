@@ -45,12 +45,6 @@ you're subscribed to and when it renews. See
 [paddle.com/legal/privacy](https://www.paddle.com/legal/privacy) for
 how Paddle itself handles payment data.
 
-**License tokens (self-hosted paid tiers):** if you subscribe to a paid
-tier and self-host AgentRaaS, our dashboard issues you a signed token
-containing your org ID, tier, and an expiry date — nothing else. You
-paste this into your own deployment; once issued, we don't track where
-or whether you've installed it.
-
 ## What we don't do
 
 - We do not sell your data.

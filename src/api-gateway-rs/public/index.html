@@ -1131,13 +1131,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </div>
     <p class="sub" style="margin-bottom:24px;">Need client tenants, white-label branding, HA clustering, SSO, or DLP? <a href="mailto:hello@agentraas.io">Contact sales about Enterprise</a>.</p>
 
-    <div id="license-section" style="display:none;margin-bottom:24px;">
-      <h3 style="margin-top:8px;font-size:14px;">Your license</h3>
-      <p class="sub">Paste this token as <code>LICENSE_TOKEN</code> in your self-hosted deployment to unlock paid-tier features.</p>
-      <div id="license-error" class="modal-error"></div>
-      <div id="license-panel" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);"></div>
-    </div>
-
     <div id="branding-section" style="display:none;margin-bottom:24px;">
       <h3 style="margin-top:8px;font-size:14px;">White-label branding</h3>
       <p class="sub">Shown to client tenants viewing a branded org. Enterprise plan only.</p>
@@ -1160,9 +1153,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="field"><label for="self-host-reason">What will you use it for?</label><textarea id="self-host-reason" rows="2" style="width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:13px;resize:vertical;" required></textarea></div>
       <div class="field" style="margin-top:10px;"><label for="self-host-company">Company / team (optional)</label><input type="text" id="self-host-company"></div>
       <button type="button" class="btn" id="self-host-submit" style="display:flex;justify-content:center;width:100%;margin-top:12px;">Get self-host package</button>
-      <div id="self-host-enterprise-image-row" style="display:none;margin-top:8px;">
-        <a href="/api/v1/download/self-host/enterprise-image" class="btn" style="display:flex;justify-content:center;width:100%;">Download prebuilt image (agentraas-enterprise.tar)</a>
-      </div>
     </div>
 
     <h3 style="font-size:14px;">Change password</h3>
@@ -1446,27 +1436,12 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
     // Seed/reset data is an admin- or designated-demo-account convenience
     // for testing/demoing — regular users have their own real activity to
-    // look at, not a reason to fabricate demo data. Export CSV stays
-    // available to everyone in cloud mode, since it now correctly exports
-    // only their own data.
+    // look at, not a reason to fabricate demo data. Export CSV is
+    // available to everyone; it exports only their own data.
     const canSeed = isCloud && (user.is_admin || user.is_demo);
     document.getElementById('seed-btn').style.display = canSeed ? 'flex' : 'none';
     document.getElementById('reset-demo-btn').style.display = canSeed ? 'flex' : 'none';
-    document.getElementById('export-btn').style.display = isCloud ? 'flex' : 'none';
-
-    // Self-hosted free tier: only 24h of dashboard history, matching the
-    // "24h + 100k calls/month" free tier — longer ranges require a
-    // commercial license. Cloud always gets full range access.
-    if (!isCloud) {
-      document.querySelectorAll('.ranges button').forEach((btn) => {
-        if (btn.dataset.range !== '24h') {
-          btn.disabled = true;
-          btn.title = 'Longer history requires a commercial license — see LICENSE.md';
-          btn.style.opacity = '0.4';
-          btn.style.cursor = 'not-allowed';
-        }
-      });
-    }
+    document.getElementById('export-btn').style.display = 'flex';
 
     checkWelcomeBannerState();
     loadAll();
@@ -3035,14 +3010,10 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     const el = document.getElementById('enterprise-seat-usage');
     el.textContent = '';
     if (!enterpriseCurrentOrg) return;
-    try {
-      const res = await fetch(`/api/v1/licensing/token?org_id=${encodeURIComponent(enterpriseCurrentOrg)}`, { credentials: 'include' });
-      const data = await res.json();
-      if (!res.ok) return;
-      const used = enterpriseMemberCount + enterpriseInviteCount;
-      const limit = SEAT_LIMITS[data.tier];
-      el.textContent = (limit == null) ? `${used} seats used (unlimited).` : `${used} of ${limit} seats used.`;
-    } catch (err) {}
+    // The signed-in user's own plan (from /me), not the org owner's.
+    const used = enterpriseMemberCount + enterpriseInviteCount;
+    const limit = SEAT_LIMITS[currentPlanTier];
+    el.textContent = (limit == null) ? `${used} seats used (unlimited).` : `${used} of ${limit} seats used.`;
   }
 
   async function loadEnterpriseConfigs() {
@@ -3247,12 +3218,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       loadingEl.style.display = 'none';
       if (Array.isArray(keys) && keys.length > 0) {
         formEl.style.display = 'block';
-        // SPEC-M7.md: the starter-kit zip already branches server-side
-        // by tier automatically; this second link only needs showing
-        // for Team+, since it 403s for Community and there's nothing
-        // to click for them anyway.
-        document.getElementById('self-host-enterprise-image-row').style.display =
-          (TIER_RANK[currentPlanTier] ?? 0) >= TIER_RANK.team ? 'block' : 'none';
       } else {
         noAgentEl.style.display = 'block';
       }
@@ -3284,41 +3249,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       brandingSection.style.display = isEnterprise ? 'block' : 'none';
     } catch (err) {
       planEl.textContent = 'Could not load plan status.';
-    }
-    loadLicensePanel();
-  }
-
-  // Billing always happens on agentraas.io (cloud) even for a self-host
-  // customer — a self-hosted deployment holds no LICENSE_SIGNING_PRIVATE_KEY
-  // and no subscriptions row of its own, so this panel must render on the
-  // *cloud* account. This used to be gated on the server's own
-  // deployment_mode ("cloud" vs self-hosted), which reflects which server
-  // you're looking at, not whether the signed-in customer intends to
-  // self-host — since agentraas.io is always deployment_mode=cloud, that
-  // gate meant a paying self-host customer could never actually see their
-  // own token here. Free-tier accounts just see "no license needed"
-  // below; harmless either way.
-  async function loadLicensePanel() {
-    const section = document.getElementById('license-section');
-    const panel = document.getElementById('license-panel');
-    const errorBox = document.getElementById('license-error');
-    section.style.display = 'block';
-    errorBox.style.display = 'none';
-    panel.textContent = 'Loading…';
-    try {
-      const res = await fetch(`/api/v1/licensing/token?org_id=${encodeURIComponent(currentUserOrgId)}`, { credentials: 'include' });
-      const data = await res.json();
-      if (!res.ok) { errorBox.textContent = escapeHtml(data.error || 'Could not load license.'); errorBox.style.display = 'block'; panel.textContent = ''; return; }
-      if (!data.token) {
-        panel.textContent = 'Free tier — no license needed.';
-        return;
-      }
-      const expires = data.expires_at ? new Date(data.expires_at).toLocaleString() : 'unknown';
-      panel.innerHTML = `<div>Tier: ${escapeHtml(PLAN_LABELS[data.tier] || data.tier)}</div>
-        <div>Expires: ${escapeHtml(expires)}</div>
-        <textarea readonly style="width:100%;margin-top:8px;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;font-family:monospace;font-size:11px;resize:vertical;" rows="3">${escapeHtml(data.token)}</textarea>`;
-    } catch (err) {
-      errorBox.textContent = 'Could not load license.'; errorBox.style.display = 'block'; panel.textContent = '';
     }
   }
 

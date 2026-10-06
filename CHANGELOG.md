@@ -15,6 +15,16 @@ safe to re-run.
 
 ## [Unreleased]
 
+### Removed
+- License tokens: `LICENSE_TOKEN`, `GET /api/v1/licensing/token` and the
+  dashboard's "Your license" panel. Self-hosting needs none (0.10.0).
+- `GET /api/v1/download/self-host/enterprise-image` and the
+  `self-host-artifacts` mount. Everyone downloads the same source package,
+  which now includes the Team/Enterprise module and the license files.
+
+### Changed
+- A self-hosted dashboard shows every history range and the CSV export.
+
 ## [0.10.0] - 2026-10-06
 
 ### Changed
