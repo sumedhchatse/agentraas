@@ -23,7 +23,7 @@ In plain words (the license files are what counts):
 - **MIT/Apache-2.0 (SDKs and the rest).** No conditions beyond keeping the
   notice.
 
-Versions released before 2026-10-06 keep the license they were released
-under.
+Releases up to and including server 0.9.2 keep the license they were
+released under (MIT/Apache-2.0 for the core).
 
 Questions: support@agentraas.io.

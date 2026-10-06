@@ -15,6 +15,21 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-06
+
+### Changed
+- **License.** The server is now AGPL-3.0 (`LICENSE-AGPL`). The
+  Team/Enterprise module (`crates/api/src/ee/`, `crates/core/src/dlp.rs`,
+  `crates/core/src/hmac_verify.rs`, `compose.ee.yaml`) is under the
+  Functional Source License, FSL-1.1-ALv2 (`LICENSE-FSL.md`): free to use and
+  self-host for any purpose except a competing hosted service, and Apache-2.0
+  two years after each release. The SDKs stay MIT/Apache-2.0. 0.9.2 and
+  earlier keep their old license. Summary in `LICENSE.md`.
+- **Self-hosting includes every feature.** A self-hosted server is always
+  the Enterprise tier: no `LICENSE_TOKEN` needed, and the dashboard shows
+  every control. The Render blueprint builds the full edition with
+  `ENTERPRISE_MODE=true`. No migrations.
+
 ## [0.9.2] - 2026-10-06
 
 ### Security
