@@ -327,10 +327,34 @@ pub async fn replay_webhook(
     .await
 }
 
-async fn handle_request(
+/// (org_id, resource_id, token) of a resource lock this request holds.
+type HeldLock = (String, String, String);
+
+async fn handle_request(state: &SharedState, source: Source, identity: RequestIdentity) -> Response {
+    let mut held_lock: Option<HeldLock> = None;
+    let resp = handle_request_inner(state, source, identity, &mut held_lock).await;
+    if let Some(lock) = held_lock {
+        release_resource_lock(state, lock).await;
+    }
+    resp
+}
+
+async fn release_resource_lock(state: &SharedState, (org_id, resource_id, token): HeldLock) {
+    if let Ok(mut conn) = state.redis_conn_result() {
+        if let Err(err) = agentraas_core::resource_lock::release(&mut conn, &org_id, &resource_id, &token).await {
+            tracing::warn!(?err, "resource_lock release failed, it expires on its TTL");
+        }
+    }
+}
+
+/// Any path that leaves `held_lock` set has it released by `handle_request`
+/// on return. Paths that must keep it (stream still running, outcome
+/// unknown) `take()` it first.
+async fn handle_request_inner(
     state: &SharedState,
     #[cfg_attr(not(feature = "enterprise"), allow(unused_variables))] source: Source,
     identity: RequestIdentity,
+    held_lock: &mut Option<HeldLock>,
 ) -> Response {
     let req_id = generate_request_id();
     let RequestIdentity {
@@ -641,7 +665,7 @@ async fn handle_request(
                 log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some("resource_locked"), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
                 return err_response(StatusCode::CONFLICT, &req_id, "Another in-flight request is already acting on this resource_id. Retry shortly.");
             }
-            Ok(_) => {}
+            Ok(lock) => *held_lock = Some((org_id.clone(), resource_id.clone(), lock.token)),
             Err(err) => tracing::error!(?err, "resource_lock acquire failed, continuing without it"),
         }
     }
@@ -828,6 +852,7 @@ async fn handle_request(
                 // if this regresses more than once.
                 let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::io::Error>>(16);
                 let claim_key = claim.key.clone();
+                let spawn_lock = held_lock.take();
                 let spawn_state = state.clone();
                 let spawn_circuit_key = circuit_key.clone();
                 let spawn_req_id = req_id.clone();
@@ -856,6 +881,9 @@ async fn handle_request(
                                 break;
                             }
                         }
+                    }
+                    if let Some(lock) = spawn_lock {
+                        release_resource_lock(&spawn_state, lock).await;
                     }
                     let Ok(mut conn) = spawn_state.redis_conn_result() else { return };
                     if had_error {
@@ -886,7 +914,13 @@ async fn handle_request(
                     Err(_) => err_response(StatusCode::INTERNAL_SERVER_ERROR, &req_id, "An internal error occurred."),
                 }
             }
-            Err(err) => forward_error_response(state, &mut conn, &claim.key, dedup_ttl_seconds, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
+            Err(err) => {
+                // It may still be acting on the resource: keep the lock until its TTL.
+                if err.outcome_unknown {
+                    held_lock.take();
+                }
+                forward_error_response(state, &mut conn, &claim.key, dedup_ttl_seconds, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await
+            }
         };
     }
 
@@ -931,7 +965,13 @@ async fn handle_request(
             }
             (StatusCode::OK, Json(result)).into()
         }
-        Err(err) => forward_error_response(state, &mut conn, &claim.key, dedup_ttl_seconds, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await,
+        Err(err) => {
+            // It may still be acting on the resource: keep the lock until its TTL.
+            if err.outcome_unknown {
+                held_lock.take();
+            }
+            forward_error_response(state, &mut conn, &claim.key, dedup_ttl_seconds, &circuit_key, err, &req_id, &api_key, &org_id, &agent_id, &service, &action, &payload, start, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await
+        }
     }
 }
 

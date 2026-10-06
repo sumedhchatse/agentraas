@@ -140,6 +140,47 @@ pub async fn validate_target_url(target_url: &str) -> Option<String> {
     }
 }
 
+/// DNS resolver for the shared HTTP client: drops private/reserved addresses
+/// at connect time, so a hostname that resolved public for
+/// `validate_target_url` can't rebind to an internal one for the real request.
+/// `localhost` is exempt: user URLs can't name it (rejected above), only the
+/// app's own static config does (the internal mockpay route).
+pub struct PublicOnlyResolver;
+
+impl reqwest::dns::Resolve for PublicOnlyResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host.as_str(), 0)).await?.collect();
+            let allowed = filter_public(&host, addrs);
+            if allowed.is_empty() {
+                return Err(format!("{host} resolves only to private/internal addresses").into());
+            }
+            Ok(Box::new(allowed.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+fn filter_public(host: &str, addrs: Vec<std::net::SocketAddr>) -> Vec<std::net::SocketAddr> {
+    if host.eq_ignore_ascii_case("localhost") {
+        return addrs;
+    }
+    addrs.into_iter().filter(|a| !is_private_or_reserved_ip(&a.ip())).collect()
+}
+
+#[cfg(test)]
+mod public_only_resolver_tests {
+    use super::filter_public;
+
+    #[test]
+    fn drops_private_addresses_except_for_localhost() {
+        let addrs = vec!["10.0.0.5:0".parse().unwrap(), "169.254.169.254:0".parse().unwrap(), "93.184.216.34:0".parse().unwrap()];
+        assert_eq!(filter_public("evil.example", addrs.clone()), vec!["93.184.216.34:0".parse().unwrap()]);
+        assert!(filter_public("evil.example", vec!["127.0.0.1:0".parse().unwrap()]).is_empty());
+        assert_eq!(filter_public("localhost", vec!["127.0.0.1:0".parse().unwrap()]).len(), 1);
+    }
+}
+
 #[cfg(test)]
 mod real_client_ip_tests {
     use super::client_ip_from;

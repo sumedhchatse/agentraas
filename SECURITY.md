@@ -62,12 +62,11 @@ registration is caught on the next call. The shared HTTP client never
 follows redirects, so a destination cannot 302 the gateway to an internal
 address.
 
-Known gap: the forward-time check and the HTTP client resolve the name
-separately, so a DNS server answering with a TTL of zero could return a
-public address to the check and a private one to the client (DNS rebinding).
-Closing it means pinning the checked address into the connection; until
-then, run self-hosted deployments with egress rules that block private
-ranges if the gateway shares a network with sensitive services.
+The shared HTTP client also uses its own DNS resolver that drops private
+and reserved addresses at connect time, so a name that resolved public for
+the check can't rebind to an internal address for the real request (DNS
+rebinding). Only `localhost`, which user-supplied URLs can't name, is
+exempt, for the built-in demo service.
 
 ### Secrets at rest
 

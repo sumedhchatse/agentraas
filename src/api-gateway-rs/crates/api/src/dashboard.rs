@@ -459,17 +459,29 @@ async fn admin_users(State(state): State<SharedState>, user: AuthUser) -> Result
 /// average latency only, no per-org/user breakdown. Powers the landing
 /// page's live "execution ledger" panel.
 async fn public_execution_ledger(State(state): State<SharedState>) -> Result<Json<Value>, ApiError> {
+    // Unauthenticated, so anyone could hammer the 24h scan: compute it at
+    // most once a minute. The lock is held across the query, so a burst of
+    // misses runs it once, not once per request.
+    static CACHE: tokio::sync::Mutex<Option<(std::time::Instant, Value)>> = tokio::sync::Mutex::const_new(None);
+    let mut cache = CACHE.lock().await;
+    if let Some((at, body)) = cache.as_ref() {
+        if at.elapsed() < std::time::Duration::from_secs(60) {
+            return Ok(Json(body.clone()));
+        }
+    }
     let row: (i64, i64, Option<f64>) = sqlx::query_as(
         "SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'deduplicated') as deduplicated, AVG(duration_ms)::float8 as avg_duration
          FROM audit_log WHERE created_at >= NOW() - INTERVAL '24 hours'",
     )
     .fetch_one(&state.pg)
     .await?;
-    Ok(Json(json!({
+    let body = json!({
         "actions_verified": row.0,
         "duplicates_caught": row.1,
         "avg_duration_ms": row.2.map(|v| v.round() as i64),
-    })))
+    });
+    *cache = Some((std::time::Instant::now(), body.clone()));
+    Ok(Json(body))
 }
 
 async fn admin_overview(State(state): State<SharedState>, user: AuthUser) -> Result<Json<Value>, ApiError> {

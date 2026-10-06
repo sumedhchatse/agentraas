@@ -191,6 +191,7 @@ async fn main() -> anyhow::Result<()> {
         // response silently fetched and reflected back to the caller.
         http_client: reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .dns_resolver(std::sync::Arc::new(util::PublicOnlyResolver))
             .build()
             .expect("building the shared HTTP client should never fail"),
         cipher,

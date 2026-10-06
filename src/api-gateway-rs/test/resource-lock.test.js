@@ -78,3 +78,18 @@ test('omitting resource_id entirely is unaffected (purely additive)', async () =
   assert.equal(r1.status, 200, JSON.stringify(r1.data));
   assert.equal(r2.status, 200, JSON.stringify(r2.data));
 });
+
+test('the lock is released when the call finishes, not held for its TTL', async () => {
+  const email = `reslock-seq-${RUN_ID}@internal.test`;
+  const orgId = `org_reslock_seq_${RUN_ID}`;
+  const agentId = 'agent1';
+  const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
+  const connectRes = await client.post('/api/v1/agents/connect', { org_id: orgId, agent_id: agentId }, { headers: { Cookie: sessionCookie } });
+  const apiKey = connectRes.data.api_key;
+
+  const call = (amount) => client.post(`/v1/webhook/${orgId}/${agentId}`, { service: 'mockpay', action: 'payment.create', payload: { amount, fail: false }, resource_id: 'cus_seq' }, { headers: { Authorization: `Bearer ${apiKey}` } });
+  const r1 = await call(700);
+  assert.equal(r1.status, 200, JSON.stringify(r1.data));
+  const r2 = await call(800);
+  assert.equal(r2.status, 200, `Second call right after the first should not be locked out: ${JSON.stringify(r2.data)}`);
+});

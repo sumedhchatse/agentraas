@@ -15,6 +15,25 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-10-06
+
+### Security
+- **DNS rebinding past the SSRF guard.** A destination URL was checked when
+  it was resolved, but the HTTP client resolved it again on its own, so a
+  record with a zero TTL could pass the check and then connect to a private
+  address. The client now drops private and reserved addresses itself, at
+  connect time.
+- `/api/v1/public/execution-ledger` (unauthenticated) ran a 24-hour count
+  on every request. It is now computed at most once a minute.
+
+### Fixed
+- A `resource_id` lock is released when the call finishes. It used to be
+  held for its full 15 seconds, so a follow-up action on the same resource
+  got a 409. It is still held until it expires when the upstream's outcome
+  is unknown (a timeout after sending).
+
+No migrations.
+
 ## [0.9.1] - 2026-10-01
 
 ### Security
@@ -75,6 +94,7 @@ server's `/health` response now includes its version.
 - Up to `050_known_destinations.sql`. On an existing install, apply any of
   `046` to `050` you have not run yet.
 
-[Unreleased]: https://github.com/sumedhchatse/agentraas/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/sumedhchatse/agentraas/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/sumedhchatse/agentraas/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/sumedhchatse/agentraas/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/sumedhchatse/agentraas/releases/tag/v0.9.0
