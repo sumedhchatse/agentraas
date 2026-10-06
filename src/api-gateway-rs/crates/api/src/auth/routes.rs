@@ -271,7 +271,7 @@ async fn login(
                 "id": user.id,
                 "email": user.email,
                 "org_id": user.org_id,
-                "plan": user.plan,
+                "plan": shown_plan(&state, &user.plan),
                 "is_admin": user.is_admin,
                 "is_demo": user.is_demo,
                 "deployment_mode": state.deployment_mode,
@@ -348,7 +348,7 @@ async fn verify_email(
                 "id": user.id,
                 "email": user.email,
                 "org_id": user.org_id,
-                "plan": user.plan,
+                "plan": shown_plan(&state, &user.plan),
                 "is_admin": user.is_admin,
                 "is_demo": user.is_demo,
                 "deployment_mode": state.deployment_mode,
@@ -531,6 +531,12 @@ async fn reset_password(
     Ok(Json(json!({ "reset": true })))
 }
 
+/// Self-host gets every feature (see `effective_tier`), so the dashboard is
+/// told Enterprise there whatever `users.plan` says.
+fn shown_plan(state: &SharedState, plan: &str) -> String {
+    if state.deployment_mode != "cloud" { "enterprise".to_string() } else { plan.to_string() }
+}
+
 // ─── GET /api/v1/auth/me ───
 
 #[derive(Serialize)]
@@ -565,7 +571,7 @@ async fn me(State(state): State<SharedState>, user: AuthUser) -> Result<Json<ser
             "id": user.sub,
             "email": user.email,
             "org_id": user.org_id,
-            "plan": plan,
+            "plan": shown_plan(&state, &plan),
             "is_admin": is_admin,
             "is_demo": is_demo,
             "deployment_mode": state.deployment_mode,

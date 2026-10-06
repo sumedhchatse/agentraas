@@ -305,38 +305,17 @@ roadmap, not fabricated.
 
 ## Pricing
 
-**You don't need to pay to use AgentRaaS.** Community is free and open
-source, with no action limit when you self-host it, and it's the version we
-recommend starting with. Team and Enterprise add approvals, seats, SSO and
-support for companies that need them, cloud-hosted or self-hosted. The
-Enterprise module (`src/api-gateway-rs/crates/api/src/ee/`: SSO, RBAC, HMAC,
-DLP, HA, SIEM export) is source-available under a separate commercial
-license, see [LICENSE.md](./LICENSE.md).
+**Self-hosting is free, with every feature.** Approvals (HITL), SSO, RBAC,
+DLP redaction, inbound HMAC verification, agent identity, HA: everything
+runs on your own infrastructure with no license token and no action limit,
+including for commercial use inside your company. See
+[LICENSE.md](./LICENSE.md) for the terms.
 
-| | Community | Team | Enterprise |
-|---|---|---|---|
-| **Price** | $0/mo | $49/mo | Custom, from $499/mo |
-| **Deployment** | Self-hosted only | Cloud-hosted or self-hosted | Cloud-hosted or self-hosted/on-prem |
-| **Actions/month, self-hosted** | Unlimited | Unlimited | Unlimited |
-| **Actions/month, cloud-hosted** | n/a (not offered) | 10,000 | Unlimited |
-| **Team seats** | 1 | 3 | Unlimited |
-| **Payload dedup, MCP gateway, dashboard** | ✅ | ✅ | ✅ |
-| **Fuzzy/semantic similarity dedup** | — | ✅ | ✅ |
-| **Human-in-the-Loop approval gateway (Slack + SLA auto-escalation)** | — | ✅ | ✅ |
-| **Audit log** | Local Postgres, tamper-evident | Local Postgres, tamper-evident | + SIEM export |
-| **Client tenants / white-label** | — | — | ✅ unlimited |
-| **Inbound webhook receivers** | — | — | ✅ |
-| **Inbound HMAC verification, PII/DLP redaction** | — | — | ✅ |
-| **SSO (OIDC), RBAC** | — | — | ✅ |
-| **Agent Identity / Agent Passport (scoped, short-lived agent tokens)** | — | — | ✅ |
-| **HA clustering** | — | — | ✅ |
-| **Support** | GitHub & Discord | GitHub & Discord | Priority, SLA-backed |
-
-Community also has a free-to-try flavor on AgentRaaS Cloud (no install,
-capped at 500 actions/month — the only tier/deployment combination with
-any cap at all; self-hosting removes it entirely, on any tier). Get
-started or self-host from `/dashboard`, or contact
-**support@agentraas.io** for Enterprise sales.
+**AgentRaaS Cloud** (agentraas.io) runs it for you and is moving to pay as
+you go: you pay for the actions you run, not for a plan. Until that
+launches, the current plans stay: a free account (500 actions/month), Team
+($49/month) and Enterprise (custom). Contact **support@agentraas.io** for
+SLA-backed support.
 
 ---
 
@@ -348,24 +327,13 @@ Step-by-step fixes from quick checks to deeper digging (API errors, library mode
 
 ## License
 
-**One sentence:** everything in this repo is dual-licensed MIT/Apache-2.0
-(genuinely open, no restrictions — [LICENSE-MIT](./LICENSE-MIT) /
-[LICENSE-APACHE](./LICENSE-APACHE)) *except* the enterprise module
-(`src/api-gateway-rs/crates/api/src/ee/`,
-`src/api-gateway-rs/crates/core/src/{dlp,hmac_verify}.rs`,
-`compose.ee.yaml`), which is under a separate fair-code/source-available
-commercial license — see [LICENSE.md](./LICENSE.md).
-
-The enterprise module (SSO, RBAC, HMAC verification, DLP, distributed rate
-limiting, HA) implements Team/Enterprise-tier features, required for
-production use beyond a trial — see the Pricing section above or contact
-**support@agentraas.io**. It's source-available in this repo (you can read
-it, same as the core), just not freely redistributable/rebrandable —
-[LICENSE.md](./LICENSE.md) has the exact terms, including the metered
-free tier for AgentRaaS-hosted deployments (500 actions/month) and the
-fact that self-hosting is unlimited on every tier. (This repo also keeps
-`RESTRUCTURE_PLAN.md` around as internal planning notes on that split —
-not required reading, just there if useful.)
+The server (`src/api-gateway-rs/`) is AGPL-3.0. The Team/Enterprise
+features (`crates/api/src/ee/`, `crates/core/src/{dlp,hmac_verify}.rs`,
+`compose.ee.yaml`) are under the Functional Source License (FSL-1.1-ALv2):
+free to use and self-host for any purpose except offering a competing
+hosted service, and each release becomes Apache-2.0 after two years. The
+SDKs and everything else are MIT or Apache-2.0. Details:
+[LICENSE.md](./LICENSE.md).
 
 ---
 

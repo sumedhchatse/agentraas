@@ -1,109 +1,29 @@
-AgentRaaS Enterprise Module License v1.0
-(Fair-code / source-available — not an OSI-approved open source license)
+# Licensing
 
-Copyright (c) 2026 Sumedh Chatse. All rights reserved except as granted below.
+AgentRaaS is free to self-host, with every feature, for any purpose,
+including commercial use inside your own business. Three licenses cover
+different parts of this repository:
 
-SCOPE: this license covers only the enterprise module — `src/ee/`,
-`src/api-gateway-rs/crates/api/src/ee/`,
-`src/api-gateway-rs/crates/core/src/dlp.rs`,
-`src/api-gateway-rs/crates/core/src/hmac_verify.rs`, and
-`compose.ee.yaml` — the code that implements Team/Enterprise-tier
-features (SSO, RBAC, HMAC verification, DLP redaction, distributed rate
-limiting, HA). Everything else in this repository is dual-licensed under
-MIT (LICENSE-MIT) or Apache-2.0 (LICENSE-APACHE), genuinely open source.
-See README.md's License section for the one-sentence version of this split.
+| Part | License | File |
+|---|---|---|
+| The server: everything under `src/api-gateway-rs/` except the files in the next row | GNU AGPL-3.0 | [LICENSE-AGPL](./LICENSE-AGPL) |
+| Team/Enterprise features: `src/api-gateway-rs/crates/api/src/ee/`, `src/api-gateway-rs/crates/core/src/dlp.rs`, `src/api-gateway-rs/crates/core/src/hmac_verify.rs`, `compose.ee.yaml` | Functional Source License 1.1, Apache-2.0 future license (FSL-1.1-ALv2) | [LICENSE-FSL.md](./LICENSE-FSL.md) |
+| Everything else: the SDKs (`src/sdk`, `src/sdk-js`), `src/chaos-action`, `integrations/`, `infra/`, `compose.yaml`, docs | MIT or Apache-2.0, your choice | [LICENSE-MIT](./LICENSE-MIT), [LICENSE-APACHE](./LICENSE-APACHE) |
 
-This is a source-available license, not a traditional open-source license — it
-is closely modeled on n8n's Sustainable Use License, adapted with a metered
-free tier. By using, copying, modifying, or distributing the enterprise
-module described above, you agree to the terms below.
+In plain words (the license files are what counts):
 
-──────────────────────────────────────────────────────────────────────────
-1. FREE USE GRANT
-──────────────────────────────────────────────────────────────────────────
-The Licensor grants you a non-exclusive, worldwide, royalty-free,
-non-transferable license to use, copy, modify, self-host, and create
-derivative works of AgentRaaS, for your own internal business or personal
-use, subject to the Usage Limit (Section 2) and Restricted Uses (Section 3)
-below.
+- **AGPL-3.0 (server).** Use, modify and run it for anything. If you let
+  other people use a modified version over a network, you must offer them
+  your modified source.
+- **FSL (Team/Enterprise features).** Use, modify and self-host it for
+  anything except a competing product: you may not offer it to others as a
+  commercial hosted service that substitutes for AgentRaaS. Internal use at
+  a for-profit company is allowed. Each release becomes Apache-2.0 two years
+  after it is published.
+- **MIT/Apache-2.0 (SDKs and the rest).** No conditions beyond keeping the
+  notice.
 
-──────────────────────────────────────────────────────────────────────────
-2. USAGE LIMIT
-──────────────────────────────────────────────────────────────────────────
-Self-hosted deployments (running on infrastructure you control) have NO
-usage limit under this license, on any tier — Community, Team, or
-Enterprise. Run as many forwarded agent actions per month as you want, on
-as many self-hosted deployments as you want, for free, regardless of plan.
+Versions released before 2026-10-06 keep the license they were released
+under.
 
-The only metered usage limit under this license applies to deployments
-hosted by the Licensor (i.e. the official AgentRaaS Cloud offering):
-500 forwarded agent actions (as counted by AgentRaaS's own audit log —
-i.e. requests that reach `forwarded: true`) per calendar month, per
-account, on the free Cloud tier. Any use exceeding that limit requires
-a paid Cloud plan (Team or Enterprise) or a commercial license
-from the Licensor. Contact support@agentraas.io.
-
-Paid tiers also carry a team-seat limit (Team: 3, Enterprise:
-unlimited) — this governs how many members can belong to your org, not
-the action-forwarding limit above. On a self-hosted deployment, a paid
-tier's features are unlocked by a signed license token issued by the
-Licensor after subscribing; without a valid token, a self-hosted
-deployment runs as Community regardless of what you've paid for
-elsewhere, so keep your token current.
-
-That 500/month Cloud limit is enforced technically on any instance of
-AgentRaaS operated by the Licensor. No limit — technical or contractual —
-applies to self-hosted deployments.
-
-──────────────────────────────────────────────────────────────────────────
-3. RESTRICTED USES
-──────────────────────────────────────────────────────────────────────────
-Regardless of the Usage Limit, you may NOT, without a separate written
-agreement with the Licensor:
-
-  a. Offer AgentRaaS, or any modified or derivative version of it, as a
-     hosted or managed service to third parties — i.e., you may not resell,
-     rebrand, or white-label AgentRaaS (or a fork of it) as a competing
-     product or service.
-  b. Remove, alter, or obscure any copyright, license, or attribution
-     notice contained in the software.
-  c. Use the "AgentRaaS" name, logo, or branding to market a competing
-     product without the Licensor's written permission.
-
-──────────────────────────────────────────────────────────────────────────
-4. DISTRIBUTION
-──────────────────────────────────────────────────────────────────────────
-You may distribute unmodified or modified copies of this software only if
-you do so free of charge, and only for non-commercial purposes, and only
-together with this license in full.
-
-──────────────────────────────────────────────────────────────────────────
-5. NO WARRANTY
-──────────────────────────────────────────────────────────────────────────
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
-FROM THE SOFTWARE OR ITS USE.
-
-──────────────────────────────────────────────────────────────────────────
-6. COMMERCIAL LICENSE
-──────────────────────────────────────────────────────────────────────────
-For use beyond the Usage Limit in Section 2, or for any use restricted
-under Section 3, contact support@agentraas.io to discuss a commercial
-license. Team is available as a self-serve subscription
-without contacting anyone — see the pricing page. Enterprise is
-sales-assisted with custom pricing.
-
-──────────────────────────────────────────────────────────────────────────
-7. TERMINATION
-──────────────────────────────────────────────────────────────────────────
-This license terminates automatically if you breach any of its terms.
-Upon termination, you must cease all use and distribution of the software.
-
-──────────────────────────────────────────────────────────────────────────
-NOTE: This license is a starting draft based on established fair-code/
-source-available precedent (n8n's Sustainable Use License). It has not
-been reviewed by a lawyer. Get it reviewed before relying on it for real
-enforcement, especially before contacting anyone about a violation.
-──────────────────────────────────────────────────────────────────────────
+Questions: support@agentraas.io.

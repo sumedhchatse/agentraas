@@ -635,13 +635,12 @@ agentraas apply -f agentraas.yaml --prune     # also delete rules the file doesn
         <tr><td><code>CREDENTIALS_ENCRYPTION_KEY</code></td><td>Encrypts stored service credentials at rest. Required, 32 bytes.</td></tr>
         <tr><td><code>PUBLIC_URL</code></td><td>Used for email links and the Connect Agent webhook/MCP URLs. Set this to your real domain.</td></tr>
         <tr><td><code>AGENT_RATE_LIMIT_PER_MIN</code></td><td>Per-key rate limit across webhook/SDK/MCP routes. Default 300.</td></tr>
-        <tr><td><code>LICENSE_TOKEN</code></td><td>Unlocks Team/Enterprise features on this deployment. Get it from your Cloud account's <b>Account → Your license</b> panel after subscribing. Missing/expired always falls back to Community rather than blocking startup.</td></tr>
         <tr><td><code>CLIENT_IP_HEADER</code></td><td>Behind a reverse proxy, the header it sets with the real client IP (<code>x-real-ip</code> for nginx, <code>cf-connecting-ip</code> behind Cloudflare), so login and signup rate limits apply per visitor. Only name a header your proxy always sets; unset uses the connecting address. Never <code>x-forwarded-for</code>: clients can prepend to it.</td></tr>
         <tr><td><code>PROXY_TIMEOUT_SECONDS</code></td><td>How long one forwarded call may take (default 30). A call that hits it is held as <a href="#ts-outcome-unknown">outcome unknown</a>, not retried.</td></tr>
         <tr><td><code>OTEL_EXPORTER_OTLP_ENDPOINT</code></td><td>Optional. Sends every call AgentRaaS handles (ran, deduplicated, blocked, held for approval) as an OpenTelemetry span over OTLP/HTTP to your collector or tracing tool (Langfuse, Grafana, Datadog, Honeycomb, Jaeger), named <code>execute_tool service.action</code> per the GenAI conventions. Calls sharing an <code>X-AgentRaaS-Run-Id</code> share a trace. Auth goes in <code>OTEL_EXPORTER_OTLP_HEADERS</code> (<code>key=value,key2=value2</code>); <code>OTEL_EXPORTER_OTLP_TRACES_ENDPOINT</code> takes a full URL instead. Payloads are never exported.</td></tr>
         <tr><td><code>SMTP_*</code></td><td>Optional. Without it, password-reset links are logged server-side instead of emailed.</td></tr>
       </table>
-      <div class="callout"><p>Billing always happens on AgentRaaS Cloud, even for a self-hosted instance: Paddle checkout and your subscription live there. Self-hosting doesn't need its own Paddle account; you just paste the license token it issues you into <code>LICENSE_TOKEN</code>.</p></div>
+      <div class="callout"><p>Self-hosting includes every feature (approvals, SSO, DLP, agent identity) with no license token: <code>compose.yaml</code> builds the full edition and sets <code>ENTERPRISE_MODE=true</code>.</p></div>
     </section>
 
     <section id="helm">
@@ -662,7 +661,7 @@ helm install agentraas ./infra/helm/agentraas \
         <tr><td><code>existingSecret</code></td><td>A Secret holding <code>JWT_SECRET</code>, <code>CREDENTIALS_ENCRYPTION_KEY</code> and, with an external database, <code>DATABASE_URL</code>. Leave empty and the chart generates them on first install and keeps them on upgrade.</td></tr>
         <tr><td><code>clientIpHeader</code></td><td>The header your ingress writes with the client IP (see <code>CLIENT_IP_HEADER</code> in <a href="#self-hosting">Self-hosting</a>).</td></tr>
         <tr><td><code>metricsToken</code></td><td>Turns on <a href="#metrics">/metrics</a>.</td></tr>
-        <tr><td><code>extraEnv</code></td><td>Any other environment variable, e.g. <code>SMTP_HOST</code>, <code>LICENSE_TOKEN</code>, <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>.</td></tr>
+        <tr><td><code>extraEnv</code></td><td>Any other environment variable, e.g. <code>SMTP_HOST</code>, <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>.</td></tr>
         <tr><td><code>replicaCount</code></td><td>Keep 1 with the bundled datastores. The API itself is stateless (dedup state lives in Redis).</td></tr>
       </table>
       <p>Every database migration runs before the API starts, in an init container that holds a Postgres advisory lock so replicas don't race; all migrations are safe to re-run. The API runs with a read-only root filesystem and is probed on <code>/health</code>.</p>
@@ -810,7 +809,7 @@ redis-cli --scan --pattern 'dedup:local:*' | xargs -r redis-cli del</code></pre>
         <li><b>Basic.</b> <code>podman ps</code> (or <code>docker ps</code>): are the API, Postgres and Redis containers running? Then <code>curl localhost:13001/health</code>.</li>
         <li><b>Intermediate: the API container exits at start.</b> Read its logs. A missing or empty <code>JWT_SECRET</code>, <code>DATABASE_URL</code>, <code>REDIS_URL</code> or <code>CREDENTIALS_ENCRYPTION_KEY</code> is the usual cause.</li>
         <li><b>Intermediate: <code>relation "..." does not exist</code>.</b> A migration wasn't applied. Run every file in <code>infra/migrations/</code> in order; they're safe to re-run.</li>
-        <li><b>Intermediate: Team/Enterprise features missing.</b> Check <code>LICENSE_TOKEN</code> in <code>.env</code>. An invalid or expired token is logged and the server falls back to Community.</li>
+        <li><b>Intermediate: Team/Enterprise features missing.</b> Check that <code>ENTERPRISE_MODE=true</code> reaches the container and that the image was built with <code>--features enterprise</code> (the default <code>Containerfile</code> does).</li>
         <li><b>Intermediate: no verification email.</b> Without <code>SMTP_*</code> settings the link is written to the logs instead.</li>
         <li><b>Advanced: rebuilt, but the old behavior remains.</b> Recreate the container (<code>up -d --force-recreate</code>) and check it runs the new image. If the build "succeeded" suspiciously fast, check disk space: a full disk can fail the compile while the wrapper still reports success.</li>
         <li><b>Advanced: trace one request.</b> Grep the API logs for the <code>reqId</code> from the response.</li>

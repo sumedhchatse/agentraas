@@ -4,17 +4,15 @@ Thanks for your interest in AgentRaaS. A few things to know before you dive in.
 
 ## License
 
-Most of this repo is dual-licensed MIT/Apache-2.0 — genuinely open source.
-The enterprise module (`src/ee/` and equivalents, see README.md's License
-section for the exact list) is source-available under a separate custom
-fair-code license (see [LICENSE.md](./LICENSE.md)) — not a traditional
-open-source license. By submitting a contribution, you agree that it may
-be distributed under whichever of these license terms already covers the
-file(s) you're touching.
+The server (`src/api-gateway-rs/`) is AGPL-3.0, the Team/Enterprise
+features inside it are under the Functional Source License
+(FSL-1.1-ALv2), and the SDKs and everything else are MIT/Apache-2.0. The
+exact file list is in [LICENSE.md](./LICENSE.md). By submitting a
+contribution, you agree that it may be distributed under whichever of these
+licenses already covers the file(s) you're touching.
 
-Notably, the enterprise module's license restricts offering it (or a
-derivative of it) as a competing hosted service. If you're contributing
-as part of building something like that, reach out to
+The FSL part may not be offered as a competing hosted service. If you're
+contributing as part of building something like that, reach out to
 support@agentraas.io first.
 
 ## Reporting bugs

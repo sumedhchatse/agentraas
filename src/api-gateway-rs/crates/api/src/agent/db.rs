@@ -603,23 +603,14 @@ pub async fn check_org_write_permission(pg: &PgPool, user_id: i32, org_id: &str)
 
 /// Tier resolution — cloud reads `users.plan` for the org's owning user
 /// directly (same "owner" model as `check_org_write_permission` above).
-/// Self-host has no billing DB to query, so it reads the cached,
-/// already-verified license tier instead (`state.license_tier`, kept
-/// current by a background task started in `main.rs` — see
-/// `agentraas_core::license`). Never errors: an org with no matching
-/// row, or a stale/unrecognized plan string, resolves to
-/// `Tier::Community` rather than blocking the caller, and so does a
-/// self-host deployment with no (or an invalid/expired) license.
-///
-/// Not called from the Community binary yet — its callers today are all
-/// inside `ee/`-gated code (still Cargo-feature-gated exactly as before;
-/// only the *runtime* check moved from a single on/off switch to a
-/// graduated tier). Phase 7's dashboard UI (showing an org's own tier)
-/// will be its first Community-reachable caller.
+/// Self-host is always Enterprise: since 2026-10-06 every feature is free to
+/// self-host (LICENSE.md), so no license token is needed. Never errors: an
+/// org with no matching row, or a stale/unrecognized plan string, resolves
+/// to `Tier::Community` rather than blocking the caller.
 #[allow(dead_code)]
 pub async fn effective_tier(state: &SharedState, org_id: &str) -> agentraas_core::tier::Tier {
     if state.deployment_mode != "cloud" {
-        return *state.license_tier.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+        return agentraas_core::tier::Tier::Enterprise;
     }
     let plan = get_org_owner_plan(&state.pg, org_id).await.unwrap_or_else(|_| "free".to_string());
     agentraas_core::tier::Tier::from_plan_str(&plan)

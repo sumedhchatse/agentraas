@@ -13,7 +13,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY src/api-gateway-rs/Cargo.toml ./
 COPY src/api-gateway-rs/crates ./crates
-RUN cargo build --release -p api
+RUN cargo build --release -p api --features enterprise
 
 FROM docker.io/library/debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
