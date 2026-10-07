@@ -1,5 +1,5 @@
 // Integration tests for upstream schema drift detection
-// (SPEC-SCHEMA-DRIFT.md, schema_drift.rs). mockpay's response shape is
+// (schema_drift.rs). mockpay's response shape is
 // fixed/deterministic (fail:false), so there's no natural way to make the
 // real upstream shape change for a test — instead, this establishes a
 // real baseline via a real call, then injects a fake extra field directly
@@ -19,6 +19,17 @@ const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 const client = axios.create({ baseURL: BASE_URL, validateStatus: () => true });
 
 const RUN_ID = Date.now();
+
+// The drift check runs in the background after the response, so wait for
+// its effect instead of a fixed sleep (CI machines are slower).
+async function waitFor(check, what) {
+  for (let i = 0; i < 50; i++) {
+    const v = await check();
+    if (v) return v;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  assert.fail(`timed out waiting for ${what}`);
+}
 
 async function registerAndVerify(email, password, orgId) {
   const registerRes = await client.post('/api/v1/auth/register', { email, password, org_id: orgId });
@@ -48,19 +59,20 @@ test('a removed field is detected and recorded against the org whose request fou
   assert.equal(connectRes.status, 200, JSON.stringify(connectRes.data));
   const apiKey = connectRes.data.api_key;
 
-  const call = () =>
+  // A different amount each time: an identical payload would be answered by
+  // dedup without reaching mockpay, and so without a schema check.
+  const call = (amount) =>
     client.post(
       `/v1/webhook/${orgId}/${agentId}`,
-      { service: 'mockpay', action: 'payment.create', payload: { amount: 1, fail: false } },
+      { service: 'mockpay', action: 'payment.create', payload: { amount, fail: false } },
       { headers: { Authorization: `Bearer ${apiKey}` } }
     );
 
   // Establish (or confirm) a real baseline first.
-  const first = await call();
+  const first = await call(1);
   assert.equal(first.status, 200, JSON.stringify(first.data));
 
-  // Give the background check_and_record task a moment to land.
-  await new Promise((r) => setTimeout(r, 300));
+  await waitFor(async () => (await pg.query("SELECT 1 FROM schema_baselines WHERE service = 'mockpay' AND action = 'payment.create'")).rowCount > 0, 'the baseline');
 
   // Inject a fake field into the shared baseline, simulating an upstream
   // field that used to exist.
@@ -70,16 +82,18 @@ test('a removed field is detected and recorded against the org whose request fou
      WHERE service = 'mockpay' AND action = 'payment.create'`
   );
 
-  const second = await call();
+  const second = await call(2);
   assert.equal(second.status, 200, JSON.stringify(second.data));
-  await new Promise((r) => setTimeout(r, 300));
 
-  const { rows } = await pg.query(
-    `SELECT removed_fields FROM schema_drift_events
-     WHERE service = 'mockpay' AND action = 'payment.create' AND org_id = $1
-     ORDER BY detected_at DESC LIMIT 1`,
-    [orgId]
-  );
+  const rows = await waitFor(async () => {
+    const r = await pg.query(
+      `SELECT removed_fields FROM schema_drift_events
+       WHERE service = 'mockpay' AND action = 'payment.create' AND org_id = $1
+       ORDER BY detected_at DESC LIMIT 1`,
+      [orgId]
+    );
+    return r.rows.length ? r.rows : null;
+  }, 'the drift event');
   assert.equal(rows.length, 1, 'expected exactly one drift event recorded for this org');
   const removed = rows[0].removed_fields;
   assert.ok(removed.some((f) => f.startsWith('legacy_fee_field:')), `expected legacy_fee_field to be flagged as removed, got: ${JSON.stringify(removed)}`);

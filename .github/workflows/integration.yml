@@ -94,7 +94,7 @@ jobs:
       - name: Run every test file
         working-directory: src/api-gateway-rs
         run: |
-          npm ci --silent
+          npm ci --no-audit --no-fund
           test/run-each.sh
 
       - name: Server log on failure
