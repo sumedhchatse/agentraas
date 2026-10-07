@@ -1,0 +1,102 @@
+name: Integration tests
+
+# The full HTTP test suite (src/api-gateway-rs/test) against a real server,
+# Postgres and Redis, in both deployment modes. Runs on the public repo only:
+# its Actions minutes are free, and every release is mirrored there.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    if: github.repository == 'sumedhchatse/agentraas'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [self-hosted, cloud]
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: agentraas
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: agentraas
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U agentraas" --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://agentraas:ci@localhost:5432/agentraas
+      REDIS_URL: redis://localhost:6379
+      TEST_BASE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply migrations
+        run: |
+          for f in infra/migrations/*.sql; do
+            psql "$DATABASE_URL" -q -v ON_ERROR_STOP=1 -f "$f" > /dev/null
+          done
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/api-gateway-rs
+          file: ./src/api-gateway-rs/Containerfile
+          load: true
+          tags: agentraas-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Same mounts as compose.yaml: services config, public/ (pages and
+      # /js), and the repo (self-host download). Host network, so the
+      # built-in mockpay service at localhost:3000 is this same server.
+      - name: Start the API (${{ matrix.mode }})
+        run: |
+          docker run -d --name api --network host \
+            -v "$PWD/config:/config:ro" \
+            -v "$PWD/src/api-gateway-rs/public:/public:ro" \
+            -v "$PWD:/repo:ro" \
+            -e PORT=3000 -e DATABASE_URL -e REDIS_URL \
+            -e JWT_SECRET="ci-$(openssl rand -hex 24)" \
+            -e CREDENTIALS_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+            -e DEPLOYMENT_MODE=${{ matrix.mode }} \
+            -e ENTERPRISE_MODE=true \
+            -e EXPOSE_DEV_VERIFY_URL=true \
+            -e PROXY_TIMEOUT_SECONDS=2 \
+            -e PUBLIC_URL=http://localhost:3000 \
+            agentraas-api:ci
+          for i in $(seq 1 60); do
+            curl -sf localhost:3000/health && exit 0
+            sleep 2
+          done
+          docker logs api; exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run every test file
+        working-directory: src/api-gateway-rs
+        run: |
+          npm ci --silent
+          test/run-each.sh
+
+      - name: Server log on failure
+        if: failure()
+        run: docker logs api 2>&1 | tail -200

@@ -43,10 +43,15 @@ test.after(async () => {
   await pg.end();
 });
 
-test('usage endpoint, cap validation and the payg limit', { skip: CHARGE_CHECK }, async () => {
+test('usage endpoint, cap validation and the payg limit', { skip: CHARGE_CHECK }, async (t) => {
   const orgId = `org_payg_${RUN_ID}`;
   const cookie = await registerAndVerify(`payg-${RUN_ID}@internal.test`, 'validpassword123', orgId);
   const headers = { Cookie: cookie };
+  const mode = (await client.get('/api/v1/auth/me', { headers })).data.user.deployment_mode;
+  if (mode !== 'cloud') {
+    t.skip('pay as you go is Cloud only; self-hosted servers have no usage limit');
+    return;
+  }
 
   let u = await client.get(`/api/v1/billing/usage?org_id=${orgId}`, { headers });
   assert.equal(u.status, 200, JSON.stringify(u.data));
