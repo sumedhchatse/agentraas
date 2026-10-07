@@ -24,29 +24,19 @@ async function registerAndVerify(email, password, orgId) {
   return verifyRes.headers['set-cookie'][0].split(';')[0];
 }
 
-test('Community-tier org cannot create an on_exceed="hitl" spend-cap rule (block-only needs no tier gate)', async (t) => {
-  const email = `spendcap-community-${RUN_ID}@internal.test`;
-  const orgId = `org_spendcap_community_${RUN_ID}`;
+test('a free org can create both block and on_exceed="hitl" spend-cap rules', async () => {
+  const email = `spendcap-free-${RUN_ID}@internal.test`;
+  const orgId = `org_spendcap_free_${RUN_ID}`;
   const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
-  const me = await client.get('/api/v1/auth/me', { headers: { Cookie: sessionCookie } });
-  if (me.data.user.deployment_mode !== 'cloud') {
-    t.skip('self-hosted servers give every org every feature; tier gates only apply on Cloud');
-    return;
+
+  for (const on_exceed of ['hitl', 'block']) {
+    const res = await client.post(
+      '/api/v1/spend-cap-rules',
+      { org_id: orgId, service: 'mockpay', action: 'payment.create', window: 'hour', max_calls: 5, on_exceed },
+      { headers: { Cookie: sessionCookie } }
+    );
+    assert.equal(res.status, 200, `${on_exceed}: ${JSON.stringify(res.data)}`);
   }
-
-  const hitlRes = await client.post(
-    '/api/v1/spend-cap-rules',
-    { org_id: orgId, service: 'mockpay', action: 'payment.create', window: 'hour', max_calls: 5, on_exceed: 'hitl' },
-    { headers: { Cookie: sessionCookie } }
-  );
-  assert.equal(hitlRes.status, 403, JSON.stringify(hitlRes.data));
-
-  const blockRes = await client.post(
-    '/api/v1/spend-cap-rules',
-    { org_id: orgId, service: 'mockpay', action: 'payment.create', window: 'hour', max_calls: 5, on_exceed: 'block' },
-    { headers: { Cookie: sessionCookie } }
-  );
-  assert.equal(blockRes.status, 200, JSON.stringify(blockRes.data));
 });
 
 test('a block rule lets exactly max_calls through, then rejects with 429', async () => {

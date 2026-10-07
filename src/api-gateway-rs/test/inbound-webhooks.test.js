@@ -45,22 +45,11 @@ test.after(async () => {
   await pg.end();
 });
 
-test('inbound webhook creation requires Agency specifically — Community and Pro both rejected, Agency succeeds', async () => {
-  const email = `webhooktier-${RUN_ID}@internal.test`;
-  const orgId = `org_webhooktier_${RUN_ID}`;
+test('a free org can create an inbound webhook receiver (every account gets every feature)', async () => {
+  const email = `webhookfree-${RUN_ID}@internal.test`;
+  const orgId = `org_webhookfree_${RUN_ID}`;
   const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
-  const authHeaders = { headers: { Cookie: sessionCookie } };
-
-  const communityRes = await client.post('/api/v1/inbound-webhooks', createBody(orgId), authHeaders);
-  assert.equal(communityRes.status, 403, JSON.stringify(communityRes.data));
-
-  await setPlan(pg, orgId, 'pro');
-  const proRes = await client.post('/api/v1/inbound-webhooks', createBody(orgId), authHeaders);
-  assert.equal(proRes.status, 403, `Pro alone must not be enough: ${JSON.stringify(proRes.data)}`);
-  assert.match(proRes.data.error, /Enterprise plan/);
-
-  await setPlan(pg, orgId, 'agency');
-  const agencyRes = await client.post('/api/v1/inbound-webhooks', createBody(orgId), authHeaders);
-  assert.equal(agencyRes.status, 200, JSON.stringify(agencyRes.data));
-  assert.equal(agencyRes.data.provider, 'github');
+  const res = await client.post('/api/v1/inbound-webhooks', createBody(orgId), { headers: { Cookie: sessionCookie } });
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  assert.equal(res.data.provider, 'github');
 });

@@ -617,19 +617,15 @@ pub async fn check_org_write_permission(pg: &PgPool, user_id: i32, org_id: &str)
     Ok(is_owner.is_some())
 }
 
-/// Tier resolution — cloud reads `users.plan` for the org's owning user
-/// directly (same "owner" model as `check_org_write_permission` above).
-/// Self-host is always Enterprise: every feature is free to self-host
-/// (LICENSE.md), so there is no license token. Never errors: an
-/// org with no matching row, or a stale/unrecognized plan string, resolves
-/// to `Tier::Community` rather than blocking the caller.
+/// Every account gets every feature (since 2026-10-07): self-host is free
+/// with everything (LICENSE.md), and Cloud is priced by usage, not by plan
+/// (billing.rs). So this is always Enterprise. Kept as the one place every
+/// feature gate asks (`require_tier`), so a future tier only changes here.
+/// What still differs by plan on Cloud is limits, not features: the monthly
+/// action limit (`get_effective_limit`) and the per-minute rate limit.
 #[allow(dead_code)]
-pub async fn effective_tier(state: &SharedState, org_id: &str) -> agentraas_core::tier::Tier {
-    if state.deployment_mode != "cloud" {
-        return agentraas_core::tier::Tier::Enterprise;
-    }
-    let plan = get_org_owner_plan(&state.pg, org_id).await.unwrap_or_else(|_| "free".to_string());
-    agentraas_core::tier::Tier::from_plan_str(&plan)
+pub async fn effective_tier(_state: &SharedState, _org_id: &str) -> agentraas_core::tier::Tier {
+    agentraas_core::tier::Tier::Enterprise
 }
 
 /// Runtime replacement for `require_enterprise_mode` on features that

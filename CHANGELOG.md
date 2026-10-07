@@ -15,6 +15,23 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-07
+
+No migrations.
+
+### Changed
+- **No plans or feature tiers: every account gets every feature.** Free
+  Cloud accounts now get approvals (HITL), SSO and member management,
+  identity tokens, inbound webhooks, branding and semantic dedup, with no
+  seat limit, like self-hosted servers. Cloud is priced only by usage: 500
+  actions a month free, then $1 per 1,000 that ran (billing switches on
+  later; until then the free 500 applies). Plans differ only in limits.
+- Dashboard: one console for everyone; the Team upsell and the header
+  upgrade badge are gone; Account describes what the account gets.
+- Website, docs, Terms and Privacy: pricing is "Open source, free" and
+  "Cloud, pay as you go"; the Team and Enterprise cards are gone (contracts
+  and SLA support are a contact line).
+
 ## [0.12.1] - 2026-10-07
 
 No migrations.

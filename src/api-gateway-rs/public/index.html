@@ -445,8 +445,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div id="user-info">
       <a href="/docs" target="_blank" class="user-email-btn" style="text-decoration:none;">Docs</a>
       <a href="/guide" target="_blank" class="user-email-btn" style="text-decoration:none;">Guide</a>
-      <span id="header-plan-badge" class="badge verified" style="display:none;margin-right:8px;"></span>
-      <button type="button" id="header-upgrade-btn" class="badge" style="display:none;margin-right:8px;background:rgba(78,139,107,0.14);color:var(--signal);cursor:pointer;border:none;font-family:inherit;">Upgrade to Team</button>
       <button type="button" class="user-email-btn" id="account-btn"></button>
       <button id="logout-btn">Log out</button>
     </div>
@@ -918,7 +916,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="field"><label for="policy-violation">When broken</label>
         <select id="policy-violation">
           <option value="block">Block the call</option>
-          <option value="hitl">Route to approval (Team+)</option>
+          <option value="hitl">Route to approval</option>
         </select>
       </div>
       <button type="submit" class="primary" id="policy-submit">Save policy</button>
@@ -933,7 +931,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <div class="modal-overlay" id="spendcap-modal-overlay">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Spend caps">
     <h3>Per-agent spend caps</h3>
-    <p class="sub">Caps how many times an agent can call a service.action within a time window — catches an agent that's legitimately busy (not looping) but burning through a paid API faster than expected. Leave Agent ID blank to apply to every agent in the org. "Route to approval" requires the Team plan and a configured HITL Slack destination; otherwise the call is rejected outright once the cap is hit.</p>
+    <p class="sub">Caps how many times an agent can call a service.action within a time window — catches an agent that's legitimately busy (not looping) but burning through a paid API faster than expected. Leave Agent ID blank to apply to every agent in the org. "Route to approval" needs a configured HITL Slack destination; otherwise the call is rejected outright once the cap is hit.</p>
     <div class="modal-error" id="spendcap-error"></div>
     <form id="spendcap-form">
       <div class="field"><label for="spendcap-org">Org ID</label><input type="text" id="spendcap-org" placeholder="org_acme" required></div>
@@ -950,7 +948,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="field"><label for="spendcap-exceed">When exceeded</label>
         <select id="spendcap-exceed">
           <option value="block">Block the call</option>
-          <option value="hitl">Route to approval (Team+)</option>
+          <option value="hitl">Route to approval</option>
         </select>
       </div>
       <button type="submit" class="primary" id="spendcap-submit">Save rule</button>
@@ -1118,13 +1116,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <h3>Account</h3>
     <p class="sub" id="account-email-display"></p>
 
-    <h3 style="margin-top:8px;font-size:14px;">Plan</h3>
+    <h3 style="margin-top:8px;font-size:14px;">Account</h3>
     <div id="billing-current-plan" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:12px;">Loading…</div>
     <div id="billing-error" class="modal-error"></div>
-    <div id="billing-pro-section" style="display:none;margin-bottom:24px;">
-      <p class="sub">Team: $49/month — HITL approval rules with SLA auto-escalation, up to 3 seats, 10,000 actions/month.</p>
-      <button type="button" class="btn filled" id="billing-pro-btn" style="width:100%;justify-content:center;">Upgrade to Team</button>
-    </div>
     <div id="payg-section" style="display:none;margin-bottom:24px;">
       <p class="sub">Pay as you go: $1 per 1,000 actions that run, after 500 free each month. Duplicates, blocked calls and approval waits are free. You set the monthly cap.</p>
       <div id="payg-usage" style="background:var(--panel-2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--muted);margin-bottom:8px;"></div>
@@ -1136,11 +1130,11 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <button type="button" class="btn secondary" id="payg-cap-save">Save cap</button>
       </div>
     </div>
-    <p class="sub" style="margin-bottom:24px;">Need client tenants, white-label branding, SSO, or DLP? <a href="mailto:hello@agentraas.io">Contact sales about Enterprise</a>.</p>
+    <p class="sub" style="margin-bottom:24px;">Need a contract, invoicing or SLA-backed support? <a href="mailto:hello@agentraas.io">Talk to us</a>.</p>
 
     <div id="branding-section" style="display:none;margin-bottom:24px;">
       <h3 style="margin-top:8px;font-size:14px;">White-label branding</h3>
-      <p class="sub">Shown to client tenants viewing a branded org. Enterprise plan only.</p>
+      <p class="sub">Shown to client tenants viewing a branded org.</p>
       <input type="text" id="branding-org-input" placeholder="Org ID" style="width:100%;margin-bottom:8px;">
       <input type="text" id="branding-name-input" placeholder="Display name" style="width:100%;margin-bottom:8px;">
       <input type="text" id="branding-logo-input" placeholder="Logo URL" style="width:100%;margin-bottom:8px;">

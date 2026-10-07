@@ -471,8 +471,7 @@ async fn put_org_branding(State(state): State<SharedState>, user: AuthUser, Path
     if !owned_org_ids.iter().any(|id| id == &org_id) {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "You do not own this org."));
     }
-    let plan: Option<String> = sqlx::query_scalar("SELECT plan FROM users WHERE id = $1").bind(user.sub).fetch_optional(&state.pg).await?;
-    if agentraas_core::tier::Tier::from_plan_str(plan.as_deref().unwrap_or("free")) != agentraas_core::tier::Tier::Enterprise {
+    if crate::agent::db::effective_tier(&state, &org_id).await != agentraas_core::tier::Tier::Enterprise {
         return Err(ApiError::new(StatusCode::PAYMENT_REQUIRED, "White-label branding requires the Enterprise plan."));
     }
     if let Some(name) = &body.display_name {

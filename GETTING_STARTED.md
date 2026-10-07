@@ -24,7 +24,7 @@ The rest of this guide explains each piece in more detail.
 |---|---|---|
 | Where it runs | Our servers | Your own server |
 | Setup | Register, log in, done | Register, download, run `install.sh` |
-| Monthly limit | 500 actions on the free tier, enforced (Team/Enterprise raise it) | None — unlimited, on any tier |
+| Monthly limit | 500 free each month, then pay as you go | None — unlimited, on any tier |
 | Good for | Trying it out, no infra to manage | Your own data residency, unlimited volume |
 
 You can do both — try it on Cloud first, and self-host later if you want

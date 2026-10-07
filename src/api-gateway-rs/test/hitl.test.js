@@ -45,9 +45,9 @@ test.after(async () => {
   await pg.end();
 });
 
-test('Community-tier org cannot create a HITL rule', async () => {
-  const email = `hitl-community-${RUN_ID}@internal.test`;
-  const orgId = `org_hitl_community_${RUN_ID}`;
+test('a free org can create a HITL rule (every account gets every feature)', async () => {
+  const email = `hitl-free-${RUN_ID}@internal.test`;
+  const orgId = `org_hitl_free_${RUN_ID}`;
   const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
 
   const res = await client.post(
@@ -55,16 +55,14 @@ test('Community-tier org cannot create a HITL rule', async () => {
     { org_id: orgId, service: 'mockpay', action: 'payment.create' },
     { headers: { Cookie: sessionCookie } }
   );
-  assert.equal(res.status, 403, JSON.stringify(res.data));
-  assert.match(res.data.error, /Team plan/);
+  assert.equal(res.status, 200, JSON.stringify(res.data));
 });
 
-test('Pro-tier org can create a rule and have it actually freeze a matching call; downgrading stops it without deleting the rule', async () => {
-  const email = `hitl-pro-${RUN_ID}@internal.test`;
-  const orgId = `org_hitl_pro_${RUN_ID}`;
+test('a rule freezes a matching call, whatever the plan', async () => {
+  const email = `hitl-freeze-${RUN_ID}@internal.test`;
+  const orgId = `org_hitl_freeze_${RUN_ID}`;
   const agentId = `agent_hitl_${RUN_ID}`;
   const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
-  await setPlan(pg, orgId, 'pro');
 
   const createRes = await client.post(
     '/api/v1/hitl-rules',
@@ -81,7 +79,7 @@ test('Pro-tier org can create a rule and have it actually freeze a matching call
   assert.equal(connectRes.status, 200, JSON.stringify(connectRes.data));
   const apiKey = connectRes.data.api_key;
 
-  // Still Pro: the matching call must freeze, not forward.
+  // A free org's matching call must freeze, not forward.
   const frozenRes = await client.post(
     `/v1/webhook/${orgId}/${agentId}`,
     { service: 'mockpay', action: 'payment.create', payload: { amount: 100, fail: false } },
@@ -89,15 +87,4 @@ test('Pro-tier org can create a rule and have it actually freeze a matching call
   );
   assert.equal(frozenRes.status, 202, JSON.stringify(frozenRes.data));
   assert.equal(frozenRes.data.pending_approval, true);
-
-  // Downgrade — same rule, same org, no cleanup — and the next matching
-  // call must forward normally instead of freezing again.
-  await setPlan(pg, orgId, 'free');
-  const forwardedRes = await client.post(
-    `/v1/webhook/${orgId}/${agentId}`,
-    { service: 'mockpay', action: 'payment.create', payload: { amount: 101, fail: false } },
-    { headers: { Authorization: `Bearer ${apiKey}` } }
-  );
-  assert.equal(forwardedRes.status, 200, JSON.stringify(forwardedRes.data));
-  assert.equal(forwardedRes.data.forwarded, true);
 });

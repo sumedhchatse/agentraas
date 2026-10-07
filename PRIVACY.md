@@ -37,11 +37,11 @@ from those endpoints beyond what's needed for exactly-once deduplication
 (a hash of the request, and the response, held temporarily to serve
 duplicate/retry requests — not kept indefinitely).
 
-**Billing (Team subscriptions):** payment is handled entirely by
-our payment processor, Paddle — we never see or store your card number.
-What we do store is your plan tier, subscription status, and the
-customer/subscription identifiers Paddle gives us, so we know what
-you're subscribed to and when it renews. See
+**Billing (pay as you go):** payment is handled entirely by our payment
+processor, Paddle — we never see or store your card number. What we do
+store is whether pay as you go is on, your monthly cap, your monthly
+action counts and charges, and the customer/subscription identifiers
+Paddle gives us, so we can bill the right usage. See
 [paddle.com/legal/privacy](https://www.paddle.com/legal/privacy) for
 how Paddle itself handles payment data.
 

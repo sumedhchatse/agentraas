@@ -695,7 +695,8 @@ async fn create_invite(
     };
     let expires_at = chrono::Utc::now() + chrono::Duration::days(INVITE_TTL_DAYS);
 
-    // Seat cap: Team=3, Enterprise=unlimited. Counts existing
+    // Seat cap by tier (`Tier::seat_limit`); every account is Enterprise
+    // today (see `effective_tier`), so unlimited. Counts existing
     // members + still-pending invites together (an accepted invite
     // becomes a member, so both reserve a seat). No separate "+1 for the
     // owner": require_org_admin above already guarantees the owner has a
@@ -709,14 +710,7 @@ async fn create_invite(
     // from adding more until they're back under the cap or upgrade.
     let mut tx = state.pg.begin().await?;
     sqlx::query("SELECT 1 FROM orgs WHERE org_id = $1 FOR UPDATE").bind(&org_id).execute(&mut *tx).await?;
-    // An org with an existing teammate already has 2+ user rows sharing
-    // this org_id with divergent `plan` values (the invited teammate's
-    // row defaults to free) — a bare fetch_optional here picks whichever
-    // row Postgres scans first, which could read a teammate's free-tier
-    // row instead of the paying owner's and wrongly block further invites
-    // on an org that's already on Team. Take the highest tier found.
-    let org_plans: Vec<String> = sqlx::query_scalar("SELECT plan FROM users WHERE org_id = $1").bind(&org_id).fetch_all(&mut *tx).await?;
-    let org_tier = org_plans.iter().map(|p| agentraas_core::tier::Tier::from_plan_str(p)).max().unwrap_or(agentraas_core::tier::Tier::Community);
+    let org_tier = crate::agent::db::effective_tier(&state, &org_id).await;
     if let Some(limit) = org_tier.seat_limit() {
         let member_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM org_members WHERE org_id = $1").bind(&org_id).fetch_one(&mut *tx).await?;
         let pending_invite_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM org_invites WHERE org_id = $1 AND accepted_at IS NULL AND expires_at > NOW()")

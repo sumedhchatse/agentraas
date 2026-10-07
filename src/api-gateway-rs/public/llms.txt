@@ -59,7 +59,7 @@ Run the MCP server behind `agentraas wrap`. Write tools run once per identical c
 Nobody can tell whether it ran. Retrying blindly can charge twice. AgentRaaS doesn't retry it: it marks the call "outcome unknown", blocks identical copies, and lets someone replay it later under the same Idempotency-Key, so a provider like Stripe returns the original result instead of charging again.
 
 ### Is AgentRaaS free?
-Yes. The Community edition is open source (MIT/Apache-2.0 core) and has no action limit when self-hosted. Team and Enterprise features (approval rules, SSO, client tenants) are a separately licensed module for companies that need them.
+Yes to self-host: it's open source (AGPL-3.0 server, MIT/Apache-2.0 SDKs) with every feature and no action limit. AgentRaaS Cloud is pay as you go: every feature, the first 500 actions each month free, then $1 per 1,000 actions that run, up to a monthly cap you set. No plans or tiers.
 
 ### What is it built with?
 A Rust (Axum, Tokio) gateway on Postgres and Redis, with a static dashboard. It can run on your own servers with one command.

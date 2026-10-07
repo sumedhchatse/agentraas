@@ -557,7 +557,7 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
         <tr><td><code>action</code></td><td>A service action, or <code>*</code> for every action of the service.</td></tr>
         <tr><td><code>effect</code></td><td><code>deny</code> never allows the call; <code>require</code> allows it only when the payload passes <code>fields</code>.</td></tr>
         <tr><td><code>fields</code></td><td>Same syntax as validation rules (<code>min</code>, <code>max</code>, <code>enum</code>, <code>format</code>, <code>required</code>, ...), plus <code>domains</code>: an email or URL field (or a list of them) must be on one of these domains or a subdomain. Two rules guard against a prompt-injected agent: <code>no_secrets: true</code> refuses a call whose field contains an API key, token or private key (use the field name <code>*</code> to scan the whole payload), and <code>new_destination: true</code> sends a call to an email address, phone number or URL host this org has never approved for approval once; approving it remembers the destination (needs <code>on_violation: hitl</code>).</td></tr>
-        <tr><td><code>on_violation</code></td><td><code>block</code> (default), or <code>hitl</code> to send the call for approval instead (Team plan). A block always wins over an approval.</td></tr>
+        <tr><td><code>on_violation</code></td><td><code>block</code> (default), or <code>hitl</code> to send the call for approval instead. A block always wins over an approval.</td></tr>
       </table>
     </section>
 
@@ -793,7 +793,7 @@ redis-cli --scan --pattern 'dedup:local:*' | xargs -r redis-cli del</code></pre>
         <li><b>Basic.</b> <code>podman ps</code> (or <code>docker ps</code>): are the API, Postgres and Redis containers running? Then <code>curl localhost:13001/health</code>.</li>
         <li><b>Intermediate: the API container exits at start.</b> Read its logs. A missing or empty <code>JWT_SECRET</code>, <code>DATABASE_URL</code>, <code>REDIS_URL</code> or <code>CREDENTIALS_ENCRYPTION_KEY</code> is the usual cause.</li>
         <li><b>Intermediate: <code>relation "..." does not exist</code>.</b> A migration wasn't applied. Run every file in <code>infra/migrations/</code> in order; they're safe to re-run.</li>
-        <li><b>Intermediate: Team/Enterprise features missing.</b> Check that <code>ENTERPRISE_MODE=true</code> reaches the container and that the image was built with <code>--features enterprise</code> (the default <code>Containerfile</code> does).</li>
+        <li><b>Intermediate: approvals, SSO or DLP missing.</b> Check that <code>ENTERPRISE_MODE=true</code> reaches the container and that the image was built with <code>--features enterprise</code> (the default <code>Containerfile</code> does).</li>
         <li><b>Intermediate: no verification email.</b> Without <code>SMTP_*</code> settings the link is written to the logs instead.</li>
         <li><b>Advanced: rebuilt, but the old behavior remains.</b> Recreate the container (<code>up -d --force-recreate</code>) and check it runs the new image. If the build "succeeded" suspiciously fast, check disk space: a full disk can fail the compile while the wrapper still reports success.</li>
         <li><b>Advanced: trace one request.</b> Grep the API logs for the <code>reqId</code> from the response.</li>

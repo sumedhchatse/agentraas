@@ -43,27 +43,16 @@
   let currentUserEmail = '';
   let currentUserOrgId = '';
   let currentPlanTier = 'free';
-  const TIER_RANK = { free: 0, team: 1, enterprise: 2, payg: 2 };
-  const CONSOLE_LABELS = { free: 'Community Console', team: 'Team Console', enterprise: 'Enterprise Console', payg: 'Pay as you go Console' };
-
-  // Each tier gets its own console layout, not just locked buttons: a
-  // Community org's control bar only shows what it can actually use.
-  // Buttons for higher-tier-only features are hidden outright rather than
-  // shown disabled — mirrors how billing-pro-section/branding-section
-  // already hide entirely instead of locking. Discoverability of what
-  // upgrading unlocks is the header's existing "Upgrade to Team" badge,
-  // not a dead button in the console itself.
-  function applyConsoleLayout(planTier) {
-    document.getElementById('console-label').textContent = CONSOLE_LABELS[planTier] || CONSOLE_LABELS.free;
-    const rank = TIER_RANK[planTier] ?? 0;
-    document.getElementById('hitl-rules-btn').style.display = rank >= TIER_RANK.team ? '' : 'none';
-    const enterpriseBtn = document.getElementById('enterprise-btn');
-    enterpriseBtn.style.display = rank >= TIER_RANK.team ? '' : 'none';
-    // Team can only manage members here (invites/roles); OIDC config
-    // within the same modal stays Enterprise-only server-side — the label
-    // reflects what's actually available at this tier, not the modal's
-    // full feature set.
-    enterpriseBtn.textContent = rank >= TIER_RANK.enterprise ? 'Enterprise: SSO & members' : 'Team members';
+  // Every account gets every feature (no plans or tiers; Cloud is priced by
+  // usage), so the console is the same for everyone. Only the label says
+  // which kind of account this is.
+  const ACCOUNT_LABELS = { free: 'Free Cloud', payg: 'Pay as you go' };
+  function applyConsoleLayout(plan) {
+    document.getElementById('console-label').textContent = ACCOUNT_LABELS[plan] || 'Console';
+    document.getElementById('hitl-rules-btn').style.display = '';
+    const membersBtn = document.getElementById('enterprise-btn');
+    membersBtn.style.display = '';
+    membersBtn.textContent = 'SSO & members';
   }
   let refreshTimer = null;
   let anyModalOpen = false;
@@ -221,30 +210,8 @@
     currentUserEmail = user.email;
     currentUserOrgId = user.org_id;
     accountBtn.textContent = user.email;
-    const planBadgeEl = document.getElementById('header-plan-badge');
-    const upgradeBtnEl = document.getElementById('header-upgrade-btn');
-    planBadgeEl.classList.remove('pro');
-    // "pro"/"agency" are kept as aliases (see Tier::from_plan_str) for any
-    // self-hosted instance that set users.plan by hand before the tier
-    // rename — Pro collapsed into Team, Agency folded up into Enterprise.
-    const planTier = user.plan === 'agency' ? 'enterprise' : user.plan === 'pro' ? 'team' : user.plan;
-    currentPlanTier = planTier in TIER_RANK ? planTier : 'free';
+    currentPlanTier = user.plan || 'free';
     applyConsoleLayout(currentPlanTier);
-    if (planTier === 'enterprise') {
-      planBadgeEl.textContent = 'Enterprise';
-      planBadgeEl.style.display = 'inline-flex';
-      upgradeBtnEl.style.display = 'none';
-    } else if (planTier === 'team') {
-      planBadgeEl.textContent = 'Team';
-      planBadgeEl.classList.add('pro');
-      planBadgeEl.style.display = 'inline-flex';
-      upgradeBtnEl.style.display = 'none';
-    } else {
-      // Free-first: no upgrade prompt in the header. Paid plans stay
-      // reachable from Account settings for anyone who goes looking.
-      planBadgeEl.style.display = 'none';
-      upgradeBtnEl.style.display = 'none';
-    }
     hasEverAuthenticated = true;
     sessionBanner.style.display = 'none';
 
@@ -1827,10 +1794,8 @@
     const el = document.getElementById('enterprise-seat-usage');
     el.textContent = '';
     if (!enterpriseCurrentOrg) return;
-    // The signed-in user's own plan (from /me), not the org owner's.
     const used = enterpriseMemberCount + enterpriseInviteCount;
-    const limit = SEAT_LIMITS[currentPlanTier];
-    el.textContent = (limit == null) ? `${used} seats used (unlimited).` : `${used} of ${limit} seats used.`;
+    el.textContent = `${used} seats used (unlimited).`;
   }
 
   async function loadEnterpriseConfigs() {
@@ -2043,27 +2008,28 @@
     }
   }
 
-  // ─── Billing / plan upgrade ───
+  // ─── Billing ───
   // Mirrors agentraas_core::tier::Tier::seat_limit — null means unlimited.
   // "pro"/"agency" kept as aliases for a self-hosted instance whose
   // users.plan was set by hand before the tier rename (Pro -> Team,
   // Agency folded into Enterprise) — same aliasing Tier::from_plan_str
   // does server-side.
-  const SEAT_LIMITS = { free: 1, team: 3, pro: 3, enterprise: null, agency: null, payg: null };
-  const PLAN_LABELS = { free: 'Free', team: 'Team', pro: 'Team', enterprise: 'Enterprise', agency: 'Enterprise', payg: 'Pay as you go' };
+  // textContent only, never innerHTML.
+  const ACCOUNT_DESCRIPTIONS = {
+    free: 'Free Cloud account: every feature, 500 actions a month.',
+    payg: 'Pay as you go: every feature, $1 per 1,000 actions after 500 free each month.',
+    other: 'Every feature included.',
+  };
 
   async function loadBillingPlanState() {
     const planEl = document.getElementById('billing-current-plan');
-    const proSection = document.getElementById('billing-pro-section');
     const brandingSection = document.getElementById('branding-section');
     try {
       const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
       const data = await res.json();
       const plan = data.user?.plan || 'free';
-      const isEnterprise = plan === 'enterprise' || plan === 'agency' || plan === 'payg';
-      planEl.textContent = `You are on the ${escapeHtml(PLAN_LABELS[plan] || 'Free')} plan.`;
-      proSection.style.display = (plan === 'free') ? 'block' : 'none';
-      brandingSection.style.display = isEnterprise ? 'block' : 'none';
+      planEl.textContent = ACCOUNT_DESCRIPTIONS[plan] || ACCOUNT_DESCRIPTIONS.other;
+      brandingSection.style.display = 'block';
     } catch (err) {
       planEl.textContent = 'Could not load plan status.';
     }
@@ -2158,13 +2124,7 @@
     }
   }
 
-  document.getElementById('billing-pro-btn').addEventListener('click', () => {
-    startCheckout('team', document.getElementById('billing-pro-btn'), document.getElementById('billing-error'));
-  });
 
-  document.getElementById('header-upgrade-btn').addEventListener('click', (e) => {
-    startCheckout(e.currentTarget.dataset.targetPlan || 'team', document.getElementById('header-upgrade-btn'), null);
-  });
 
   document.getElementById('branding-save-btn').addEventListener('click', async () => {
     const orgId = document.getElementById('branding-org-input').value.trim();

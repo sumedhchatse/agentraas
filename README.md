@@ -114,9 +114,12 @@ on one machine (Intel Core i3-12100, local stack, three runs of 500 calls) with
 
 ## Pricing
 
-Self-hosting is free with every feature, for any use inside your company, no
-action limit. AgentRaaS Cloud at agentraas.io runs it for you: a free account
-with 500 actions a month, Team and Enterprise plans, moving to pay as you go.
+Open source and free to self-host, with every feature, for any use inside
+your company, no action limit. AgentRaaS Cloud at agentraas.io runs it for
+you, pay as you go: every feature, the first 500 actions each month free,
+then $1 per 1,000 actions that run (duplicates, blocked calls and approval
+waits are never billed), up to a monthly cap you set. Paid usage opens soon;
+until then Cloud accounts get the free 500 a month. No plans or tiers.
 
 ## Testing
 
@@ -140,8 +143,9 @@ through the built-in `mockpay` service, so no real API keys are needed.
 [troubleshooting guide](https://agentraas.io/docs#troubleshooting) and
 self-hosting details.
 
-The server is AGPL-3.0; its Team/Enterprise features (`crates/api/src/ee/`,
-`crates/core/src/{dlp,hmac_verify}.rs`, `compose.ee.yaml`) are under the
+The server is AGPL-3.0; its advanced features (SSO, approvals, DLP:
+`crates/api/src/ee/`, `crates/core/src/{dlp,hmac_verify}.rs`,
+`compose.ee.yaml`) are under the
 Functional Source License, free for any use except a competing hosted service
 and Apache-2.0 two years after each release. The SDKs are MIT/Apache-2.0.
 See [LICENSE.md](./LICENSE.md).

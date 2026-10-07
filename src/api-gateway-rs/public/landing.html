@@ -216,7 +216,7 @@
   .int-list span.custom { color: var(--accent); }
 
   /* Pricing */
-  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; align-items: stretch; max-width: 860px; margin: 0 auto; }
   .price-card { display: flex; flex-direction: column; padding: 32px; }
   .price-card.featured { border-color: var(--graphite); }
   .price-card .badge { align-self: flex-start; font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
@@ -431,23 +431,23 @@
     "name": "Do I need to pay anything?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "No. Community is free and open source, with no action limit when you self-host it, and the free tools (library mode, chaos tester, MCP wrap) need no account at all. Right now we care more about people using AgentRaaS than about charging for it. Self-hosting includes every feature. Paid plans are for running it on AgentRaaS Cloud, or for SLA-backed support."
+     "text": "No. Self-hosting is free and open source with every feature and no action limit, and the free tools (library mode, chaos tester, MCP wrap) need no account at all. On AgentRaaS Cloud the first 500 actions each month are free; past that it's $1 per 1,000 actions that run, up to a monthly cap you set."
     }
    },
    {
     "@type": "Question",
-    "name": "Is self-hosted really unlimited, on every tier?",
+    "name": "Is self-hosted really unlimited?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Yes. Community, Team, and Enterprise are all unlimited actions/month when you run them on your own infrastructure: no cap, no metering, no phone-home check. The only metered tier is the free AgentRaaS Cloud account (500 actions/month), because that one runs on our infrastructure, not yours. Every Team/Enterprise feature is included in a self-hosted install, with no license token."
+     "text": "Yes. On your own infrastructure there is no cap, no metering and no phone-home check, and every feature is included with no license token. Only AgentRaaS Cloud is metered, because it runs on our servers."
     }
    },
    {
     "@type": "Question",
-    "name": "What's the difference between Team and Enterprise?",
+    "name": "How does pay as you go work on Cloud?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Team ($49/mo) is for a small team that needs shared seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, multi-replica deployment, PII/DLP redaction, and OIDC SSO with RBAC. Both are AgentRaaS Cloud plans; a self-hosted install includes all of it free."
+     "text": "You're billed once a month for the actions that actually ran: forwarded and completed. Duplicates AgentRaaS caught, calls blocked by a policy or limit, and calls waiting for approval are free. The first 500 each month are free, then $1 per 1,000, charged in whole thousands with the rest carried to next month. You set a monthly cap, and calls stop at it instead of running up a bill. Paid usage opens soon; until then Cloud accounts are free up to 500 actions a month. There are no plans or tiers: every Cloud account gets every feature. For a contract or SLA-backed support, email hello@agentraas.io."
     }
    },
    {
@@ -455,7 +455,7 @@
     "name": "Is my data safe if I self-host?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Self-hosted means your audit log, credentials, and traffic never leave infrastructure you control. We don't see any of it. Stored credentials are encrypted at rest (AES-256-GCM), and the Enterprise tier adds PII/DLP redaction before anything touches the audit log, plus tamper-evident, SIEM-exportable logging for compliance-sensitive teams."
+     "text": "Self-hosted means your audit log, credentials, and traffic never leave infrastructure you control. We don't see any of it. Stored credentials are encrypted at rest (AES-256-GCM), PII/DLP redaction can run before anything touches the audit log, and the log is tamper-evident and SIEM-exportable for compliance-sensitive teams."
     }
    },
    {
@@ -479,7 +479,7 @@
     "name": "Is this open source?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Yes. The server is AGPL-3.0 and the SDKs are MIT/Apache-2.0. Team/Enterprise features (SSO, approvals, DLP, HMAC) are under the Functional Source License: free to self-host for any purpose except a competing hosted service, and Apache-2.0 after two years. Self-hosting includes every feature, with no license token. See LICENSE.md for the exact terms."
+     "text": "Yes. The server is AGPL-3.0 and the SDKs are MIT/Apache-2.0. The advanced features (SSO, approvals, DLP, HMAC) are under the Functional Source License: free to self-host for any purpose except a competing hosted service, and Apache-2.0 after two years. Self-hosting includes every feature, with no license token. See LICENSE.md for the exact terms."
     }
    },
    {
@@ -893,17 +893,17 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
 <section class="block" id="pricing">
   <div class="wrap">
     <div class="s-head center">
-      <div class="kicker">Free to use</div>
-      <h2>Free. Self-host it in one command.</h2>
-      <p>Self-hosting is free with every feature, including approvals, SSO and DLP: no action limit, no license token. Team and Enterprise are for AgentRaaS Cloud, where we run it for you, and for SLA-backed support.</p>
+      <div class="kicker">Pricing</div>
+      <h2>Free to self-host. Pay as you go on Cloud.</h2>
+      <p>Self-hosting is free with every feature, including approvals, SSO and DLP: no action limit, no license token. On AgentRaaS Cloud you pay only for the actions that run, after 500 free every month.</p>
     </div>
     <div class="pricing-grid">
       <div class="card price-card featured">
-        <span class="badge">Free, self-hosted</span>
-        <h3>Community</h3>
-        <div class="tagline">Self-hosted, every feature included</div>
-        <div class="amount">$0<span class="unit"> /month</span></div>
-        <div class="limit-note">Unlimited actions/month. No cap, ever.</div>
+        <span class="badge">Free, open source</span>
+        <h3>Open source</h3>
+        <div class="tagline">Self-host it: every feature, no usage limit</div>
+        <div class="amount">Free</div>
+        <div class="limit-note">Unlimited actions. No cap, no metering, ever.</div>
         <ul>
           <li>Exactly-once execution, MCP gateway, dashboard</li>
           <li>Human-in-the-Loop approvals, action policies, spend caps</li>
@@ -915,37 +915,22 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
         <p class="aside">Try it without installing: <a href="/dashboard">start a free Cloud account →</a></p>
       </div>
       <div class="card price-card">
-        <h3>Team</h3>
-        <div class="tagline">For teams that need human approval and shared seats</div>
-        <div class="amount">$49<span class="unit"> /month</span></div>
-        <div class="limit-note">10,000 actions/month on Cloud</div>
+        <h3>Cloud</h3>
+        <div class="tagline">We run it for you. Pay only for actions that run.</div>
+        <div class="amount">$1<span class="unit"> per 1,000 actions</span></div>
+        <div class="limit-note">First 500 actions every month free</div>
         <ul>
-          <li>Everything in Community</li>
-          <li>3 team seats</li>
-          <li>Human-in-the-Loop approval gateway (Slack + SLA auto-escalation)</li>
-          <li>Higher monthly action &amp; rate limits</li>
+          <li>Every feature, same as self-hosted</li>
+          <li>Duplicates caught, blocked calls and approval waits are never billed</li>
+          <li>A monthly spending cap you set: calls stop at it, no surprise bill</li>
+          <li>This month's usage and cost in your dashboard</li>
         </ul>
-        <a href="/dashboard" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="team_get_started">Get started</a>
-        <p class="aside">Most people don't need this yet. Self-hosting gives you the same features free.</p>
-      </div>
-      <div class="card price-card">
-        <h3>Enterprise</h3>
-        <div class="tagline">Cloud for multi-team agent fleets and agencies, or on-prem with SLA-backed support</div>
-        <div class="amount">Custom<span class="unit"> from $499/mo</span></div>
-        <div class="limit-note">Unlimited actions, workspaces &amp; seats</div>
-        <ul>
-          <li>Everything in Team, unlimited seats</li>
-          <li>Unlimited client tenants, white-label dashboard</li>
-          <li>Inbound webhook receivers (Stripe, GitHub, Shopify &amp; more)</li>
-          <li>Multi-replica deployment with the Helm chart</li>
-          <li>PII masking &amp; DLP redaction engine</li>
-          <li>OIDC SSO, RBAC &amp; tamper-evident audit export</li>
-          <li>Priority, SLA-backed support</li>
-        </ul>
-        <a href="mailto:hello@agentraas.io" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="enterprise_contact_sales">Contact sales</a>
+        <a href="/dashboard" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="cloud_start_free">Start free</a>
+        <p class="aside">Paid usage opens soon. Until then every Cloud account gets the free 500 actions a month.</p>
+        <p class="aside">Need a contract, invoicing or SLA-backed support? <a href="mailto:hello@agentraas.io" data-gtm-event="pricing_cta_click" data-gtm-label="contact_contract">Talk to us</a>.</p>
       </div>
     </div>
-    <p class="license-note">Self-hosting is free with every feature: the server is AGPL-3.0, Team/Enterprise features are under the Functional Source License (no competing hosted service; Apache-2.0 after two years). Full terms in <a href="/license">LICENSE.md</a>.</p>
+    <p class="license-note">Self-hosting is free with every feature: the server is AGPL-3.0, the advanced features (SSO, approvals, DLP) are under the Functional Source License (no competing hosted service; Apache-2.0 after two years). Full terms in <a href="/license">LICENSE.md</a>.</p>
   </div>
 </section>
 
@@ -959,19 +944,19 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
     <div class="faq-list">
       <details class="faq-item">
         <summary>Do I need to pay anything?</summary>
-        <p>No. Community is free and open source, with no action limit when you self-host it, and the free tools (library mode, chaos tester, MCP wrap) need no account at all. Right now we care more about people using AgentRaaS than about charging for it. Self-hosting includes every feature. Paid plans are for running it on AgentRaaS Cloud, or for SLA-backed support.</p>
+        <p>No. Self-hosting is free and open source with every feature and no action limit, and the free tools (library mode, chaos tester, MCP wrap) need no account at all. On AgentRaaS Cloud the first 500 actions each month are free; past that it's $1 per 1,000 actions that run, up to a monthly cap you set.</p>
       </details>
       <details class="faq-item">
-        <summary>Is self-hosted really unlimited, on every tier?</summary>
-        <p>Yes. Community, Team, and Enterprise are all unlimited actions/month when you run them on your own infrastructure: no cap, no metering, no phone-home check. The only metered tier is the free AgentRaaS Cloud account (500 actions/month), because that one runs on our infrastructure, not yours. Every Team/Enterprise feature is included in a self-hosted install, with no license token.</p>
+        <summary>Is self-hosted really unlimited?</summary>
+        <p>Yes. On your own infrastructure there is no cap, no metering and no phone-home check, and every feature is included with no license token. Only AgentRaaS Cloud is metered, because it runs on our servers.</p>
       </details>
       <details class="faq-item">
-        <summary>What's the difference between Team and Enterprise?</summary>
-        <p>Team ($49/mo) is for a small team that needs shared seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, multi-replica deployment, PII/DLP redaction, and OIDC SSO with RBAC. Both are AgentRaaS Cloud plans; a self-hosted install includes all of it free.</p>
+        <summary>How does pay as you go work on Cloud?</summary>
+        <p>You're billed once a month for the actions that actually ran: forwarded and completed. Duplicates AgentRaaS caught, calls blocked by a policy or limit, and calls waiting for approval are free. The first 500 each month are free, then $1 per 1,000, charged in whole thousands with the rest carried to next month. You set a monthly cap, and calls stop at it instead of running up a bill. Paid usage opens soon; until then Cloud accounts are free up to 500 actions a month. There are no plans or tiers: every Cloud account gets every feature. For a contract or SLA-backed support, email hello@agentraas.io.</p>
       </details>
       <details class="faq-item">
         <summary>Is my data safe if I self-host?</summary>
-        <p>Self-hosted means your audit log, credentials, and traffic never leave infrastructure you control. We don't see any of it. Stored credentials are encrypted at rest (AES-256-GCM), and the Enterprise tier adds PII/DLP redaction before anything touches the audit log, plus tamper-evident, SIEM-exportable logging for compliance-sensitive teams.</p>
+        <p>Self-hosted means your audit log, credentials, and traffic never leave infrastructure you control. We don't see any of it. Stored credentials are encrypted at rest (AES-256-GCM), PII/DLP redaction can run before anything touches the audit log, and the log is tamper-evident and SIEM-exportable for compliance-sensitive teams.</p>
       </details>
       <details class="faq-item">
         <summary>Do you support n8n, Make, or Zapier?</summary>
@@ -983,7 +968,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
       </details>
       <details class="faq-item">
         <summary>Is this open source?</summary>
-        <p>Yes. The server is AGPL-3.0 and the SDKs are MIT/Apache-2.0. Team/Enterprise features (SSO, approvals, DLP, HMAC) are under the Functional Source License: free to self-host for any purpose except a competing hosted service, and Apache-2.0 after two years. Self-hosting includes every feature, with no license token. See <a href="/license">LICENSE.md</a> for the exact terms.</p>
+        <p>Yes. The server is AGPL-3.0 and the SDKs are MIT/Apache-2.0. The advanced features (SSO, approvals, DLP, HMAC) are under the Functional Source License: free to self-host for any purpose except a competing hosted service, and Apache-2.0 after two years. Self-hosting includes every feature, with no license token. See <a href="/license">LICENSE.md</a> for the exact terms.</p>
       </details>
       <details class="faq-item">
         <summary>What does "agentgateway-compatible" mean?</summary>

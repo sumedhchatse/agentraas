@@ -39,23 +39,18 @@ test.after(async () => {
   await pg.end();
 });
 
-test('Community-tier org cannot mint an agent identity token', async (t) => {
-  const email = `identity-community-${RUN_ID}@internal.test`;
-  const orgId = `org_identity_community_${RUN_ID}`;
+test('a free org can mint an agent identity token (every account gets every feature)', async () => {
+  const email = `identity-free-${RUN_ID}@internal.test`;
+  const orgId = `org_identity_free_${RUN_ID}`;
   const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
-  const me = await client.get('/api/v1/auth/me', { headers: { Cookie: sessionCookie } });
-  if (me.data.user.deployment_mode !== 'cloud') {
-    t.skip('self-hosted servers give every org every feature; tier gates only apply on Cloud');
-    return;
-  }
+  await client.post('/api/v1/agents/connect', { org_id: orgId, agent_id: 'agent1', label: 'identity free' }, { headers: { Cookie: sessionCookie } });
 
   const res = await client.post(
     '/api/v1/agent-identity-tokens',
     { org_id: orgId, agent_id: 'agent1', scopes: [{ service: 'mockpay', action: 'payment.create' }], ttl_seconds: 3600 },
     { headers: { Cookie: sessionCookie } }
   );
-  assert.equal(res.status, 403, JSON.stringify(res.data));
-  assert.match(res.data.error, /Enterprise plan/);
+  assert.equal(res.status, 200, JSON.stringify(res.data));
 });
 
 test('scoped token: allows the scoped action, denies an unscoped one, and a normal api_key is unaffected', async () => {
