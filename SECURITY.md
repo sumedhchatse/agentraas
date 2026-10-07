@@ -124,8 +124,10 @@ framed for clickjacking), `X-Content-Type-Options: nosniff` and a strict
 `Referrer-Policy`; production adds HSTS. Since 0.11.0 there is a
 Content-Security-Policy: scripts, styles, frames and outgoing requests only
 from this origin and the few hosts the pages use (Paddle, Google Fonts,
-analytics), no plugins, no `<base>` override, no framing. It still allows
-inline scripts, because the pages are built on them.
+analytics), no plugins, no `<base>` override, no framing. No inline
+scripts (since 0.12.0): every page loads its JavaScript from `/js/`, so
+markup injected into a page can't run code. Inline style attributes are
+still allowed.
 
 ### Every way in gets the same checks
 

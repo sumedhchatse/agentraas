@@ -239,15 +239,16 @@ async fn main() -> anyhow::Result<()> {
     // Browser hardening on every response: no framing (the dashboard's
     // Approve/Revoke buttons can't be clickjacked), no MIME sniffing, no
     // full URLs leaking in Referer. HSTS only where the site is HTTPS-only.
-    // CSP: the pages are built on inline scripts and styles, so those stay
-    // allowed (ponytail: move them to files and drop 'unsafe-inline' when
-    // the dashboard is next restructured). What it still blocks: scripts
-    // and frames from any host not listed, data sent anywhere but here and
-    // Paddle/analytics, plugins, <base> hijacking, and framing by others.
+    // CSP: scripts only from this origin's files (public/js/) and the
+    // listed hosts, never inline, so injected markup can't run code. Inline
+    // style attributes stay allowed (the pages use them; far lower risk).
+    // Also blocks frames from unlisted hosts, data sent anywhere but here
+    // and Paddle/analytics, plugins, <base> hijacking, and framing by others.
+    // The Worker (infra/landing-worker/worker.js) sends the same policy.
     use axum::http::{header, HeaderValue};
     use tower_http::set_header::SetResponseHeaderLayer;
     const CSP: &str = "default-src 'self'; \
-        script-src 'self' 'unsafe-inline' https://cdn.paddle.com https://www.googletagmanager.com https://static.cloudflareinsights.com; \
+        script-src 'self' https://cdn.paddle.com https://www.googletagmanager.com https://static.cloudflareinsights.com; \
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.paddle.com; \
         font-src 'self' data: https://fonts.gstatic.com; \
         img-src 'self' data: https:; \

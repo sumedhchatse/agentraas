@@ -57,5 +57,11 @@ test('the dashboard carries a Content-Security-Policy', async () => {
   const csp = res.headers['content-security-policy'] || '';
   assert.match(csp, /frame-ancestors 'none'/);
   assert.match(csp, /object-src 'none'/);
-  assert.match(csp, /script-src 'self' 'unsafe-inline' https:\/\/cdn\.paddle\.com/);
+  assert.match(csp, /script-src 'self' https:\/\/cdn\.paddle\.com/);
+  assert.doesNotMatch(csp, /script-src[^;]*unsafe-inline/, 'no inline scripts allowed');
+  const js = await client.get('/js/dashboard.js');
+  assert.equal(js.status, 200);
+  assert.match(js.headers['content-type'], /javascript/);
+  assert.equal((await client.get('/js/..%2Fdashboard.js')).status, 404);
+  assert.equal((await client.get('/js/nope.js')).status, 404);
 });

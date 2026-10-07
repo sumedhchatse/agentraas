@@ -2,11 +2,7 @@
 <html lang="en">
 <head>
 <!-- Google Tag Manager -->
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-KMQ7H6W6');</script>
+<script src="/js/gtm.js"></script>
 <!-- End Google Tag Manager -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -205,19 +201,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   </div>
   <nav class="sn-panel" id="sn-panel" aria-label="Main"><a href="/#features">Platform</a><a href="/#open-source">Open source</a><a href="/#pricing">Pricing</a><a href="/docs">Docs</a><a href="/guide">Guide</a><a href="/status">Status</a><a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener">GitHub</a><a href="/dashboard">Log in</a></nav>
 </header>
-<script>
-(function () {
-  var nav = document.currentScript.previousElementSibling, btn = nav.querySelector('.sn-menu');
-  btn.addEventListener('click', function () {
-    var open = !nav.hasAttribute('data-open');
-    if (open) nav.setAttribute('data-open', ''); else nav.removeAttribute('data-open');
-    btn.setAttribute('aria-expanded', String(open));
-  });
-  nav.querySelectorAll('.sn-panel a').forEach(function (a) {
-    a.addEventListener('click', function () { nav.removeAttribute('data-open'); btn.setAttribute('aria-expanded', 'false'); });
-  });
-})();
-</script>
+<script src="/js/site-nav.js"></script>
 <!-- site-nav:end -->
 
 <div class="wrap">
@@ -266,80 +250,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   </div>
 </div>
 
-<script>
-(function () {
-  function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
-  const form = document.getElementById('audit-form');
-  const urlInput = document.getElementById('audit-url');
-  const submitBtn = document.getElementById('audit-submit');
-  const errorBox = document.getElementById('audit-error');
-  const results = document.getElementById('results');
-  const verdictBanner = document.getElementById('verdict-banner');
-  const verdictHeadline = document.getElementById('verdict-headline');
-  const verdictDetail = document.getElementById('verdict-detail');
-  const reqList = document.getElementById('req-list');
-
-  const VERDICT_HEADLINES = {
-    vulnerable: 'VULNERABLE: this endpoint looks like it processes duplicate requests as separate actions',
-    inconclusive: 'INCONCLUSIVE: could not determine duplicate-processing risk from this run',
-    likely_safe: 'LIKELY SAFE: responses were consistent with idempotent handling',
-  };
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errorBox.style.display = 'none';
-    results.style.display = 'none';
-    const url = urlInput.value.trim();
-    if (!url) return;
-
-    submitBtn.disabled = true;
-    const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<span class="spinner"></span> Running…';
-
-    try {
-      const res = await fetch('/api/v1/tools/webhook-audit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        errorBox.textContent = data.error || 'Could not run the audit.';
-        errorBox.style.display = 'block';
-        return;
-      }
-
-      verdictBanner.className = 'verdict-banner ' + data.verdict;
-      verdictHeadline.textContent = VERDICT_HEADLINES[data.verdict] || data.verdict_label;
-      verdictDetail.textContent = data.verdict_label;
-
-      reqList.innerHTML = '';
-      data.results.forEach((r) => {
-        const row = document.createElement('div');
-        row.className = 'req-row';
-        const statusLine = r.status === null
-          ? `<span class="err">Failed, ${escapeHtml(r.error)}</span>`
-          : `<span class="${r.status < 400 ? 'ok' : 'err'}">HTTP ${r.status}</span> · ${r.latency_ms}ms`;
-        row.innerHTML = `<div class="num">Request ${r.attempt}</div><div class="body"><div class="status-line">${statusLine}</div>${r.body_snippet ? `<div class="snippet">${escapeHtml(r.body_snippet)}</div>` : ''}</div>`;
-        reqList.appendChild(row);
-      });
-
-      results.style.display = 'block';
-      results.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (err) {
-      errorBox.textContent = 'Could not reach the server. Try again in a moment.';
-      errorBox.style.display = 'block';
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalText;
-    }
-  });
-})();
-</script>
+<script src="/js/webhook-audit.js"></script>
 
 <!-- site-footer:start (generated by infra/scripts/sync-site-chrome.py; edit there) -->
 <footer class="sf">
@@ -359,24 +270,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="sf-bottom"><span>&copy; 2026 AgentRaaS</span><span>Built with Rust, Redis, PostgreSQL, Podman, and the fear of double-charging a customer at 2 AM.</span></div>
   </div>
 </footer>
-<script>
-(function () {
-  // Copy button on code blocks (docs, guides); the homepage's terminal demos are skipped.
-  if (!navigator.clipboard) return;
-  document.querySelectorAll('pre').forEach(function (pre) {
-    if (pre.closest('.terminal') || pre.querySelector('.pre-copy')) return;
-    pre.classList.add('has-copy');
-    var b = document.createElement('button');
-    b.type = 'button'; b.className = 'pre-copy'; b.textContent = 'Copy';
-    b.addEventListener('click', function () {
-      navigator.clipboard.writeText(pre.innerText.replace(/\s*Cop(y|ied)$/, '')).then(function () {
-        b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1400);
-      });
-    });
-    pre.appendChild(b);
-  });
-})();
-</script>
+<script src="/js/site-copy.js"></script>
 <!-- site-footer:end -->
 </body>
 </html>

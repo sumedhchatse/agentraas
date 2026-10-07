@@ -34,6 +34,7 @@ pub fn router() -> Router<SharedState> {
         .route("/status", get(status_page))
         .route("/postmortem-2026-09", get(postmortem_2026_09))
         .route("/vendor/chart.umd.min.js", get(vendor_chart_js))
+        .route("/js/:file", get(site_js))
         .route("/og-image.png", get(og_image))
         .route("/logo.svg", get(logo_svg))
         .route("/robots.txt", get(robots_txt))
@@ -107,6 +108,24 @@ async fn vendor_chart_js() -> axum::response::Response {
         Ok(contents) => ([(header::CONTENT_TYPE, "application/javascript")], contents).into_response(),
         Err(_) => (StatusCode::NOT_FOUND, Json(json!({ "error": "chart.umd.min.js not found on this deployment." }))).into_response(),
     }
+}
+
+/// The pages' scripts (`public/js/*.js`). The CSP allows no inline scripts,
+/// so every page loads its JS from here. Only plain `name.js` files: no
+/// dots or slashes before `.js`, so no path can leave the directory.
+async fn site_js(axum::extract::Path(file): axum::extract::Path<String>) -> axum::response::Response {
+    let Some(stem) = file.strip_suffix(".js") else { return not_found_js() };
+    if stem.is_empty() || !stem.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-') {
+        return not_found_js();
+    }
+    match tokio::fs::read_to_string(public_file(&format!("js/{file}"))).await {
+        Ok(contents) => ([(header::CONTENT_TYPE, "application/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], contents).into_response(),
+        Err(_) => not_found_js(),
+    }
+}
+
+fn not_found_js() -> axum::response::Response {
+    (StatusCode::NOT_FOUND, Json(json!({ "error": "Not found." }))).into_response()
 }
 
 /// Fallback for any unmatched route. API paths get the same uniform

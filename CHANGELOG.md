@@ -15,6 +15,11 @@ safe to re-run.
 
 ## [Unreleased]
 
+### Security
+- The CSP no longer allows inline scripts. Every page's JavaScript moved
+  to `public/js/` (the dashboard app is `js/dashboard.js`), served at
+  `/js/<name>.js`; the edge Worker sends the same policy.
+
 ## [0.11.0] - 2026-10-07
 
 Migrations: `052_payg_billing.sql`, `053_session_revocation.sql`. Apply both
