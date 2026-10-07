@@ -310,6 +310,6 @@ except AgentRaaSError as err:
 
 ## License
 
-MIT — see [LICENSE](./LICENSE). (The AgentRaaS server itself is
-open-core; see the [main repo](https://github.com/sumedhchatse/agentraas)
-for its licensing.)
+MIT — see [LICENSE](./LICENSE). (The AgentRaaS server is AGPL-3.0, its
+Team/Enterprise features FSL, all free to self-host; see the
+[main repo](https://github.com/sumedhchatse/agentraas).)
