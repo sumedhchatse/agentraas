@@ -4,55 +4,46 @@
 
 **The reliability layer for what AI agents do.**
 
-AgentRaaS sits between your AI agents and every real-world action, giving you three things at once, not one trick: **reliability** (exactly-once execution, circuit breaking, proven under real concurrent load, not just claimed), **responsibility** (action policies for what each agent may do and where it may send data, budget/loop limits, and human-in-the-loop approval before the calls that matter), and **accountability** (a full audit trail and per-agent identity — scope-restricted credentials — for every action taken, exportable to your tracing tools over OpenTelemetry). Connect it via webhook, SDK-style headers, or native MCP. Self-hosted or cloud.
+AgentRaaS sits between your agents and the APIs they act on. Every call runs
+once even when it is retried, is checked against what that agent may do,
+waits for a human when it is risky, and is recorded. Connect by webhook URL,
+SDK headers or MCP. Free to self-host with every feature.
 
----
+## The problem
 
-## The Problem
+Your n8n workflow calls Stripe. It times out, n8n retries, and the customer
+is charged twice. Your agent creates a HubSpot contact, the response is
+lost, the agent retries, and now there are two.
 
-Your n8n workflow hits Stripe. It times out. n8n retries.
-
-**Result:** The customer is charged twice.
-
-Your agent calls HubSpot to create a contact. The request succeeds, but the response is lost. The agent retries.
-
-**Result:** Two duplicate contacts in your CRM.
-
----
-
-## The Solution
-
-AgentRaaS is a reliability layer that guarantees **exactly-once execution** of agent actions — proven under real concurrent load with an automated test suite.
+## How it works
 
 ```mermaid
 flowchart LR
-    Agent["Agent<br/>(n8n, Python, MCP)"] -->|request| Proxy
-    subgraph Proxy["AgentRaaS"]
+    Agent["Agent<br/>(n8n, Python, MCP)"] -->|request| P
+    subgraph P["AgentRaaS"]
         direction TB
-        D["Deduplicate"] --> V["Validate"] --> C["Circuit breaker"] --> R["Rate limit"] --> A["Audit log"]
+        D["Deduplicate"] --> V["Policies and validation"] --> C["Circuit breaker"] --> A["Audit log"]
     end
-    Proxy -->|forwarded once| API["API<br/>(Stripe, Twilio, HubSpot, or any)"]
+    P -->|forwarded once| API["API<br/>(Stripe, Twilio, HubSpot, any URL)"]
 ```
 
-**How it works:**
-1. Your agent sends a request to AgentRaaS instead of the API directly
-2. AgentRaaS atomically claims a dedup slot in Redis for that exact request
-3. **First call:** forwarded to the real API, result cached
-4. **A concurrent or later retry:** returns the cached result, or a 409 if the original is still in flight — never a second real execution
+1. Your agent calls AgentRaaS instead of the API.
+2. AgentRaaS claims a dedup slot in Redis for that exact request.
+3. The first call is forwarded and its result stored.
+4. A retry gets the stored result, or `409` while the first is still in flight.
 
----
+A call that times out after it was sent is treated as **outcome unknown**:
+never retried, its slot kept, sent to the dead-letter queue. Every forwarded
+call also carries `Idempotency-Key: agentraas-<hash>`, so providers that honor
+it (Stripe and others) run it once even on a replay.
 
 ## Free tools, no server needed
 
-`pip install agentraas` gives you three tools that run entirely on your machine. Start here, and add the server when your team wants the dashboard, human approval and one audit trail.
-
-**Find** the calls your agent would run twice. The chaos tester lets each write request execute, then drops the response (the failure that turns a retry into a double charge) and reports every action that ran twice. It exits non-zero, so it can fail CI ([GitHub Action](src/chaos-action/action.yml)).
+`pip install agentraas` runs entirely on your machine.
 
 ```bash
-agentraas chaos --mock -- python my_agent.py
+agentraas chaos --mock -- python my_agent.py   # find calls that would run twice
 ```
-
-**Fix** them with a decorator backed by local SQLite or your own Redis:
 
 ```python
 from agentraas.local import exactly_once
@@ -62,34 +53,15 @@ def charge(customer, amount, idempotency_key=None):
     return stripe.Charge.create(customer=customer, amount=amount, idempotency_key=idempotency_key).id
 ```
 
-**Wrap** any MCP server so identical write-tool calls run once and every call is logged. Listed in the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.sumedhchatse/agentraas) as `io.github.sumedhchatse/agentraas`:
+- `protect_tool` for LangChain/LangGraph and CrewAI, `protectTools` for the
+  Vercel AI SDK (`npm install agentraas`).
+- `agentraas wrap -- <mcp server>` gives any MCP server exactly-once write
+  tools and a log. In the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.sumedhchatse/agentraas).
+- The chaos tester exits non-zero, so it can fail CI ([GitHub Action](src/chaos-action/action.yml)).
 
-```json
-{ "mcpServers": { "github": { "command": "uvx",
-  "args": ["agentraas", "wrap", "--", "npx", "-y", "@modelcontextprotocol/server-github"] } } }
-```
+Details: [`src/sdk/README.md`](src/sdk/README.md), [`src/sdk-js`](src/sdk-js).
 
-Full options: [`src/sdk/README.md`](src/sdk/README.md). The TypeScript client and `exactlyOnce` are on npm: `npm install agentraas` ([`src/sdk-js`](src/sdk-js)).
-
----
-
-## Dashboard
-
-Open `http://localhost:13001/dashboard` — requires an account (register/login, encrypted password storage). New accounts get their own org automatically — nothing technical required just to see a working dashboard.
-
-- **+ Connect Agent** — generates a real API key scoped to one org/agent, with curl and n8n examples
-- **Credentials** — add your own Stripe/Twilio/etc. keys yourself, encrypted at rest, no server access needed
-- **Custom Actions** — register any endpoint (not just the curated list below), SSRF-guarded, so your agents can call it too
-- Total actions, success/deduplicated/blocked/error breakdown, request volume and outcome charts, over 24h/7d/30d/90d — scoped to your own data only, never other users'
-- Active agents, service health (circuit breaker state), searchable/filterable/sortable recent activity log
-- Auto-refreshing, CSV export, account settings (change password)
-- A full step-by-step walkthrough lives at [`/guide`](./GETTING_STARTED.md) — worth reading if any of the above is unfamiliar
-
----
-
-## Getting started
-
-**Option 1 — clone this repo (fastest):**
+## Self-host
 
 ```bash
 git clone https://github.com/sumedhchatse/agentraas.git
@@ -97,254 +69,84 @@ cd agentraas
 ./install.sh
 ```
 
-**Option 2 — from AgentRaaS Cloud:** register at **agentraas.io**, connect
-your first agent, then download the self-host package from the
-dashboard's Account menu (unlocks once you've connected an agent). Same
-`install.sh`, just packaged with your Cloud account already wired up.
+`install.sh` generates the secrets, builds the image (the first Rust build
+takes a few minutes), starts Postgres, Redis and MinIO, and runs the
+migrations. Then open `http://localhost:13001/dashboard` and register.
+Kubernetes: a Helm chart is in `infra/helm/`. Render: [one-click deploy](https://render.com/deploy?repo=https://github.com/sumedhchatse/agentraas).
 
-**Option 3 — one-click cloud deploy (Render):**
+On SELinux hosts, `install.sh` relabels the bind mounts. After changing files
+by hand, recreate (`podman-compose down && up -d`) rather than `restart`.
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sumedhchatse/agentraas)
+## What you get
 
-Provisions the Community edition (web service + managed Postgres + Redis)
-from [`render.yaml`](./render.yaml) — no server of your own needed. Uses
-[`Containerfile.render`](./src/api-gateway-rs/Containerfile.render), a
-variant that bakes `public/` and `config/` into the image instead of the
-bind-mounts `compose.yaml` uses locally, since Render doesn't support
-those. Verified locally end-to-end (build, boot, `/health`, and the
-landing page all serving from the built image) before this button
-shipped.
+- **Runs once:** dedup across retries and machines, near-duplicate matching,
+  step checkpoints, a cross-agent resource lock.
+- **Policies:** what each agent may call and where it may send data,
+  validation rules, spend and loop limits.
+- **Human approval:** risky calls wait for approve or deny in Slack, with
+  escalation.
+- **Resilience:** circuit breaker, rate limits, dead-letter queue with replay.
+- **Audit and identity:** tamper-evident log, SIEM export, OpenTelemetry and
+  Prometheus, short-lived scoped agent tokens.
+- **Data safety:** PII redaction, prompt-injection filtering on tool output,
+  schema drift alerts.
+- **Teams:** OIDC SSO, roles, client tenants with white-label branding.
 
-`install.sh` handles everything that used to be a manual multi-step
-process: generating `JWT_SECRET` and `CREDENTIALS_ENCRYPTION_KEY`, building
-the API image, starting the stack, running every migration in order,
-handling SELinux relabeling if applicable, and a clean recreate at the end.
-The first run compiles the Rust service from source — expect a few minutes
-on that step; it isn't a hang.
+Curated services (Stripe, Twilio, HubSpot, Shopify, Slack, PayPal and more in
+`config/services.json`), or register any URL as a Custom Action, SSRF-guarded.
 
-Then open `http://localhost:13001/dashboard` and register a new account
-— self-hosted instances are single-tenant, so whoever registers first is
-just the first user, no special admin bootstrap needed. (Option 2's
-account is pre-registered instead — use "Forgot password" to set a
-password for this instance.)
+## Why not just idempotency keys?
 
-**A real gotcha worth knowing, if you ever touch the setup manually:** on
-SELinux (Fedora/RHEL-family hosts), bind-mounted files can end up with the
-wrong context and the container fails with `EACCES` errors. `install.sh`
-handles this automatically; if you're troubleshooting by hand, fix it with:
-```bash
-sudo semanage fcontext -a -t container_file_t "$(pwd)(/.*)?"
-sudo restorecon -Rv "$(pwd)"
-```
-and from then on, always use `podman-compose down && up -d` (full recreate)
-after changing files on the host — never plain `restart`, which doesn't
-re-apply the SELinux label.
+If you only call Stripe from your own code, its `Idempotency-Key` is enough.
+AgentRaaS is for the rest: providers without one (most SaaS APIs and every
+internal endpoint), no-code tools that can't set headers (n8n, Make, Zapier),
+and one audit trail across every service an agent touches.
 
-**Services:**
-- API Gateway + dashboard: `http://localhost:13001`
-- Postgres: `localhost:15432`
-- Redis: `localhost:16379`
+## When AgentRaaS is down
 
----
+It fails closed. Nothing in the SDKs, the n8n node or the MCP gateway falls
+back to calling the API directly, because that is exactly the unguarded retry
+this product exists to stop. Treat it like a database on your critical path.
+
+**Latency:** 2.1 to 2.4 ms added at the median, 2.9 to 3.7 ms at p95, measured
+on one machine (Intel Core i3-12100, local stack, three runs of 500 calls) with
+`infra/scripts/bench-overhead.py`. A retried duplicate is answered from cache.
+
+## Pricing
+
+Self-hosting is free with every feature, for any use inside your company, no
+action limit. AgentRaaS Cloud at agentraas.io runs it for you: a free account
+with 500 actions a month, Team and Enterprise plans, moving to pay as you go.
 
 ## Testing
 
 ```bash
 cd src/api-gateway-rs
-npm install                                            # one-time: axios/pg/ioredis
-TEST_BASE_URL=http://localhost:13001 npm test
+cargo test --workspace --features enterprise          # unit tests
+TEST_BASE_URL=http://localhost:13001 npm test         # integration tests, real server
 ```
 
-Runs real integration tests against the running server — concurrent duplicate
-requests, sequential replay, distinct-payload isolation, and failure/retry
-recovery — not mocked unit tests. Uses the built-in `mockpay` service, so no
-real API keys are needed to run them. (These are plain Node HTTP-client tests
-that live alongside the Rust service; the server itself has no Node in it.)
+The integration tests send concurrent duplicates, replays and failures
+through the built-in `mockpay` service, so no real API keys are needed.
 
-Plus a native Rust unit-test suite covering the dedup hashing, loop-detection,
-and checkpoint logic directly — including golden-value tests that pin the
-dedup hash format so it can't silently shift:
+## Next
 
-```bash
-cd src/api-gateway-rs
-cargo test --workspace                      # Community edition
-cargo test --workspace --features enterprise
-```
+- An undo log for agent actions, then record and replay.
+- The n8n node in n8n's community directory (in review).
 
-Both run on every push/PR via `.github/workflows/rust-test.yml`.
+## Docs and license
 
----
+[agentraas.io/docs](https://agentraas.io/docs) has the API, the
+[troubleshooting guide](https://agentraas.io/docs#troubleshooting) and
+self-hosting details.
 
-## MCP (Model Context Protocol)
+The server is AGPL-3.0; its Team/Enterprise features (`crates/api/src/ee/`,
+`crates/core/src/{dlp,hmac_verify}.rs`, `compose.ee.yaml`) are under the
+Functional Source License, free for any use except a competing hosted service
+and Apache-2.0 two years after each release. The SDKs are MIT/Apache-2.0.
+See [LICENSE.md](./LICENSE.md).
 
-AgentRaaS exposes an MCP gateway for Claude Desktop, Cursor, and other MCP clients:
+[CONTRIBUTING.md](./CONTRIBUTING.md) · [SECURITY.md](./SECURITY.md) (report
+vulnerabilities privately, not as issues) · [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 
-```json
-{
-  "mcpServers": {
-    "agentraas": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:13001/mcp"]
-    }
-  }
-}
-```
-
-All tool calls through this gateway are deduplicated, validated, rate-limited, and logged.
-
----
-
-## Supported services
-
-Curated, pre-configured integrations (no code required — see `config/services.json`):
-
-Stripe, Twilio, HubSpot, Calendly, Shopify, Zoho, Razorpay, WhatsApp,
-Zapier, Make, Adyen, Mollie, Airwallex, Xendit, PayPal, Salesforce, Slack,
-Klarna, Paystack, GoCardless, Opn Payments, plus the built-in `mockpay`
-for safe testing.
-
-**Need something not on this list?** Register it as a **Custom Action** from
-the dashboard — any URL, any auth type, protected by the same dedup/audit/
-rate-limit pipeline, with an SSRF guard so it can't be pointed at internal
-infrastructure.
-
-To add a new *curated* integration permanently, add an entry to
-`config/services.json` following the existing pattern — no code changes needed.
-
----
-
-## Architecture
-
-```mermaid
-flowchart TB
-    subgraph Incoming["Incoming agent requests"]
-        WH["Webhook / SDK / MCP"]
-    end
-    subgraph GW["MCP Gateway"]
-        MCPR["/v1/sdk/:service/:action, /mcp"]
-    end
-    WH --> MCPR
-    MCPR --> APIGW["API Gateway<br/>:13001"]
-    APIGW --> Redis["Redis (Dedup)<br/>:16379"]
-    APIGW --> PG["PostgreSQL<br/>(Audit, users, creds)<br/>:15432"]
-```
-
----
-
-## Why AgentRaaS vs. DIY idempotency keys?
-
-If you're only calling Stripe by hand from your own backend, its native
-`Idempotency-Key` header is genuinely enough — you don't need this. The
-honest case for AgentRaaS is narrower and specific:
-
-- **Not every provider has native idempotency.** Stripe does. Twilio,
-  Slack, most SaaS/CRM APIs, and literally any custom internal endpoint
-  don't — you'd be building the same dedup logic yourself, per provider,
-  by hand.
-- **No-code tools can't set the header at all.** n8n, Make, and Zapier
-  give you a URL field, not a place to compute and attach an idempotency
-  key — so even Stripe's own native support is unreachable from a no-code
-  workflow.
-- **None of them give you one audit trail across services.** Stripe's
-  idempotency keys only tell you what happened inside Stripe. An agent
-  that calls Stripe, Twilio, and a custom CRM endpoint in the same run has
-  zero unified record of which of those three actually fired, unless you
-  build that yourself too.
-
-### What happens when a provider times out?
-
-The hardest case for exactly-once is a call that ran but whose response never
-came back. AgentRaaS handles it in two ways:
-
-- Every call it forwards carries `Idempotency-Key: agentraas-<hash>`, one
-  stable value per logical action, so a provider that honors the header
-  (Stripe and others) runs the action once even if a retry or replay reaches
-  it again.
-- A call that times out, or whose connection breaks after sending, is
-  treated as **outcome unknown**, never as failed: it is not retried, its
-  dedup slot is kept (identical calls get `409`), the caller gets `504`, and
-  it goes to the dead-letter queue. A replay from there reuses the same key
-  and, once it succeeds, identical calls get its result.
-
-A refused connection or DNS failure means nothing was sent, so those are
-still retried as normal. Steps for resolving one:
-[docs, Troubleshooting](https://agentraas.io/docs#ts-outcome-unknown).
-
-| | DIY Idempotency Keys | AgentRaaS |
-|---|---|---|
-| **Code changes** | Modify every API call, only where the provider supports it | Change the URL |
-| **No-code support** | ❌ Not possible — no-code tools can't set custom headers | ✅ Paste webhook URL (n8n, Make, Zapier) |
-| **Providers without native idempotency** | Build your own dedup logic per provider | One proxy, same guarantee, every service |
-| **Multiple services** | Different logic per API | One proxy, all services — plus any custom endpoint |
-| **Credential management** | Build yourself | Self-serve, encrypted at rest |
-| **Validation, circuit breaker, rate limiting** | Build yourself | Built-in |
-| **Audit trail, dashboard** | Per-provider at best | One trail across every service you call |
-
----
-
-## What happens when AgentRaaS is down?
-
-**Fail-closed by design, not fail-silent.** AgentRaaS sits in the request
-path between your agent and the real API. If it's unreachable, your call
-to it fails — it does not silently succeed un-deduped. There is no
-fallback path anywhere in the SDK, the n8n node, or the MCP gateway that
-quietly calls Stripe or Twilio directly when AgentRaaS doesn't respond.
-That's deliberate: routing around an outage would mean the exact
-retry-storm double-charge scenario this product exists to prevent
-happens silently, at the one moment you'd least want it to. Treat it
-like any other proxy or database on your critical path — standard
-timeout/retry handling on the calling side applies, same as it would for
-any dependency.
-
-**Latency:** we haven't published real p99 numbers yet. Self-hosted, it's
-one network hop to a service running on your own infrastructure, not a
-call out to us — but we're not putting an unmeasured number here. On the
-roadmap, not fabricated.
-
----
-
-## Pricing
-
-**Self-hosting is free, with every feature.** Approvals (HITL), SSO, RBAC,
-DLP redaction, inbound HMAC verification, agent identity, HA: everything
-runs on your own infrastructure with no license token and no action limit,
-including for commercial use inside your company. See
-[LICENSE.md](./LICENSE.md) for the terms.
-
-**AgentRaaS Cloud** (agentraas.io) runs it for you and is moving to pay as
-you go: you pay for the actions you run, not for a plan. Until that
-launches, the current plans stay: a free account (500 actions/month), Team
-($49/month) and Enterprise (custom). Contact **support@agentraas.io** for
-SLA-backed support.
-
----
-
-## Troubleshooting
-
-Step-by-step fixes from quick checks to deeper digging (API errors, library mode, MCP wrap, chaos tester, self-hosting) are in the [Troubleshooting section of the docs](https://agentraas.io/docs#troubleshooting).
-
----
-
-## License
-
-The server (`src/api-gateway-rs/`) is AGPL-3.0. The Team/Enterprise
-features (`crates/api/src/ee/`, `crates/core/src/{dlp,hmac_verify}.rs`,
-`compose.ee.yaml`) are under the Functional Source License (FSL-1.1-ALv2):
-free to use and self-host for any purpose except offering a competing
-hosted service, and each release becomes Apache-2.0 after two years. The
-SDKs and everything else are MIT or Apache-2.0. Details:
-[LICENSE.md](./LICENSE.md).
-
----
-
-## Contributing & Security
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the contribution process and
-[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for community expectations.
-
-**Found a security vulnerability?** Do not open a public issue — see
-[SECURITY.md](./SECURITY.md) for the private disclosure process.
-
----
-
-**Built with:** Rust (Axum/Tokio/sqlx), Redis, PostgreSQL, Podman, and the fear of double-charging a customer at 2 AM.
+Built with Rust (Axum, Tokio, sqlx), Postgres and Redis.

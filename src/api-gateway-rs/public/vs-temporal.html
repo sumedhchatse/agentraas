@@ -294,7 +294,7 @@
   }
   .service-pill.custom { background: var(--signal); color: var(--signal-deep); border-color: var(--signal); }
   /* Auto-scrolling marquee, two identical tracks (see markup) so the loop
-     is seamless: when track 1 has scrolled fully offscreen, track 2 is
+     is continuous: when track 1 has scrolled fully offscreen, track 2 is
      exactly where track 1 started. */
   .marquee {
     overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
@@ -501,7 +501,7 @@
   <div class="wrap">
     <div class="eyebrow-pill"><span class="dot"></span> AgentRaaS vs Temporal</div>
     <h1>Drop it in front of the agent you already built. Don't rewrite it.</h1>
-    <p class="sub">Temporal is a durable execution platform, genuinely powerful, and the right tool if you're building arbitrary-duration, stateful workflows from scratch. AgentRaaS is a narrower, different thing: a reliability layer that sits in front of an agent you've <em>already</em> built in n8n, Flowise, Langflow, or your own code, and stops it from double-charging, double-booking, or double-sending on retry, with no rewrite.</p>
+    <p class="sub">Temporal is a durable execution platform, powerful, and the right tool if you're building arbitrary-duration, stateful workflows from scratch. AgentRaaS is a narrower, different thing: a reliability layer that sits in front of an agent you've <em>already</em> built in n8n, Flowise, Langflow, or your own code, and stops it from double-charging, double-booking, or double-sending on retry, with no rewrite.</p>
     <div class="btn-row">
       <a href="/dashboard" class="btn primary">Get started free →</a>
       <a href="/#pricing" class="btn secondary">See pricing</a>
@@ -531,7 +531,7 @@
 
 <section class="vs-section">
   <div class="wrap">
-    <h2>When Temporal is genuinely the better choice</h2>
+    <h2>When Temporal is the better choice</h2>
     <div class="vs-callout">
       <h3>You need real multi-day, stateful workflow orchestration</h3>
       <p>A saga spanning days with human-approval waits, complex branching, and durable state across service restarts is exactly what Temporal is built for, and it's mature, widely deployed, and more powerful than AgentRaaS at that job by design. AgentRaaS doesn't try to be a workflow engine; it's a reliability layer for the individual calls a workflow makes, whether that workflow lives in Temporal, n8n, or your own code.</p>

@@ -451,7 +451,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     "name": "What's the difference between Team and Enterprise?",
     "acceptedAnswer": {
      "@type": "Answer",
-     "text": "Team ($49/mo) is for a small team that needs shared seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, active-active HA clustering, PII/DLP redaction, and OIDC SSO with RBAC. Both are AgentRaaS Cloud plans; a self-hosted install includes all of it free."
+     "text": "Team ($49/mo) is for a small team that needs shared seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, multi-replica deployment, PII/DLP redaction, and OIDC SSO with RBAC. Both are AgentRaaS Cloud plans; a self-hosted install includes all of it free."
     }
    },
    {
@@ -778,8 +778,8 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
   <div class="wrap">
     <div class="s-head">
       <div class="kicker">Why not DIY idempotency keys?</div>
-      <h2>Calling Stripe by hand? Its <code>Idempotency-Key</code> header is genuinely enough.</h2>
-      <p>The honest case for AgentRaaS is narrower: <b>not every provider has native idempotency</b> (Twilio, Slack, most CRMs and your own endpoints don't), <b>no-code tools can't set the header at all</b>, and <b>none of them give you one audit trail across services</b>.</p>
+      <h2>Calling Stripe by hand? Its <code>Idempotency-Key</code> header is enough.</h2>
+      <p>The case for AgentRaaS is narrower: <b>not every provider has native idempotency</b> (Twilio, Slack, most CRMs and your own endpoints don't), <b>no-code tools can't set the header at all</b>, and <b>none of them give you one audit trail across services</b>.</p>
     </div>
     <div class="compare">
       <table>
@@ -953,7 +953,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
           <li>Everything in Team, unlimited seats</li>
           <li>Unlimited client tenants, white-label dashboard</li>
           <li>Inbound webhook receivers (Stripe, GitHub, Shopify &amp; more)</li>
-          <li>Active-active HA clustering</li>
+          <li>Multi-replica deployment with the Helm chart</li>
           <li>PII masking &amp; DLP redaction engine</li>
           <li>OIDC SSO, RBAC &amp; tamper-evident audit export</li>
           <li>Priority, SLA-backed support</li>
@@ -970,7 +970,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
     <div class="s-head center">
       <div class="kicker">FAQ</div>
       <h2>Questions people actually ask</h2>
-      <p>The short, honest answers. Full detail is in the docs and LICENSE.md.</p>
+      <p>The short answers. Full detail is in the docs and LICENSE.md.</p>
     </div>
     <div class="faq-list">
       <details class="faq-item">
@@ -983,7 +983,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
       </details>
       <details class="faq-item">
         <summary>What's the difference between Team and Enterprise?</summary>
-        <p>Team ($49/mo) is for a small team that needs shared seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, active-active HA clustering, PII/DLP redaction, and OIDC SSO with RBAC. Both are AgentRaaS Cloud plans; a self-hosted install includes all of it free.</p>
+        <p>Team ($49/mo) is for a small team that needs shared seats and the Human-in-the-Loop approval gateway with SLA auto-escalation. Enterprise (custom pricing) adds everything needed for a production multi-team deployment or an agency managing multiple client workspaces: unlimited seats, unlimited client tenants with white-label branding, inbound webhook receivers, multi-replica deployment, PII/DLP redaction, and OIDC SSO with RBAC. Both are AgentRaaS Cloud plans; a self-hosted install includes all of it free.</p>
       </details>
       <details class="faq-item">
         <summary>Is my data safe if I self-host?</summary>
@@ -1150,7 +1150,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
   // product actually does: a fleet of agents (nodes) sending actions
   // (packets) through a single reliability core. Now a fixed full-page
   // layer (see CSS: position:fixed, z-index:-1) rather than boxed into
-  // one hero column, per request, for genuinely long connecting lines
+  // one hero column, per request, for long connecting lines
   // instead of a small confined cluster, and so it shows behind every
   // section without its own opaque background, not just the hero.
   // Deliberately still simple: no CSS filters/blend-modes (that's what

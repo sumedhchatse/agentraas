@@ -294,7 +294,7 @@
   }
   .service-pill.custom { background: var(--signal); color: var(--signal-deep); border-color: var(--signal); }
   /* Auto-scrolling marquee, two identical tracks (see markup) so the loop
-     is seamless: when track 1 has scrolled fully offscreen, track 2 is
+     is continuous: when track 1 has scrolled fully offscreen, track 2 is
      exactly where track 1 started. */
   .marquee {
     overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
@@ -501,7 +501,7 @@
   <div class="wrap">
     <div class="eyebrow-pill"><span class="dot"></span> AgentRaaS vs Composio</div>
     <h1>Fewer built-in integrations. No surprise pricing change.</h1>
-    <p class="sub">Composio's real strength is managed OAuth across 1000+ tools, genuinely useful if you don't want to handle auth yourself. AgentRaaS doesn't manage OAuth for you; it wraps whatever endpoint or MCP server you already have credentials for in a full reliability layer: dedup, action policies, circuit breaking, budget and loop limits, human approval, and audit logging. Different trade, worth being honest about which one you actually need.</p>
+    <p class="sub">Composio's real strength is managed OAuth across 1000+ tools, useful if you don't want to handle auth yourself. AgentRaaS doesn't manage OAuth for you; it wraps whatever endpoint or MCP server you already have credentials for in a full reliability layer: dedup, action policies, circuit breaking, budget and loop limits, human approval, and audit logging. Different trade; pick the one you actually need.</p>
     <div class="btn-row">
       <a href="/dashboard" class="btn primary">Get started free →</a>
       <a href="/#pricing" class="btn secondary">See pricing</a>
@@ -536,7 +536,7 @@
       <p>Composio cut its tool-call allowances by roughly 75% and raised overage rates 13-16x. Existing customers, and anyone who signed up before August 15, keep their old plan and limits only through December 31, 2026, after that, the new pricing applies to everyone. If you're mid-evaluation, that's worth factoring into a decision that's supposed to be about reliability, not a pricing cliff a few months out.</p>
     </div>
     <div class="vs-callout" style="margin-top:16px;">
-      <h3>When Composio is genuinely the better choice</h3>
+      <h3>When Composio is the better choice</h3>
       <p>If the actual blocker is "I don't want to build and maintain OAuth flows for 1000 different SaaS APIs," that's real, substantial work Composio has already done. AgentRaaS doesn't attempt to solve that; it assumes you already have a working credential and focuses entirely on what happens after your agent tries to use it.</p>
     </div>
     <p class="vs-sources">Sources: <a href="https://www.scalekit.com/blog/composio-pricing-change" target="_blank" rel="noopener">Composio Pricing Change 2026, Scalekit</a>, <a href="https://theaiagentindex.com/agents/composio" target="_blank" rel="noopener">Composio Review, The AI Agent Index</a></p>

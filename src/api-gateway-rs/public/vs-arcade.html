@@ -294,7 +294,7 @@
   }
   .service-pill.custom { background: var(--signal); color: var(--signal-deep); border-color: var(--signal); }
   /* Auto-scrolling marquee, two identical tracks (see markup) so the loop
-     is seamless: when track 1 has scrolled fully offscreen, track 2 is
+     is continuous: when track 1 has scrolled fully offscreen, track 2 is
      exactly where track 1 started. */
   .marquee {
     overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
@@ -531,7 +531,7 @@
 
 <section class="vs-section">
   <div class="wrap">
-    <h2>When Arcade is genuinely the better choice</h2>
+    <h2>When Arcade is the better choice</h2>
     <div class="vs-callout">
       <h3>You need per-user delegated authorization and enterprise governance</h3>
       <p>If your real requirement is "the agent should only be able to do what <em>this specific logged-in user</em> is allowed to do," that's an identity/authorization problem AgentRaaS doesn't solve today; Arcade was built specifically for it, and their funding reflects real enterprise demand for that governance layer. AgentRaaS's org-level API keys are a different, coarser model.</p>
