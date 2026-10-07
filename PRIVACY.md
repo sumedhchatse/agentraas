@@ -1,6 +1,6 @@
 # AgentRaaS Privacy Policy
 
-**Last updated: September 7, 2026**
+**Last updated: October 7, 2026**
 
 This policy explains what AgentRaaS collects, stores, and does with your
 data — whether you're using a self-hosted deployment or one operated by us.
