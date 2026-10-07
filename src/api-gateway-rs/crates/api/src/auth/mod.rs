@@ -158,16 +158,22 @@ pub struct Claims {
     pub org_id: Option<String>,
     pub iat: i64,
     pub exp: i64,
+    /// Issue time in ms, so a revocation in the same second as a login
+    /// still tells them apart. Absent on tokens from before 2026-10-07.
+    #[serde(default)]
+    pub iat_ms: i64,
 }
 
 pub fn sign_session(secret: &str, sub: i32, email: &str, org_id: Option<&str>) -> String {
-    let now = chrono::Utc::now().timestamp();
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let now = now_ms / 1000;
     let claims = Claims {
         sub,
         email: email.to_string(),
         org_id: org_id.map(|s| s.to_string()),
         iat: now,
         exp: now + SESSION_MAX_AGE_SECONDS,
+        iat_ms: now_ms,
     };
     // HS256, matching @fastify/jwt's default when only a plain secret
     // string is registered (no explicit algorithm/key-pair config).
@@ -249,12 +255,66 @@ where
         };
 
         let claims = verify_session(&app_state.jwt_secret, &token).ok_or_else(unauthenticated)?;
+        if session_revoked(&app_state, &claims, &token).await? {
+            return Err(unauthenticated());
+        }
         Ok(AuthUser {
             sub: claims.sub,
             email: claims.email,
             org_id: claims.org_id,
         })
     }
+}
+
+fn revoked_token_key(token: &str) -> String {
+    use sha2::{Digest, Sha256};
+    format!("session:revoked:{}", hex::encode(Sha256::digest(token.as_bytes())))
+}
+
+/// A valid signature isn't enough: the user must still exist, the session
+/// must be newer than their last password change / "log out everywhere"
+/// (`users.sessions_valid_after`), and this exact token must not have been
+/// logged out (Redis denylist, kept until the token would expire anyway).
+async fn session_revoked(state: &SharedState, claims: &Claims, token: &str) -> Result<bool, ApiError> {
+    let row: Option<Option<i64>> = sqlx::query_scalar("SELECT FLOOR(EXTRACT(EPOCH FROM sessions_valid_after) * 1000)::BIGINT FROM users WHERE id = $1")
+        .bind(claims.sub)
+        .fetch_optional(&state.pg)
+        .await?;
+    let issued_ms = if claims.iat_ms > 0 { claims.iat_ms } else { claims.iat * 1000 };
+    match row {
+        None => return Ok(true),
+        Some(Some(valid_after_ms)) if issued_ms < valid_after_ms => return Ok(true),
+        _ => {}
+    }
+    let mut conn = state.redis_conn_result()?;
+    let denied: bool = redis::cmd("EXISTS").arg(revoked_token_key(token)).query_async(&mut conn).await?;
+    Ok(denied)
+}
+
+/// Logout: deny this one token until it would have expired anyway.
+pub async fn revoke_session_token(state: &SharedState, token: &str) -> Result<(), ApiError> {
+    let Some(claims) = verify_session(&state.jwt_secret, token) else { return Ok(()) };
+    let ttl = (claims.exp - chrono::Utc::now().timestamp()).max(1);
+    let mut conn = state.redis_conn_result()?;
+    let _: () = redis::cmd("SET").arg(revoked_token_key(token)).arg(1).arg("EX").arg(ttl).query_async(&mut conn).await?;
+    Ok(())
+}
+
+/// Password change/reset and "log out everywhere": every session issued
+/// before now stops working.
+pub async fn revoke_all_sessions<'e, E: sqlx::PgExecutor<'e>>(pg: E, user_id: i32) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET sessions_valid_after = clock_timestamp() WHERE id = $1").bind(user_id).execute(pg).await?;
+    Ok(())
+}
+
+/// The session token from the cookie or bearer header, if any.
+pub fn request_session_token(headers: &axum::http::HeaderMap, jar: &CookieJar) -> Option<String> {
+    headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .map(str::to_string)
+        .or_else(|| jar.get(SESSION_COOKIE_NAME).map(|c| c.value().to_string()))
 }
 
 /// Mirrors `dashboardRateLimit` — a per-user, per-minute Redis counter.

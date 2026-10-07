@@ -80,7 +80,10 @@ exempt, for the built-in demo service.
   hashes; a raw API key is shown once at creation. A call held for human
   approval keeps the key's first 16 characters and its hash, never the key
   (since 0.9.1; migration 051 converts older rows). Passwords are bcrypt.
-  Dashboard sessions are signed JWTs and are not stored server-side.
+  Dashboard sessions are signed JWTs (7 days). Since 0.11.0 they can be
+  revoked server-side: logout denies that token until it expires (Redis),
+  and a password change, a password reset or "log out everywhere" ends
+  every older session of that user (`users.sessions_valid_after`).
 - Audit-log rows keep a masked API key and, outside Enterprise redaction
   mode, a size-limited payload preview. The OpenTelemetry export never
   includes the payload.
@@ -118,8 +121,11 @@ client IP for rate limiting comes only from the header named in
 unless `METRICS_TOKEN` is set and then requires it as a bearer token.
 Every response carries `X-Frame-Options: DENY` (the dashboard can't be
 framed for clickjacking), `X-Content-Type-Options: nosniff` and a strict
-`Referrer-Policy`; production adds HSTS. There is no Content-Security-Policy
-yet: the pages use inline scripts.
+`Referrer-Policy`; production adds HSTS. Since 0.11.0 there is a
+Content-Security-Policy: scripts, styles, frames and outgoing requests only
+from this origin and the few hosts the pages use (Paddle, Google Fonts,
+analytics), no plugins, no `<base>` override, no framing. It still allows
+inline scripts, because the pages are built on them.
 
 ### Every way in gets the same checks
 

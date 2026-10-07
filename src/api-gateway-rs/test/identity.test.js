@@ -39,10 +39,15 @@ test.after(async () => {
   await pg.end();
 });
 
-test('Community-tier org cannot mint an agent identity token', async () => {
+test('Community-tier org cannot mint an agent identity token', async (t) => {
   const email = `identity-community-${RUN_ID}@internal.test`;
   const orgId = `org_identity_community_${RUN_ID}`;
   const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
+  const me = await client.get('/api/v1/auth/me', { headers: { Cookie: sessionCookie } });
+  if (me.data.user.deployment_mode !== 'cloud') {
+    t.skip('self-hosted servers give every org every feature; tier gates only apply on Cloud');
+    return;
+  }
 
   const res = await client.post(
     '/api/v1/agent-identity-tokens',

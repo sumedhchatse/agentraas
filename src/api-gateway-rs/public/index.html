@@ -1175,6 +1175,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="field"><label for="confirm-password">Confirm new password</label><input type="password" id="confirm-password" autocomplete="new-password" required minlength="8"></div>
       <button type="submit" class="primary" id="account-submit">Update password</button>
     </form>
+    <p class="sub" style="margin-top:16px;">Changing your password logs out every other device. To do that without changing it:</p>
+    <button type="button" class="btn secondary" id="logout-all-btn" style="width:100%;justify-content:center;">Log out everywhere</button>
     <button class="close-btn" id="account-modal-close">Close</button>
   </div>
 </div>
@@ -1335,10 +1337,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     authScreen.style.display = 'block';
   });
 
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
+  function showLoggedOut() {
     stopAutoRefresh(); hasEverAuthenticated = false;
     dashboard.style.display = 'none'; userInfo.style.display = 'none'; authScreen.style.display = 'block';
+  }
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' });
+    showLoggedOut();
+  });
+  document.getElementById('logout-all-btn').addEventListener('click', async () => {
+    await fetch('/api/v1/auth/logout-all', { method: 'POST', credentials: 'include' });
+    document.getElementById('account-modal-overlay').style.display = 'none'; anyModalOpen = false;
+    showLoggedOut();
   });
 
   document.querySelectorAll('.ranges button').forEach((btn) => {

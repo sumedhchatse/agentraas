@@ -1,6 +1,6 @@
 [package]
 name = "api"
-version = "0.10.0"
+version = "0.11.0"
 edition.workspace = true
 publish.workspace = true
 
@@ -31,7 +31,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 
-sqlx = { version = "0.7", features = ["runtime-tokio", "tls-native-tls", "postgres", "chrono"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-native-tls", "postgres", "chrono"] }
 redis = { version = "0.25", features = ["tokio-comp"] }
 
 dotenvy = "0.15"

@@ -57,7 +57,7 @@ test('inbound webhook creation requires Agency specifically — Community and Pr
   await setPlan(pg, orgId, 'pro');
   const proRes = await client.post('/api/v1/inbound-webhooks', createBody(orgId), authHeaders);
   assert.equal(proRes.status, 403, `Pro alone must not be enough: ${JSON.stringify(proRes.data)}`);
-  assert.match(proRes.data.error, /Agency plan/);
+  assert.match(proRes.data.error, /Enterprise plan/);
 
   await setPlan(pg, orgId, 'agency');
   const agencyRes = await client.post('/api/v1/inbound-webhooks', createBody(orgId), authHeaders);

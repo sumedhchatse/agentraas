@@ -30,6 +30,7 @@ pub fn router() -> Router<SharedState> {
             post(resend_verification),
         )
         .route("/api/v1/auth/logout", post(logout))
+        .route("/api/v1/auth/logout-all", post(logout_all))
         .route("/api/v1/auth/forgot-password", post(forgot_password))
         .route("/api/v1/auth/reset-password", post(reset_password))
         .route("/api/v1/auth/me", get(me))
@@ -420,9 +421,21 @@ async fn resend_verification(
 
 // ─── POST /api/v1/auth/logout ───
 
-async fn logout(jar: CookieJar) -> (CookieJar, Json<serde_json::Value>) {
+async fn logout(State(state): State<SharedState>, headers: HeaderMap, jar: CookieJar) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
+    if let Some(token) = crate::auth::request_session_token(&headers, &jar) {
+        crate::auth::revoke_session_token(&state, &token).await?;
+    }
     let jar = jar.add(clear_session_cookie());
-    (jar, Json(json!({ "loggedOut": true })))
+    Ok((jar, Json(json!({ "loggedOut": true }))))
+}
+
+// ─── POST /api/v1/auth/logout-all ───
+
+async fn logout_all(State(state): State<SharedState>, user: AuthUser, jar: CookieJar) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
+    check_dashboard_rate_limit(&state, user.sub).await?;
+    crate::auth::revoke_all_sessions(&state.pg, user.sub).await?;
+    let jar = jar.add(clear_session_cookie());
+    Ok((jar, Json(json!({ "loggedOut": true, "everywhere": true }))))
 }
 
 // ─── POST /api/v1/auth/forgot-password ───
@@ -526,6 +539,8 @@ async fn reset_password(
         .bind(token_id)
         .execute(&mut *tx)
         .await?;
+    // Whoever had the old password may still hold a session: end them all.
+    crate::auth::revoke_all_sessions(&mut *tx, user_id).await?;
     tx.commit().await?;
 
     Ok(Json(json!({ "reset": true })))
@@ -592,8 +607,9 @@ struct ChangePasswordBody {
 async fn change_password(
     State(state): State<SharedState>,
     user: AuthUser,
+    jar: CookieJar,
     Json(body): Json<ChangePasswordBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
     check_dashboard_rate_limit(&state, user.sub).await?;
 
     let new_password = body.new_password.unwrap_or_default();
@@ -621,6 +637,11 @@ async fn change_password(
         .bind(user.sub)
         .execute(&state.pg)
         .await?;
+    // Every other session ends; this one gets a fresh cookie, issued after
+    // the cut-off, so the user stays in.
+    crate::auth::revoke_all_sessions(&state.pg, user.sub).await?;
+    let token = sign_session(&state.jwt_secret, user.sub, &user.email, user.org_id.as_deref());
+    let jar = jar.add(session_cookie(&state, token));
 
-    Ok(Json(json!({ "updated": true })))
+    Ok((jar, Json(json!({ "updated": true }))))
 }

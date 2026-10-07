@@ -15,6 +15,23 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-07
+
+Migrations: `052_payg_billing.sql`, `053_session_revocation.sql`. Apply both
+before starting this version.
+
+### Security
+- **Sessions can be revoked server-side.** Logout now denies that session
+  token until it expires, instead of only clearing the cookie (a copied
+  cookie kept working for 7 days). A password change or reset ends every
+  other session of that user; the caller gets a fresh cookie. New
+  `POST /api/v1/auth/logout-all` ("Log out everywhere" in Account). A
+  deleted user's sessions stop working.
+- **Content-Security-Policy** on every response (see SECURITY.md).
+
+### Changed
+- sqlx 0.7 to 0.8 (0.7's Postgres driver will be rejected by a future Rust).
+
 ### Added
 - Pay-as-you-go Cloud billing, off by default (`BILLING_PAYG_ENABLED`): a
   `payg` plan with every feature, $1 per 1,000 actions that ran after the
