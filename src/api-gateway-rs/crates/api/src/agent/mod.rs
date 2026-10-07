@@ -88,36 +88,51 @@ fn generate_request_id() -> String {
 }
 
 // ─── shared handle_request ───
+// The one request pipeline. Webhook, SDK and MCP calls (mcp.rs) are thin
+// adapters around `handle_request`: every gate lives here once.
 
-enum Source {
+pub(crate) enum Source {
     Webhook,
     Sdk,
+    /// An MCP `tools/call`. The caller waits for a JSON-RPC answer, so there
+    /// is no maintenance buffering, no approval hold and no streaming.
+    Mcp,
 }
 
-struct RequestIdentity {
-    org_id: String,
-    agent_id: String,
-    api_key: String,
-    service: String,
-    action: String,
-    payload: Value,
-    idempotency_key: Option<String>,
+/// What a call is forwarded to: an HTTP route (curated service or custom
+/// action) or a tool on an org's registered MCP server.
+pub(crate) enum Target {
+    Http(ResolvedRoute),
+    Mcp(db::ResolvedMcpRoute),
+}
+
+pub(crate) struct RequestIdentity {
+    pub(crate) org_id: String,
+    pub(crate) agent_id: String,
+    pub(crate) api_key: String,
+    pub(crate) service: String,
+    pub(crate) action: String,
+    pub(crate) payload: Value,
+    pub(crate) idempotency_key: Option<String>,
     /// Agent Run Budgeting & Loop Detection — optional, additive. A caller
     /// that never sends this sees no behavior change.
-    run_id: Option<String>,
+    pub(crate) run_id: Option<String>,
     /// State Checkpointing — a stable identifier for this specific step
     /// within `run_id`'s task. Only takes effect when both are present.
-    step_id: Option<String>,
+    pub(crate) step_id: Option<String>,
     /// On-Behalf-Of End-User Identity — optional, additive. When present,
     /// scopes credential lookup to this specific end-user (no fallback to
     /// a shared org-wide credential) and the dedup hash, so a caller who
     /// never sends this sees no behavior change at all.
-    end_user_id: Option<String>,
+    pub(crate) end_user_id: Option<String>,
     /// Cross-agent resource lock — optional, additive. When present, a
     /// second concurrent request naming the same resource_id is rejected
     /// (409) rather than allowed to race with this one. See
     /// `agentraas_core::resource_lock`.
-    resource_id: Option<String>,
+    pub(crate) resource_id: Option<String>,
+    /// Already resolved by the caller (MCP resolves tool names itself);
+    /// `None` = resolve `service.action` here.
+    pub(crate) target: Option<Target>,
 }
 
 async fn webhook_handler(
@@ -157,6 +172,7 @@ async fn webhook_handler(
             step_id,
             end_user_id,
             resource_id,
+            target: None,
         },
     )
     .await
@@ -192,6 +208,7 @@ async fn sdk_handler(
             step_id,
             end_user_id,
             resource_id,
+            target: None,
         },
     )
     .await
@@ -320,7 +337,7 @@ pub async fn replay_webhook(
     handle_request(
         state,
         Source::Webhook,
-        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None, end_user_id: None, resource_id: None },
+        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None, end_user_id: None, resource_id: None, target: None },
     )
     .await
 }
@@ -328,7 +345,7 @@ pub async fn replay_webhook(
 /// (org_id, resource_id, token) of a resource lock this request holds.
 type HeldLock = (String, String, String);
 
-async fn handle_request(state: &SharedState, source: Source, identity: RequestIdentity) -> Response {
+pub(crate) async fn handle_request(state: &SharedState, source: Source, identity: RequestIdentity) -> Response {
     let mut held_lock: Option<HeldLock> = None;
     let resp = handle_request_inner(state, source, identity, &mut held_lock).await;
     if let Some(lock) = held_lock {
@@ -350,7 +367,7 @@ async fn release_resource_lock(state: &SharedState, (org_id, resource_id, token)
 /// unknown) `take()` it first.
 async fn handle_request_inner(
     state: &SharedState,
-    #[cfg_attr(not(feature = "enterprise"), allow(unused_variables))] source: Source,
+    source: Source,
     identity: RequestIdentity,
     held_lock: &mut Option<HeldLock>,
 ) -> Response {
@@ -367,7 +384,9 @@ async fn handle_request_inner(
         step_id,
         end_user_id,
         resource_id,
+        target,
     } = identity;
+    let mcp = matches!(source, Source::Mcp);
 
     if service.is_empty() || action.is_empty() {
         return err_response(StatusCode::BAD_REQUEST, &req_id, "Missing service or action");
@@ -379,10 +398,16 @@ async fn handle_request_inner(
     if !is_valid_identifier(&org_id) || !is_valid_identifier(&agent_id) {
         return err_response(StatusCode::BAD_REQUEST, &req_id, "org_id and agent_id must be 1-100 characters, letters/numbers/underscore/hyphen only.");
     }
-    let resolved_route = match resolve_route(state, &org_id, &service, &action, &req_id).await {
-        Ok(r) => r,
-        Err(resp) => return resp,
+    let target = match target {
+        Some(t) => t,
+        None => match resolve_route(state, &org_id, &service, &action, &req_id).await {
+            Ok(r) => Target::Http(r),
+            Err(resp) => return resp,
+        },
     };
+    // MCP answers arrive as one JSON-RPC result, so a streaming route is
+    // forwarded and buffered like any other there.
+    let streaming = !mcp && matches!(&target, Target::Http(r) if r.streaming);
 
     // Agent Identity (Enterprise) — an `art_live_`-prefixed credential is a
     // short-lived, scope-restricted token, checked here instead of the
@@ -582,7 +607,7 @@ async fn handle_request_inner(
             }
         }
     }
-    let lease = (!resolved_route.streaming).then(|| forward::forward_lease_until_ms(state));
+    let lease = (!streaming).then(|| forward::forward_lease_until_ms(state));
     let claim = match dedup::claim_dedup_slot_leased(&mut conn, &dedup_hash, dedup_ttl_seconds, Some(&req_id), lease).await {
         Ok(c) => c,
         Err(err) => {
@@ -687,7 +712,7 @@ async fn handle_request_inner(
     // nothing. Fails closed: a policy we can't read is not a pass.
     match crate::action_policies::check(state, &org_id, &agent_id, &service, &action, &payload).await {
         Ok(Some(v)) => {
-            if v.hitl && cfg!(feature = "enterprise") {
+            if v.hitl && !mcp && cfg!(feature = "enterprise") {
                 #[cfg(feature = "enterprise")]
                 return crate::ee::hitl::freeze_and_notify(
                     state, &req_id, &org_id, &agent_id, &api_key, &service, &action, &payload, &dedup_hash, dedup_ttl_seconds,
@@ -698,7 +723,10 @@ async fn handle_request_inner(
             }
             let _ = dedup::release_dedup_slot(&mut conn, &claim.key).await;
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "blocked", Some(v.reason), start.elapsed().as_millis() as i64, Some(&dedup_hash), false, None, run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
-            return err_response(StatusCode::FORBIDDEN, &req_id, v.message);
+            // An MCP caller waits for its answer, so a policy that would send
+            // the call for approval blocks it instead: fail closed, never skip.
+            let message = if v.hitl && mcp { format!("{} Approval can't be requested over MCP; send this call through the webhook to have it approved.", v.message) } else { v.message };
+            return err_response(StatusCode::FORBIDDEN, &req_id, message);
         }
         Ok(None) => {}
         Err(err) => {
@@ -708,10 +736,10 @@ async fn handle_request_inner(
         }
     }
 
-    let circuit_key = if resolved_route.credential_key.is_empty() {
-        service.clone()
-    } else {
-        resolved_route.credential_key.clone()
+    let circuit_key = match &target {
+        Target::Mcp(m) => m.credential_key.clone(),
+        Target::Http(r) if r.credential_key.is_empty() => service.clone(),
+        Target::Http(r) => r.credential_key.clone(),
     };
     match circuit_breaker::get_circuit_state(&mut conn, &circuit_key).await {
         Ok((state_str, transition)) => {
@@ -764,7 +792,7 @@ async fn handle_request_inner(
     match crate::spend_caps::check_and_increment(state, &org_id, &agent_id, &service, &action).await {
         Ok(check) if !check.allowed => {
             let rule = check.rule.expect("allowed=false implies a matched rule");
-            if rule.on_exceed == "hitl" && cfg!(feature = "enterprise") {
+            if rule.on_exceed == "hitl" && !mcp && cfg!(feature = "enterprise") {
                 #[cfg(feature = "enterprise")]
                 return crate::ee::hitl::freeze_and_notify(
                     state, &req_id, &org_id, &agent_id, &api_key, &service, &action, &payload, &dedup_hash, dedup_ttl_seconds,
@@ -822,15 +850,15 @@ async fn handle_request_inner(
         }
     }
 
-    if resolved_route.streaming {
-        return match forward::forward_with_retry_streaming(state, &resolved_route, &service, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref(), Some(&dedup::upstream_idempotency_key(&dedup_hash))).await {
+    if let (true, Target::Http(resolved_route)) = (streaming, &target) {
+        return match forward::forward_with_retry_streaming(state, resolved_route, &service, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref(), Some(&dedup::upstream_idempotency_key(&dedup_hash))).await {
             Ok(streaming) => {
                 if let Ok(mut c2) = state.redis_conn_result() {
                     if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
                         forward::log_circuit_transition(state, t).await;
                     }
                 }
-                forward::broadcast_fanout(state, &resolved_route, &payload, &req_id);
+                forward::broadcast_fanout(state, resolved_route, &payload, &req_id);
                 let _ = increment_monthly_usage(state, &org_id).await;
                 // Fired now, at confirmed-2xx-headers time — not when the
                 // stream finishes. This is what any reverse proxy does: a
@@ -922,14 +950,20 @@ async fn handle_request_inner(
         };
     }
 
-    match forward::forward_with_retry(state, &resolved_route, &service, &action, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref(), Some(&dedup::upstream_idempotency_key(&dedup_hash))).await {
+    let forwarded = match &target {
+        Target::Http(r) => forward::forward_with_retry(state, r, &service, &action, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref(), Some(&dedup::upstream_idempotency_key(&dedup_hash))).await,
+        Target::Mcp(m) => forward::forward_mcp_with_retry(state, m, &org_id, &payload, &req_id, &circuit_key, end_user_id.as_deref()).await,
+    };
+    match forwarded {
         Ok(mut result) => {
             if let Ok(mut c2) = state.redis_conn_result() {
                 if let Ok(Some(t)) = circuit_breaker::record_success(&mut c2, &circuit_key).await {
                     forward::log_circuit_transition(state, t).await;
                 }
             }
-            forward::broadcast_fanout(state, &resolved_route, &payload, &req_id);
+            if let Target::Http(r) = &target {
+                forward::broadcast_fanout(state, r, &payload, &req_id);
+            }
 
             // Schema drift detection - background,
             // best-effort, never adds latency to the actual response.
@@ -1324,6 +1358,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             step_id: None,
             end_user_id: None,
             resource_id: None,
+            target: None,
         },
     )
     .await;
@@ -1345,6 +1380,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             step_id: None,
             end_user_id: None,
             resource_id: None,
+            target: None,
         };
         handles.push(tokio::spawn(async move { handle_request(&state, Source::Sdk, identity).await }));
     }

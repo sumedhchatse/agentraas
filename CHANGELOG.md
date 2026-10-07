@@ -15,6 +15,19 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-07
+
+No migrations.
+
+### Changed
+- **One request pipeline for webhook, SDK and MCP calls.** MCP `tools/call`
+  used to run its own copy of the pipeline, which had fallen behind. MCP
+  calls now also get: scoped agent identity tokens (`art_live_`), the
+  `resource_id` lock (new optional tool argument), schema-drift detection,
+  custom-action fan-out and circuit-open notifications. MCP error texts now
+  match the webhook's. An MCP call that would need human approval is still
+  refused (it can't wait), with the same message as before.
+
 ### Security
 - The CSP no longer allows inline scripts. Every page's JavaScript moved
   to `public/js/` (the dashboard app is `js/dashboard.js`), served at

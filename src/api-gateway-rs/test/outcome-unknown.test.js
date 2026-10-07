@@ -114,3 +114,24 @@ test('a call left in flight by a dead process becomes outcome-unknown once, on t
   assert.equal(dead.length, 1, 'recorded once, not once per copy');
   assert.match(dead[0].error_message, /^outcome unknown: /);
 });
+
+test('over MCP too: a timed-out call is outcome unknown and an identical retry is not run again', async () => {
+  const orgId = `org_ou_mcp_${RUN_ID}`;
+  const agentId = `agent_ou_mcp_${RUN_ID}`;
+  const cookie = await registerAndVerify(`ou-mcp-${RUN_ID}@internal.test`, 'validpassword123', orgId);
+  const key = (await client.post('/api/v1/agents/connect', { org_id: orgId, agent_id: agentId, label: 'outcome mcp' }, { headers: { Cookie: cookie } })).data.api_key;
+  const mcpCall = async () => {
+    const res = await client.post('/mcp',
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'mockpay_payment_create', arguments: { org_id: orgId, agent_id: agentId, payload: { amount: 77, fail: false, delay_ms: 4000 } } } },
+      { headers: { 'x-agentraas-key': key } });
+    return { isError: res.data.result.isError, body: JSON.parse(res.data.result.content[0].text) };
+  };
+  const first = await mcpCall();
+  assert.equal(first.isError, true);
+  assert.equal(first.body.outcome, 'unknown', JSON.stringify(first.body));
+  const retry = await mcpCall();
+  assert.equal(retry.isError, true);
+  assert.match(retry.body.error, /outcome is unknown, so it is not being run again/);
+  const { rows } = await pgQuery('SELECT error_message FROM dead_letter_queue WHERE org_id = $1', [orgId]);
+  assert.ok(rows.some((r) => r.error_message.startsWith('outcome unknown: ')), JSON.stringify(rows));
+});
