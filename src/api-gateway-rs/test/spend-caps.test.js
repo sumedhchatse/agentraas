@@ -24,10 +24,15 @@ async function registerAndVerify(email, password, orgId) {
   return verifyRes.headers['set-cookie'][0].split(';')[0];
 }
 
-test('Community-tier org cannot create an on_exceed="hitl" spend-cap rule (block-only needs no tier gate)', async () => {
+test('Community-tier org cannot create an on_exceed="hitl" spend-cap rule (block-only needs no tier gate)', async (t) => {
   const email = `spendcap-community-${RUN_ID}@internal.test`;
   const orgId = `org_spendcap_community_${RUN_ID}`;
   const sessionCookie = await registerAndVerify(email, 'validpassword123', orgId);
+  const me = await client.get('/api/v1/auth/me', { headers: { Cookie: sessionCookie } });
+  if (me.data.user.deployment_mode !== 'cloud') {
+    t.skip('self-hosted servers give every org every feature; tier gates only apply on Cloud');
+    return;
+  }
 
   const hitlRes = await client.post(
     '/api/v1/spend-cap-rules',

@@ -544,7 +544,7 @@ async fn approve(state: &SharedState, req_id: &str, org_id: &str, resolved_by: S
     // The org may have revoked this key between freeze and approval —
     // don't let a stale key still execute just because a human clicked
     // Approve before the revocation propagated.
-    match crate::agent::db::verify_stored_key_ref(&state.pg, &row.api_key, &row.org_id, &row.agent_id).await {
+    match crate::agent::db::verify_stored_key_ref(state, &row.api_key, &row.org_id, &row.agent_id).await {
         Ok(true) => {}
         _ => {
             fail_request(state, req_id, &row, "The API key that made this request has since been revoked.").await;

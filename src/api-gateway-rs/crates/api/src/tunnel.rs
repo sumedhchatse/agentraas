@@ -99,7 +99,7 @@ async fn connect(
         .and_then(|v| v.strip_prefix("Bearer "))
         .unwrap_or("")
         .to_string();
-    match verify_api_key(&state.pg, &api_key, &org_id, &agent_id).await {
+    match verify_api_key(&state, &api_key, &org_id, &agent_id).await {
         Ok(v) if v.ok => {}
         Ok(_) => return (StatusCode::UNAUTHORIZED, "Invalid or missing API key for this agent.").into_response(),
         Err(err) => {

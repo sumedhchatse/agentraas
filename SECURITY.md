@@ -76,6 +76,9 @@ exempt, for the built-in demo service.
   `CREDENTIALS_ENCRYPTION_KEY`, a random 96-bit IV per value, stored as
   `iv:tag:ciphertext`. The authentication tag makes tampering detectable.
   The server refuses to start with a missing or malformed key.
+- On Cloud every agent call needs a valid key. Self-hosted servers accept
+  calls without one until the org creates its first key (first-run
+  convenience), then require it.
 - Agent API keys and one-time email/reset tokens are stored only as SHA-256
   hashes; a raw API key is shown once at creation. A call held for human
   approval keeps the key's first 16 characters and its hash, never the key

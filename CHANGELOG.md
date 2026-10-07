@@ -15,6 +15,17 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-07
+
+No migrations.
+
+### Security
+- **On Cloud, every call needs a real agent key.** An org that had never
+  created a key accepted calls with any key or none (a first-run
+  convenience), so anyone could run calls under an org_id nobody had
+  registered. That shortcut now applies to self-hosted servers only
+  (`DEPLOYMENT_MODE` other than `cloud`).
+
 ## [0.12.0] - 2026-10-07
 
 No migrations.

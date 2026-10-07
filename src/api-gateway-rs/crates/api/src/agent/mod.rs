@@ -429,7 +429,7 @@ async fn handle_request_inner(
         }
     }
     if !identity_authenticated {
-        match verify_api_key(&state.pg, &api_key, &org_id, &agent_id).await {
+        match verify_api_key(state, &api_key, &org_id, &agent_id).await {
             Ok(v) if !v.ok => {
                 return err_response(
                     StatusCode::UNAUTHORIZED,

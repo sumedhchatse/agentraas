@@ -345,22 +345,26 @@ pub async fn get_org_validation_overrides(
 }
 
 pub async fn verify_api_key(
-    pg: &PgPool,
+    state: &SharedState,
     provided_key: &str,
     org_id: &str,
     agent_id: &str,
 ) -> Result<ApiKeyVerification, sqlx::Error> {
-    // Zero-config convenience is scoped to the ORG, not the (org, agent_id)
-    // pair — agent_id is a free-form string the caller supplies on every
-    // request, so scoping the "no keys configured yet" bypass to it let
-    // anyone with a real key for one agent skip auth entirely for any
-    // other, never-used agent_id under the same org.
-    let keys_exist: Option<i32> = sqlx::query_scalar("SELECT 1 FROM api_keys WHERE org_id=$1 AND revoked_at IS NULL LIMIT 1")
-        .bind(org_id)
-        .fetch_optional(pg)
-        .await?;
-    if keys_exist.is_none() {
-        return Ok(ApiKeyVerification { ok: true });
+    let pg = &state.pg;
+    // Zero-config convenience, self-host only: an org that has never created
+    // a key accepts calls without one, so a fresh install works before
+    // anyone opens the dashboard. Never on Cloud, where it would let anyone
+    // run calls under any org_id nobody has registered. Scoped to the ORG,
+    // not the (org, agent_id) pair: agent_id is free-form, so per-agent
+    // scoping would let a key for one agent skip auth for any other.
+    if state.deployment_mode != "cloud" {
+        let keys_exist: Option<i32> = sqlx::query_scalar("SELECT 1 FROM api_keys WHERE org_id=$1 AND revoked_at IS NULL LIMIT 1")
+            .bind(org_id)
+            .fetch_optional(pg)
+            .await?;
+        if keys_exist.is_none() {
+            return Ok(ApiKeyVerification { ok: true });
+        }
     }
     if provided_key.is_empty() || provided_key == "anonymous" {
         return Ok(ApiKeyVerification { ok: false });
@@ -947,9 +951,10 @@ pub fn stored_key_hash(key_ref: &str) -> Option<&str> {
 
 /// `verify_api_key` for a key stored with `stored_key_ref`: is it still a
 /// live, unrevoked key for this org and agent?
-pub async fn verify_stored_key_ref(pg: &PgPool, key_ref: &str, org_id: &str, agent_id: &str) -> Result<bool, sqlx::Error> {
+pub async fn verify_stored_key_ref(state: &SharedState, key_ref: &str, org_id: &str, agent_id: &str) -> Result<bool, sqlx::Error> {
+    let pg = &state.pg;
     let Some(hash) = stored_key_hash(key_ref) else {
-        return Ok(verify_api_key(pg, key_ref, org_id, agent_id).await?.ok);
+        return Ok(verify_api_key(state, key_ref, org_id, agent_id).await?.ok);
     };
     let found: Option<i32> = sqlx::query_scalar("SELECT 1 FROM api_keys WHERE key_hash=$1 AND org_id=$2 AND agent_id=$3 AND revoked_at IS NULL")
         .bind(hash)
