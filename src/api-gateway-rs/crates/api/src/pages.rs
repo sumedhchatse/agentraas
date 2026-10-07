@@ -248,11 +248,9 @@ async fn public_status(axum::extract::State(state): axum::extract::State<SharedS
     Ok(Json(json!({ "overall": overall, "generated_at": crate::util::iso_now(), "services": report })))
 }
 
-/// Legal/docs documents, served as styled HTML with the markdown
-/// rendered server-side (server.js still does this client-side via
-/// marked.js from a CDN) rather than raw plaintext. Read from the
-/// self-host snapshot dir (`crate::self_host::SNAPSHOT_DIR`), same
-/// source Node reads from.
+/// Legal/docs documents, served as styled HTML with the markdown rendered
+/// server-side. Read from the self-host snapshot dir
+/// (`crate::self_host::SNAPSHOT_DIR`).
 async fn doc_page(filename: &str, title: &str) -> axum::response::Response {
     let path = std::path::Path::new(crate::self_host::SNAPSHOT_DIR).join(filename);
     match tokio::fs::read_to_string(&path).await {
@@ -282,13 +280,9 @@ async fn doc_readme() -> axum::response::Response {
     doc_page("README.md", "Documentation").await
 }
 
-/// Same table-based inline-styled layout as `renderDocPage()` in
-/// server.js, but rendered server-side (server.js still renders
-/// client-side via marked.js) — a fetcher that doesn't execute
-/// JavaScript (curl, most scrapers, some audit tools) used to see only
-/// a "Loading…" placeholder here, identical whether the content was
-/// fresh or stale. Parsing with pulldown-cmark at request time means
-/// the real content is in the initial response either way.
+/// Rendered server-side with pulldown-cmark so fetchers that don't run
+/// JavaScript (curl, scrapers, audit tools) get the real content, not a
+/// "Loading…" placeholder.
 fn render_doc_page(title: &str, raw_markdown: &str, template: Option<&str>) -> String {
     // README.md uses GFM pipe tables and task-list checkboxes (the
     // roadmap section) — plain CommonMark (pulldown-cmark's default)

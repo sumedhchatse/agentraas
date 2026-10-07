@@ -1,9 +1,7 @@
-//! Self-host package download — mirrors the "SELF-HOST PACKAGE SNAPSHOT"
-//! block and `/api/v1/download/self-host*` routes in `server.js`. Reads
-//! directly from `/repo` on every request proved unreliable under rootless
-//! Podman's UID/SELinux handling (per Node's own comment), so this copies
-//! the needed files ONCE at startup into a location this container
-//! reliably owns, and serves the zip from that stable local copy.
+//! Self-host package download. Reading `/repo` on every request is
+//! unreliable under rootless Podman's UID/SELinux handling, so the needed
+//! files are copied ONCE at startup into a directory this container owns,
+//! and the zip is built from that copy.
 
 use axum::extract::State;
 use axum::http::{header, StatusCode};
@@ -30,14 +28,9 @@ fn should_skip(path: &std::path::Path) -> bool {
     if s.contains("node_modules") || s.ends_with(".env") || s.ends_with(".log") {
         return true;
     }
-    // Real bug found 2026-09-20: Cargo's own build output. Never an
-    // issue in production (its build happens inside a Containerfile's
-    // isolated build stage, so no `target/` ever lands on the host path
-    // this walks) - but genuinely hung this exact endpoint for 7+
-    // minutes and OOM'd the calling client during local testing, once a
-    // local `target/` directory (built by mounting the repo directly
-    // into a build container, a normal way to compile without a local
-    // Rust toolchain) grew past a few GB sitting inside `/repo/src`.
+    // Cargo's build output: a local `target/` (from compiling with the repo
+    // mounted into a build container) can be several GB, and walking it
+    // hangs this endpoint.
     if path.components().any(|c| c.as_os_str() == "target") {
         return true;
     }
@@ -48,7 +41,7 @@ fn should_skip(path: &std::path::Path) -> bool {
 /// Copies `src`/`infra`/`config` (filtered) plus a handful of top-level
 /// files from `/repo` into `SNAPSHOT_DIR`, once, at process startup.
 /// Best-effort: a missing `/repo` mount (this container started without
-/// it) just means the download endpoint 500s later, same as Node.
+/// it) just means the download endpoint 500s later.
 pub fn build_snapshot() {
     if !std::path::Path::new(REPO_DIR).exists() {
         tracing::warn!("no /repo mount — self-host download endpoint will not work");

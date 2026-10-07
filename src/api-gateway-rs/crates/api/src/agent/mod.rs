@@ -39,8 +39,7 @@ pub fn router() -> Router<SharedState> {
 /// Internal mock payment processor — `config/services.json`'s `mockpay`
 /// entry points at `http://localhost:3000/internal/mockpay`, which resolves
 /// to whichever server is handling the request (each container has its own
-/// network namespace), so this route has to exist here too, byte-identical
-/// to Node's, not just in server.js.
+/// network namespace), so this server has to serve it itself.
 async fn internal_mockpay(headers: HeaderMap, Json(body): Json<Value>) -> Response {
     // delay_ms (capped at 10s) lets a test push a forward past a short
     // PROXY_TIMEOUT_SECONDS to exercise the outcome-unknown path.
@@ -71,8 +70,7 @@ async fn internal_mockpay(headers: HeaderMap, Json(body): Json<Value>) -> Respon
         Json(json!({
             "id": format!("mockpay_{}", hex::encode(buf)),
             // Pass the caller's amount through untouched (same type/shape
-            // it arrived as), matching Node's `amount||0` — no float
-            // coercion, so `100` stays `100`, not `100.0`.
+            // it arrived as): no float coercion, so `100` stays `100`.
             "amount": amount.unwrap_or(json!(0)),
             "status": "completed",
             "processor": "MockPay",
@@ -507,7 +505,7 @@ async fn handle_request_inner(
     // service.action within that run counts, including ones that end up
     // dedup-cached below: this is about the agent's own repeated-invocation
     // pattern, not how AgentRaaS happened to answer it. A checkpoint hit
-    // above already returned, so this only runs for genuinely new attempts.
+    // above already returned, so this only runs for new attempts.
     if let Some(run_id) = &run_id {
         if let Ok(mut conn) = state.redis_conn_result() {
             match agentraas_core::agent_run::record_call_and_check(
@@ -656,7 +654,7 @@ async fn handle_request_inner(
 
     // Cross-agent resource lock — a different concern from the dedup
     // claim just above: dedup catches a retry of THIS exact request,
-    // this catches a second, genuinely different request (this agent or
+    // this catches a second, different request (this agent or
     // another) racing to act on the same declared resource_id right now.
     if let Some(resource_id) = &resource_id {
         match agentraas_core::resource_lock::acquire(&mut conn, &org_id, resource_id, agentraas_core::resource_lock::DEFAULT_TTL_SECONDS).await {
@@ -684,7 +682,7 @@ async fn handle_request_inner(
         }
     }
 
-    // Action policies (SPEC-ACTION-POLICIES.md): what this agent may do.
+    // Action policies: what this agent may do.
     // Before breaker/usage/spend caps so a refused call counts against
     // nothing. Fails closed: a policy we can't read is not a pass.
     match crate::action_policies::check(state, &org_id, &agent_id, &service, &action, &payload).await {
@@ -759,7 +757,7 @@ async fn handle_request_inner(
         );
     }
 
-    // Per-agent spend/call caps (SPEC-SPEND-CAPS.md) — call-count based,
+    // Per-agent spend/call caps — call-count based,
     // checked for every request regardless of tier/build (block-only caps
     // work on Community too; see spend_caps.rs's module doc for why this
     // isn't under ee/ the way HITL is).
@@ -933,7 +931,7 @@ async fn handle_request_inner(
             }
             forward::broadcast_fanout(state, &resolved_route, &payload, &req_id);
 
-            // Schema drift detection (SPEC-SCHEMA-DRIFT.md) - background,
+            // Schema drift detection - background,
             // best-effort, never adds latency to the actual response.
             {
                 let state = state.clone();

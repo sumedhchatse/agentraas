@@ -1,6 +1,5 @@
-//! Enterprise SSO — mirrors `src/ee/auth/index.js`'s `SsoManager` plus the
-//! `/api/v1/auth/sso/*` and `/api/v1/auth/invites/accept` routes in
-//! `server.js`. OIDC-only (SAML explicitly out of scope, matching Node).
+//! Enterprise SSO: `/api/v1/auth/sso/*` and `/api/v1/auth/invites/accept`.
+//! OIDC only; SAML is out of scope.
 //!
 //! Hand-rolled OIDC client rather than a crate: discovery is a single GET
 //! of `/.well-known/openid-configuration`, PKCE is SHA-256 + base64url,
@@ -10,11 +9,9 @@
 //! Google Workspace) — an unsupported `alg` fails closed with a clear
 //! error rather than silently accepting something weaker.
 //!
-//! No real IdP is reachable from local dev, so unlike every other phase,
-//! the login-initiate → callback round trip itself isn't live-verified
-//! here (see PORT_PROGRESS.md) — only config CRUD, membership/RBAC,
-//! invites, and the two pure claim-mapping functions are, matching what
-//! `sso.test.js` itself actually exercises.
+//! `sso.test.js` covers config CRUD, membership/RBAC, invites and the two
+//! claim-mapping functions; the login → callback round trip needs a real
+//! IdP and isn't covered by a test.
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;

@@ -1,8 +1,7 @@
 //! Loads `config/services.json` and builds the flat `service.action -> route`
-//! map, mirroring `src/api-gateway/config-loader.js` exactly — including its
-//! one deliberate subtlety: `authHeader` distinguishes "key absent from the
+//! map. One subtlety: `authHeader` distinguishes "key absent from the
 //! JSON" (default to `"Authorization"`) from "key present with value null"
-//! (genuinely no auth header, e.g. zapier — the URL itself carries the
+//! (no auth header at all, e.g. zapier — the URL itself carries the
 //! secret). A naive `Option<String>` can't tell those apart; see
 //! `deserialize_present_option` below.
 
@@ -13,8 +12,7 @@ use std::path::Path;
 
 /// Deserializes a JSON field as `Some(Option<T>)` when the key is present
 /// (`Some(None)` for an explicit `null`, `Some(Some(v))` for a value), so the
-/// caller can distinguish "absent" (`None`) from "present but null" — the
-/// same distinction Node gets for free from `hasOwnProperty`.
+/// caller can distinguish "absent" (`None`) from "present but null".
 fn deserialize_present_option<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
 where
     T: Deserialize<'de>,

@@ -1,8 +1,7 @@
 //! Inbound webhook receivers — verifies a real per-provider HMAC/ECDSA
 //! signature (`agentraas_core::hmac_verify`) before forwarding to the
-//! user's own destination URL. Mirrors the `/api/v1/inbound-webhooks` CRUD
-//! and `/v1/inbound/:token` GET (WhatsApp handshake) / POST (receiver)
-//! routes in `server.js`.
+//! user's own destination URL: the `/api/v1/inbound-webhooks` CRUD and
+//! `/v1/inbound/:token` GET (WhatsApp handshake) / POST (receiver).
 
 use std::collections::HashMap;
 
@@ -189,7 +188,7 @@ fn parse_form_body(raw: &str) -> HashMap<String, String> {
 
 /// The actual inbound receiver — every provider's webhook lands here.
 /// Verifies the signature against that provider's real scheme, and only
-/// forwards to the user's real destination if it's genuinely authentic.
+/// forwards to the user's real destination if it's authentic.
 async fn receive(State(state): State<SharedState>, Path(token): Path<String>, headers: HeaderMap, raw_body: Bytes) -> Result<Json<Value>, ApiError> {
     #[derive(sqlx::FromRow)]
     struct Row {

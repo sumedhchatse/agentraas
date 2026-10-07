@@ -1,6 +1,5 @@
-//! Active Health Checks (proactive, opt-in, per-org monitoring) — mirrors
-//! `/api/v1/health-checks` plus `runHealthChecks`/`HEALTH_CHECK_SPECS` in
-//! `server.js`. Separate from the passive circuit breaker, which only
+//! Active Health Checks (`/api/v1/health-checks`; proactive, opt-in,
+//! per-org monitoring). Separate from the passive circuit breaker, which only
 //! reacts to real agent traffic: this pings a service directly, on a
 //! timer, using an org's own stored credentials.
 
@@ -23,7 +22,7 @@ use crate::state::{ApiError, SharedState};
 const HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// Only a small, deliberately curated set of services: each entry is a
-/// genuinely read-only, side-effect-free, well-established endpoint.
+/// read-only, side-effect-free, well-established endpoint.
 fn health_check_specs() -> HashMap<&'static str, ResolvedRoute> {
     let mut m = HashMap::new();
     m.insert(

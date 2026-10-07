@@ -1,7 +1,5 @@
-//! Mirrors `src/api-gateway/auth.js` plus the JWT/cookie/preHandler bits of
-//! `server.js` (`requireAuth`, `dashboardRateLimit`, `COOKIE_OPTS`) — kept
-//! together since Node keeps them all in the "auth" conceptual area even
-//! though they're split across two files there.
+//! Dashboard auth: password hashing, login rate limits, the session JWT and
+//! cookie, the `AuthUser` extractor and server-side session revocation.
 
 pub mod routes;
 
@@ -16,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::state::{ApiError, SharedState};
 
 pub const SESSION_COOKIE_NAME: &str = "ar_session";
-const SESSION_MAX_AGE_SECONDS: i64 = 60 * 60 * 24 * 7; // 7 days — kept in lockstep with the JWT's own `exp` below, same as Node.
+const SESSION_MAX_AGE_SECONDS: i64 = 60 * 60 * 24 * 7; // 7 days; the cookie's max-age and the JWT's `exp` must match.
 
 // ─── auth.js equivalents ───
 
@@ -34,8 +32,7 @@ pub async fn hash_password(password: &str) -> Result<String, ApiError> {
 /// `$2b$` output — the `bcrypt` crate's algorithm is identical across the
 /// 2a/2b/2y prefixes, only the prefix byte differs by implementation
 /// history, and `bcrypt::verify` doesn't care which prefix a stored hash
-/// uses. Confirmed empirically against a real bcryptjs hash (see
-/// PORT_PROGRESS.md).
+/// uses. Accounts created by the old Node backend have `$2a$` hashes.
 pub async fn verify_password(password: &str, hash: &str) -> bool {
     let password = password.to_string();
     let hash = hash.to_string();
@@ -117,9 +114,8 @@ pub async fn check_register_rate_limit(redis: &redis::aio::MultiplexedConnection
     Ok(attempts <= REGISTER_ATTEMPT_LIMIT)
 }
 
-/// Same non-atomic INCR-then-EXPIRE-on-first pattern as the Node original —
-/// a deliberate compatibility choice (see auth.js's own comment on the
-/// narrow race), not an oversight.
+/// Non-atomic INCR-then-EXPIRE-on-first: if the process dies between the two
+/// the key never expires, which only locks out that one ip+email pair. Accepted.
 pub async fn check_login_rate_limit(
     redis: &redis::aio::MultiplexedConnection,
     ip: &str,
@@ -159,7 +155,7 @@ pub struct Claims {
     pub iat: i64,
     pub exp: i64,
     /// Issue time in ms, so a revocation in the same second as a login
-    /// still tells them apart. Absent on tokens from before 2026-10-07.
+    /// still tells them apart. Absent on tokens issued before 0.11.0.
     #[serde(default)]
     pub iat_ms: i64,
 }
@@ -193,8 +189,7 @@ pub fn verify_session(secret: &str, token: &str) -> Option<Claims> {
         .map(|data| data.claims)
 }
 
-/// Same shape as Node's `COOKIE_OPTS`: httpOnly, `secure` only in
-/// production, `SameSite=Lax`, path `/`, 7-day maxAge.
+/// httpOnly, `secure` only in production, `SameSite=Lax`, path `/`, 7-day maxAge.
 pub fn session_cookie(state: &SharedState, token: String) -> Cookie<'static> {
     let mut cookie = Cookie::new(SESSION_COOKIE_NAME, token);
     cookie.set_http_only(true);
@@ -215,9 +210,8 @@ pub fn clear_session_cookie() -> Cookie<'static> {
 // ─── requireAuth (as an Axum extractor) ───
 
 /// The logged-in dashboard user, resolved from the `ar_session` cookie or an
-/// `Authorization: Bearer <token>` header — mirrors `requireAuth` +
-/// `@fastify/jwt`'s cookie-fallback behavior. Reject with the exact same
-/// `401 {"error": "Not authenticated"}` body Node returns.
+/// `Authorization: Bearer <token>` header (the header wins). Rejects with
+/// `401 {"error": "Not authenticated"}`.
 #[derive(Debug, Clone)]
 pub struct AuthUser {
     pub sub: i32,

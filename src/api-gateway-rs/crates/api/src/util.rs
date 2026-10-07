@@ -1,7 +1,7 @@
 /// Matches JS's `new Date().toISOString()` exactly (millisecond precision,
 /// literal `Z`) rather than chrono's default RFC3339 (nanosecond precision,
-/// `+00:00` offset) — every timestamp string this server puts in a JSON
-/// response body should look identical to the same field from Node.
+/// `+00:00` offset), so every timestamp in a JSON response has one format
+/// the dashboard and SDKs can rely on.
 pub fn iso_now() -> String {
     chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
@@ -9,16 +9,14 @@ pub fn iso_now() -> String {
 /// `std::env::var` treats a present-but-empty variable as `Ok("")`, not
 /// absent — compose.yaml declares every optional secret/config var with
 /// a `${VAR:-}` default, so an unset one still arrives as an empty
-/// string inside the container, not genuinely missing. Both must read as
-/// "not configured" everywhere a "is this deployment set up for X" check
-/// happens (Paddle billing in `long_tail.rs`, license signing in
-/// `licensing.rs`, and anywhere else this pattern shows up next).
+/// string inside the container. Both must read as "not configured" in every
+/// "is this deployment set up for X" check (Paddle, pay-as-you-go billing,
+/// and anything new).
 pub fn configured_env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.is_empty())
 }
 
-/// Header names, per RFC 7230 token chars (no spaces/colons) — mirrors
-/// `isValidHeaderName` in `server.js`.
+/// Header names, per RFC 7230 token chars (no spaces/colons).
 pub fn is_valid_header_name(name: &str) -> bool {
     !name.is_empty()
         && name.chars().count() <= 100
@@ -106,8 +104,8 @@ fn is_private_or_reserved_ip(ip: &std::net::IpAddr) -> bool {
     }
 }
 
-/// SSRF guard for custom-action target URLs / notification webhook URLs —
-/// mirrors `validateTargetUrl` in `server.js`. Returns `Some(error message)`
+/// SSRF guard for custom-action target URLs / notification webhook URLs.
+/// Returns `Some(error message)`
 /// on rejection, `None` if the URL is safe to register.
 pub async fn validate_target_url(target_url: &str) -> Option<String> {
     let Ok(parsed) = url::Url::parse(target_url) else {

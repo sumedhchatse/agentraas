@@ -1,5 +1,4 @@
-//! Self-serve Credentials panel — mirrors `/api/v1/credentials` in
-//! `server.js`.
+//! Self-serve Credentials panel (`/api/v1/credentials`).
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;

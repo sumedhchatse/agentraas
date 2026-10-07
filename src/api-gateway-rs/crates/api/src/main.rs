@@ -85,11 +85,8 @@ async fn main() -> anyhow::Result<()> {
     let service_routes = build_service_routes(&services_config);
     tracing::info!(count = service_routes.len(), "loaded service routes from config");
 
-    // MCP tool naming: `${svcName}_${actName.replace(/\./g,'_')}` -> route,
-    // mirroring src/core/mcp/index.js's TOOL_NAME_TO_ROUTE, built once at
-    // startup here too (Node rebuilds tools/list's array on every call, but
-    // the content never changes for a given config, so precomputing both is
-    // an equivalent, safe optimization).
+    // MCP tool naming: `<service>_<action with dots as underscores>` -> route,
+    // built once at startup since it only depends on the services config.
     let mut tool_name_to_route = std::collections::HashMap::new();
     let mut tools = Vec::new();
     for (svc_name, svc) in &services_config {

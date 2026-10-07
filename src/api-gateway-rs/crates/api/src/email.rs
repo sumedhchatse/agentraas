@@ -1,9 +1,7 @@
-//! Mirrors `server.js`'s email helpers: `escapeHtml`, `buildEmailHtml`,
-//! `sendVerificationEmail`, `sendPasswordResetEmail`, and the
-//! `mailTransport` (nodemailer) setup. SMTP is optional — with no
-//! `SMTP_HOST` configured, the link is logged instead of emailed (the same
-//! fallback Node uses for local/self-hosted dev), and `EXPOSE_DEV_VERIFY_URL`
-//! controls whether callers also see it in the response body.
+//! Verification and password-reset email. SMTP is optional: with no
+//! `SMTP_HOST`, the link is logged instead of emailed, and
+//! `EXPOSE_DEV_VERIFY_URL` controls whether callers also see it in the
+//! response body.
 
 use lettre::message::header::ContentType;
 use lettre::message::{MultiPart, SinglePart};
@@ -25,9 +23,8 @@ impl Mailer {
 
         // `unwrap_or_default` + `is_empty` (not just `Ok(_)`) because compose's
         // `${SMTP_HOST:-}` interpolation sets the var to an empty string rather
-        // than leaving it unset when `.env` doesn't define it — matching
-        // Node's `SMTP_HOST ? ... : undefined` falsy-string check in server.js,
-        // which a plain `Ok(host)` match here does not.
+        // than leaving it unset when `.env` doesn't define it, which a plain
+        // `Ok(host)` match would treat as configured.
         let host = std::env::var("SMTP_HOST").unwrap_or_default();
         if host.is_empty() {
             return Self {
@@ -178,9 +175,8 @@ struct EmailTemplate<'a> {
     expiry_note: Option<&'a str>,
 }
 
-/// Byte-for-byte the same table-based inline-styled layout as
-/// `buildEmailHtml()` in server.js (see that function's own comment for why:
-/// many mail clients strip `<style>` blocks / don't support flexbox/grid).
+/// Table-based, inline-styled layout: many mail clients strip `<style>`
+/// blocks and don't support flexbox/grid.
 fn build_email_html(t: EmailTemplate) -> String {
     let expiry_html = t
         .expiry_note

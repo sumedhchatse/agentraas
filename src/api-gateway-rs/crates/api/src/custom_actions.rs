@@ -1,5 +1,5 @@
-//! Custom Actions — register any endpoint, not just a curated service.
-//! Mirrors `/api/v1/custom-actions` in `server.js`.
+//! Custom Actions (`/api/v1/custom-actions`): register any endpoint, not
+//! just a curated service.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;

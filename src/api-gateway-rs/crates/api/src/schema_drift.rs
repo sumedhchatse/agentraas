@@ -1,5 +1,5 @@
-//! DB-backed orchestration for upstream contract/schema drift detection
-//! (SPEC-SCHEMA-DRIFT.md). Pure fingerprinting/comparison logic lives in
+//! DB-backed orchestration for upstream contract/schema drift detection.
+//! Pure fingerprinting/comparison logic lives in
 //! `agentraas_core::schema_drift`; this module owns reading/writing the
 //! shared-per-service baseline and firing the notification.
 

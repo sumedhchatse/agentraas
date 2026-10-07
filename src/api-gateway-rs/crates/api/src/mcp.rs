@@ -1,9 +1,7 @@
-//! Ports `src/core/mcp/index.js`'s `handleMCP` — the MCP JSON-RPC entry
-//! point (`tools/list`, `tools/call`). Reuses the exact same dedup/
-//! validation/circuit-breaker/forward machinery as the webhook/SDK path
-//! (`crate::agent::{db,forward}`), since MCP is just another entry point
-//! into the same reliability layer — same as Node's own comment on this
-//! file says.
+//! The MCP JSON-RPC entry point (`tools/list`, `tools/call`). Reuses the
+//! dedup/validation/circuit-breaker/forward machinery of the webhook/SDK
+//! path (`crate::agent::{db,forward}`). Every check `agent::handle_request`
+//! runs must run here too.
 
 use agentraas_core::{circuit_breaker, dedup, validator};
 use axum::extract::State;

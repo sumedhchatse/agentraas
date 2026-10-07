@@ -1,14 +1,10 @@
 //! Payload hashing + Redis dedup claim/release. The hash format is a
 //! stable wire contract in its own right (existing dedup keys, and the
 //! golden values in this file's own tests, depend on it never silently
-//! shifting) — originally required to be byte-identical to Node's
-//! `JSON.stringify`-based hash from when this and a Node server ran
-//! side-by-side against the same Redis instance during the Rust port;
-//! that's why `serde_json`'s `preserve_order` feature is still required
-//! workspace-wide (see Cargo.toml) even now that Node is fully retired: a
-//! JS object serializes in insertion order, not alphabetical, and the
-//! `payload` field here is exactly whatever order the caller's JSON body
-//! arrived in.
+//! shifting). Keys are hashed in insertion order, the way `JSON.stringify`
+//! does it, not alphabetically, which is why `serde_json`'s `preserve_order`
+//! feature is required workspace-wide (see Cargo.toml): the `payload` field
+//! is whatever order the caller's JSON body arrived in.
 
 use serde::Serialize;
 use serde_json::Value;
@@ -78,7 +74,7 @@ pub fn hash_idempotency_key(api_key: &str, service: &str, action: &str, idempote
 
 /// Hash of the payload alone (no api key/service/action) — stashed
 /// alongside an idempotency-key-mode cached result so a key reused with a
-/// genuinely different payload can be detected and rejected.
+/// different payload can be detected and rejected.
 pub fn hash_only(payload: &Value) -> String {
     sha256_hex(&serde_json::to_string(payload).expect("serializing a hash input never fails"))
 }
@@ -164,13 +160,10 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    // Golden values generated independently via Node's own
-    // crypto.createHash('sha256') over JSON.stringify of an object built
-    // in the exact key order PayloadHashInput/IdempotencyHashInput/the
-    // hash_field_values Input struct serialize in — this is the actual
-    // cross-server contract this module's doc comment warns about, not
-    // just internal self-consistency. If any of these change, a Node
-    // caller and a Rust caller would stop deduping each other's retries.
+    // Golden values computed independently (sha256 over JSON.stringify in
+    // JavaScript, same key order as the input structs). If any of these
+    // change, existing dedup keys stop matching and retries in flight
+    // across a deploy would run twice.
     #[test]
     fn hash_payload_matches_nodes_json_stringify_format() {
         let payload = json!({"amount": 100, "customer": "cus_1"});

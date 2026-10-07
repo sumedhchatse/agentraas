@@ -1,9 +1,6 @@
-//! DB-backed helpers `handle_request` depends on — mirrors the standalone
-//! functions in `server.js` of the same name (getEffectiveValidationRule,
-//! getEffectiveDedupRule, getCredential, verifyApiKey, getEffectiveRateLimit,
-//! checkUsageLimit, incrementMonthlyUsage, getOrgOwnerPlan, getUserOrgIds,
-//! checkAgencyTenantCap, checkOrgWritePermission, resolveCustomRoute,
-//! logAudit).
+//! DB-backed helpers the request pipeline depends on: rules, credentials,
+//! API keys, rate and usage limits, plans and tiers, org membership, custom
+//! routes, the audit log and the dead-letter queue.
 
 use axum::http::StatusCode;
 use serde_json::Value;
@@ -533,9 +530,7 @@ pub async fn get_monthly_usage(state: &SharedState, org_id: &str) -> redis::Redi
 }
 
 /// Every org a user owns or belongs to, via any of the ways that gets
-/// established. Scoped subset needed by Phase 2's agent-connect route
-/// (tenant cap check); Phase 3/4 dashboard routes will need the same
-/// query and can reuse this.
+/// established.
 pub async fn get_user_org_ids(pg: &PgPool, user_id: i32) -> Result<Vec<String>, sqlx::Error> {
     let rows: Vec<String> = sqlx::query_scalar(
         "SELECT org_id FROM users WHERE id = $1 AND org_id IS NOT NULL
@@ -620,8 +615,8 @@ pub async fn check_org_write_permission(pg: &PgPool, user_id: i32, org_id: &str)
 
 /// Tier resolution — cloud reads `users.plan` for the org's owning user
 /// directly (same "owner" model as `check_org_write_permission` above).
-/// Self-host is always Enterprise: since 2026-10-06 every feature is free to
-/// self-host (LICENSE.md), so no license token is needed. Never errors: an
+/// Self-host is always Enterprise: every feature is free to self-host
+/// (LICENSE.md), so there is no license token. Never errors: an
 /// org with no matching row, or a stale/unrecognized plan string, resolves
 /// to `Tier::Community` rather than blocking the caller.
 #[allow(dead_code)]
@@ -831,10 +826,8 @@ pub async fn resolve_route(
     }))
 }
 
-/// DLP redaction (`src/ee/dlp` equivalent) is Enterprise-only; the
-/// Community edition never compiles `agentraas_core::dlp` in at all, so
-/// this always returns `None` there — same end result as Node's
-/// `ENTERPRISE_MODE && rawPayload` check when `src/ee/dlp` isn't present.
+/// DLP redaction is Enterprise-only; a build without the `enterprise`
+/// feature never compiles `agentraas_core::dlp` in, so this returns `None`.
 #[cfg(feature = "enterprise")]
 fn redact_preview(enterprise_mode: bool, raw_payload: Option<&Value>) -> Option<String> {
     if enterprise_mode {
@@ -848,11 +841,9 @@ fn redact_preview(_enterprise_mode: bool, _raw_payload: Option<&Value>) -> Optio
     None
 }
 
-/// `enterprise_mode`+`raw_payload` mirror Node's `logAudit`'s optional
-/// trailing `rawPayload` param: only call sites that explicitly pass a
-/// payload (and only when Enterprise DLP is on) get a redacted preview
-/// stored — every other call site behaves exactly as before this column
-/// existed.
+/// Only call sites that pass `raw_payload`, and only with Enterprise DLP on
+/// (`enterprise_mode`), store a redacted preview; everything else stores
+/// just the hash.
 #[allow(clippy::too_many_arguments)]
 pub async fn log_audit(
     pg: &PgPool,
@@ -903,8 +894,7 @@ pub async fn log_audit(
 /// Only for genuine upstream failures (the target API itself returned an
 /// error) — never for client-side rejections (validation, usage limit, an
 /// already-open circuit) that a blind replay wouldn't fix. Best-effort:
-/// never let a DLQ write failure change the response the caller already
-/// got, matching Node's `.catch(...)`.
+/// never let a DLQ write failure change the response the caller already got.
 #[allow(clippy::too_many_arguments)]
 pub async fn write_dead_letter_queue(
     state: &SharedState,

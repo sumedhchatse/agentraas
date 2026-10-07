@@ -1,5 +1,4 @@
-//! Dead Letter Queue (one-click payload replay) — mirrors
-//! `/api/v1/dead-letter-queue` in `server.js`.
+//! Dead Letter Queue (`/api/v1/dead-letter-queue`, one-click payload replay).
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;

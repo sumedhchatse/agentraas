@@ -4,7 +4,7 @@
 //! caller-supplied rather than derived from a call count: a derived
 //! ordinal (Nth call to this action within the run) can't tell "the
 //! agent is replaying steps 1-3 again after a crash, before reaching
-//! new step 4" apart from "this is a genuinely new 2nd/3rd/4th call to
+//! new step 4" apart from "this is a new 2nd/3rd/4th call to
 //! the same action" — both look identical from a bare call count. An
 //! explicit step_id removes that ambiguity: if the SAME run_id+step_id
 //! pair is seen again, it's unambiguously a replay of that exact step,

@@ -1,4 +1,4 @@
-//! Upstream contract/schema drift detection (SPEC-SCHEMA-DRIFT.md) — pure
+//! Upstream contract/schema drift detection — pure
 //! fingerprinting and comparison logic. The DB-backed baseline storage and
 //! notification orchestration live in `crates/api/src/schema_drift.rs`
 //! (same `crates/core` pure-logic / `crates/api` DB-orchestration split

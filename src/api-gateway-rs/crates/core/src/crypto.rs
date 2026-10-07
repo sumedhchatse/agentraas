@@ -1,8 +1,8 @@
-//! Ports `src/api-gateway/crypto-helper.js` exactly — AES-256-GCM,
+//! AES-256-GCM,
 //! key = the raw bytes of base64-decoded `CREDENTIALS_ENCRYPTION_KEY` (no
 //! KDF/hashing of the key itself), 12-byte random IV per encryption,
-//! stored as `"<iv_hex>:<authTag_hex>:<ciphertext_hex>"`. Must stay
-//! byte-format-compatible with every already-encrypted row Node wrote
+//! stored as `"<iv_hex>:<authTag_hex>:<ciphertext_hex>"`. Never change the
+//! format: every already-encrypted row depends on it
 //! (`service_credentials`, `sso_configs.encrypted_client_secret`,
 //! `notification_webhooks.encrypted_target`, `custom_actions.extra_headers`
 //! secret values, `inbound_webhooks.webhook_secret`, `dead_letter_queue.
@@ -32,11 +32,9 @@ pub struct CredentialCipher {
 }
 
 impl CredentialCipher {
-    /// Mirrors the module-load-time behavior of crypto-helper.js: decode
-    /// the env var as base64 and hard-require exactly 32 bytes. Node
-    /// `process.exit(1)`s on failure; the caller here should do the
-    /// equivalent (fail server startup), since a misconfigured key isn't
-    /// recoverable at runtime.
+    /// Decodes the env var as base64 and requires exactly 32 bytes. The
+    /// caller must fail server startup on an error: a misconfigured key
+    /// isn't recoverable at runtime.
     pub fn from_base64_key(raw: &str) -> Result<Self, CryptoError> {
         use base64::Engine;
         let decoded = base64::engine::general_purpose::STANDARD.decode(raw)?;
@@ -55,8 +53,8 @@ impl CredentialCipher {
         let nonce = Nonce::from_slice(&iv_bytes);
 
         // `encrypt` on this crate returns ciphertext with the 16-byte GCM
-        // tag appended — split it back apart so the stored format matches
-        // Node's separate iv/tag/ciphertext fields exactly.
+        // tag appended — split it back apart into the stored
+        // iv/tag/ciphertext fields.
         let sealed = cipher
             .encrypt(nonce, Payload { msg: plaintext.as_bytes(), aad: &[] })
             .expect("AES-256-GCM encryption of a well-formed UTF-8 string never fails");

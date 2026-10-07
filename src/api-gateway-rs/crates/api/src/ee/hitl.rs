@@ -646,11 +646,8 @@ async fn create_rule(State(state): State<SharedState>, user: AuthUser, Json(body
     if !is_valid_identifier(&body.org_id) {
         return Err(ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "org_id must be 1-100 characters, letters/numbers/underscore/hyphen only."));
     }
-    // HITL moved from Enterprise-only to Pro+ (was previously gated by
-    // `require_enterprise_mode` — the whole server's on/off switch,
-    // independent of the calling org's actual plan). Enterprise-mode
-    // deployments (this binary always is, per SPEC.md §3) still require
-    // the org to be at least Pro to use it.
+    // HITL is a Team+ feature: gated on the calling org's tier, not on the
+    // server-wide ENTERPRISE_MODE switch. Self-host is always Enterprise.
     require_tier(&state, &body.org_id, agentraas_core::tier::Tier::Team).await?;
     if !check_org_write_permission(&state.pg, user.sub, &body.org_id).await? {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Auditors have read-only access to this org."));

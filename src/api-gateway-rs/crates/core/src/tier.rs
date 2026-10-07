@@ -18,8 +18,8 @@ impl Tier {
     /// Maps `users.plan`'s stored string to a `Tier`. Unrecognized or
     /// absent values resolve to `Community` — never an error, since a
     /// stale or unexpected value must never accidentally unlock a paid
-    /// feature. Covers today's stored default (`"free"`) as well as
-    /// anything genuinely unrecognized. `"pro"` and `"agency"` are kept
+    /// feature. Covers the stored default (`"free"`) as well as anything
+    /// unrecognized. `"pro"` and `"agency"` are kept
     /// as aliases (the tier names collapsed from 4 to 3 — Pro renamed to
     /// Team, Agency folded up into Enterprise) so any row already
     /// carrying the old string keeps its entitlement instead of silently

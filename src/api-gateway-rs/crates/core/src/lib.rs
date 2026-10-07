@@ -1,7 +1,6 @@
-//! Shared reliability engine for AgentRaaS's Rust port — mirrors
-//! `src/core/{proxy,mcp}` from the Node implementation. Phase 0 only
-//! carries the services-config loader; dedup/circuit-breaker/retry/MCP
-//! land in Phase 2.
+//! AgentRaaS's reliability engine as pure logic (no database): dedup, circuit
+//! breaker, rate limits, validation, checkpoints, tiers, crypto and the
+//! services config. The `api` crate wires it to Postgres, Redis and HTTP.
 
 pub mod agent_run;
 pub mod chaos;

@@ -1,16 +1,12 @@
-//! Redis-backed circuit breaker — mirrors `getCircuitState`,
-//! `getCircuitStatesBatch`, `recordFailure`, `recordSuccess` in
-//! `src/core/proxy/index.js`. State is stored per-service (shared across
-//! every org calling that service), same Redis key shape
-//! (`circuit:<service>`) and JSON shape (`{"state":..,"failures":N,
-//! "openedAt":ms}`) as Node, since both servers read/write the same Redis.
+//! Redis-backed circuit breaker. State is per service, shared across every
+//! org calling it: key `circuit:<service>`, value
+//! `{"state":..,"failures":N,"openedAt":ms}`.
 //!
 //! DB persistence of transitions (`circuit_breaker_events`, for the
 //! dashboard's uptime report) is deliberately NOT done here — this crate
 //! stays DB-agnostic. Callers get back any `Transition`s that happened and
-//! are responsible for the best-effort `INSERT`, exactly mirroring Node's
-//! `logCircuitTransition` being fire-and-forget and never allowed to affect
-//! the breaker's own (Redis) behavior.
+//! are responsible for the best-effort `INSERT`, which must never affect the
+//! breaker's own (Redis) behavior.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -1,4 +1,4 @@
-//! What each agent is allowed to do (SPEC-ACTION-POLICIES.md). Rules use
+//! What each agent is allowed to do. Rules use
 //! the validation-rule field syntax (`agentraas_core::validator`), and every
 //! matching policy applies. Not under `ee/`, same reasoning as spend caps:
 //! a safety control on the org's own agents, available on every tier. Only

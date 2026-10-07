@@ -1,5 +1,4 @@
-//! Tool Output Sanitization (Enterprise, opt-in per org) — new for this
-//! feature set, not a port of anything in `server.js`/`src/ee`. Neutralizes
+//! Tool Output Sanitization (Enterprise, opt-in per org). Neutralizes
 //! two categories of risk in an upstream tool response before it reaches
 //! the calling agent: leaked PII (reuses `dlp::redact_pii` verbatim) and
 //! heuristic prompt-injection markers an upstream could plant to hijack the

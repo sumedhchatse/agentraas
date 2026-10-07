@@ -13,7 +13,7 @@ use crate::state::SharedState;
 pub struct ForwardError {
     pub message: String,
     /// Present only when the upstream itself responded (vs. a network/
-    /// internal error) — mirrors Node's `err.response`.
+    /// internal error).
     pub upstream_status: Option<u16>,
     pub upstream_body: Option<Value>,
     /// Set once `recordFailure` has already been called for this error, so
@@ -562,10 +562,9 @@ pub async fn forward_with_retry_streaming(
     Err(last_error.expect("loop always sets last_error before exiting without returning Ok"))
 }
 
-/// Ports `route.url.replace(/{(\w+)}/g, (match, key) => process.env[key] ||
-/// match)` — e.g. Twilio's path has `{TWILIO_SID}` in it, filled in from an
-/// env var of the same name at request time. Left as the literal `{KEY}`
-/// text if the env var isn't set, matching Node's `|| match` fallback.
+/// Fills `{KEY}` placeholders in a route URL from env vars of the same name,
+/// e.g. Twilio's path has `{TWILIO_SID}`. Left as the literal `{KEY}` text if
+/// the env var isn't set.
 fn substitute_env_placeholders(url: &str) -> String {
     let mut result = String::with_capacity(url.len());
     let bytes = url.as_bytes();

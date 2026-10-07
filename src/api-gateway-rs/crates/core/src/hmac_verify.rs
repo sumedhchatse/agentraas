@@ -99,7 +99,7 @@ pub fn verify_shopify(raw_body: &str, signature_header: Option<&str>, secret: &s
     if timing_safe_equal_strings(header, &expected) { VerifyResult::ok() } else { VerifyResult::fail("Signature mismatch.") }
 }
 
-/// `X-Twilio-Signature: <base64>` — genuinely different scheme: signs the
+/// `X-Twilio-Signature: <base64>` — a different scheme: signs the
 /// full request URL with each POST parameter, sorted alphabetically by
 /// key, appended as key+value with no separator, HMAC-SHA1, base64.
 pub fn verify_twilio(request_url: &str, params: &HashMap<String, String>, signature_header: Option<&str>, auth_token: &str) -> VerifyResult {
@@ -154,7 +154,7 @@ pub fn verify_mailgun(params: &HashMap<String, String>, secret: &str) -> VerifyR
     if timing_safe_equal_strings(signature, &expected) { VerifyResult::ok() } else { VerifyResult::fail("Signature mismatch.") }
 }
 
-/// SendGrid Event Webhook — the one genuinely asymmetric scheme: ECDSA
+/// SendGrid Event Webhook — the one asymmetric scheme: ECDSA
 /// (P-256) verified with the account's *public* key (not a shared
 /// secret). Signed payload: timestamp bytes concatenated directly with
 /// the raw body.

@@ -1,4 +1,4 @@
-//! Per-agent action spend/call caps (SPEC-SPEND-CAPS.md). Call-count
+//! Per-agent action spend/call caps. Call-count
 //! based, not dollar-based — v1 deliberately reuses the exact windowed
 //! Redis INCR+EXPIRE shape `increment_monthly_usage` (agent/db.rs) already
 //! uses, just parameterized by hour/day instead of hardcoded month.

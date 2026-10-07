@@ -1,7 +1,6 @@
-//! Enterprise-tier features — mirrors `src/ee/*`. Gated on
-//! `state.enterprise_mode` (set from `ENTERPRISE_MODE=true`), matching
-//! Node's `requireEnterpriseMode`. Community-tier behavior is completely
-//! unaffected either way.
+//! Team/Enterprise features (FSL-licensed, see LICENSE.md), compiled in with
+//! the `enterprise` Cargo feature. Each route also checks the org's tier
+//! (`require_tier`) or the server's `ENTERPRISE_MODE` switch.
 
 pub mod hitl;
 pub mod identity;

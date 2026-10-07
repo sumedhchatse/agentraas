@@ -1,6 +1,5 @@
-//! Notification Webhooks (instant outage notifications) — mirrors
-//! `/api/v1/notification-webhooks` plus `sendOutageNotification` /
-//! `notifyCircuitOpen` in `server.js`.
+//! Notification Webhooks (`/api/v1/notification-webhooks`): instant outage
+//! and schema-drift notifications.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -49,8 +48,8 @@ pub async fn notify_circuit_open(state: &SharedState, org_id: &str, service: &st
 }
 
 /// Fires when `crate::schema_drift` detects a real change (a field
-/// removed or its type changed) in a service's response shape — see
-/// SPEC-SCHEMA-DRIFT.md. Same claim-key rate-limit shape as
+/// removed or its type changed) in a service's response shape. Same
+/// claim-key rate-limit shape as
 /// `notify_circuit_open` above, 1 hour instead of 60s since a shape
 /// change is a slower-moving signal than an outage.
 pub async fn notify_schema_drift(state: &SharedState, org_id: &str, service: &str, action: &str, removed: &[String], type_changed: &[String]) {

@@ -8,18 +8,13 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::Value;
 
-// The straightforward port of Node's `/\b(?:\d[ -]?){13,19}\b/g` (see
-// src/ee/dlp/index.js) — greedily consumes a TRAILING space/dash even when
-// it's not followed by another digit (e.g. "4111111111111111 ignore..."
-// swallows the space before "ignore", merging the two into one word and
-// silently breaking `\b`-anchored matches right after it — found while
-// testing Tool Output Sanitization, whose prompt-injection patterns rely on
-// exactly that boundary). Node's own trailing `\b` doesn't prevent this
-// either, since a space-to-letter transition is itself a word boundary.
-// Fixed here (Rust only — this is pre-existing in Node too, out of scope
-// for this session) by requiring every separator to sit strictly BETWEEN
-// two digits: one leading digit, then 12-18 more "optional separator +
-// digit" units, so the match can only ever end on a digit.
+// The obvious `\b(?:\d[ -]?){13,19}\b` greedily consumes a TRAILING
+// space/dash (e.g. "4111111111111111 ignore..." swallows the space before
+// "ignore"), which breaks `\b`-anchored matches right after it, and Tool
+// Output Sanitization's prompt-injection patterns rely on that boundary.
+// So every separator must sit strictly BETWEEN two digits: one leading
+// digit, then 12-18 more "optional separator + digit" units, so the match
+// always ends on a digit.
 static CARD_CANDIDATE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b\d(?:[ -]?\d){12,18}\b").unwrap());
 
 pub fn luhn_check(candidate: &str) -> bool {
@@ -68,10 +63,9 @@ pub fn redact_credit_cards(text: &str) -> String {
 // SSA-invalid-range exclusions (000/666/900-999 area, 00 group, 0000
 // serial), plus the two specific widely-known leaked/retired SSNs that show
 // up constantly in test data (matching them would almost certainly be a
-// false positive from sample data, not a real SSN). The Node original
-// expresses these exclusions as regex lookahead; Rust's `regex` crate has
-// no lookaround support at all, so this captures the three groups and
-// applies the same exclusions as a post-match filter instead.
+// false positive from sample data, not a real SSN). Rust's `regex` crate
+// has no lookaround, so the three groups are captured and the exclusions
+// applied as a post-match filter.
 static SSN_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(\d{3})[-\s]?(\d{2})[-\s]?(\d{4})\b").unwrap());
 
 pub fn redact_ssns(text: &str) -> String {

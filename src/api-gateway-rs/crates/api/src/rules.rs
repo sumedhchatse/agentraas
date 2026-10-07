@@ -1,6 +1,5 @@
-//! Validation Rules + Dedup Rules dashboard CRUD — mirrors the
-//! `/api/v1/validation-rules` and `/api/v1/dedup-rules` routes in
-//! `server.js`.
+//! Validation Rules + Dedup Rules dashboard CRUD
+//! (`/api/v1/validation-rules`, `/api/v1/dedup-rules`).
 
 use agentraas_core::validator::{is_valid_dedup_rule_definition, is_valid_rule_definition, validate_fields};
 use axum::extract::{Path, State};

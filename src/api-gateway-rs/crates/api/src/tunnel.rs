@@ -1,15 +1,13 @@
-//! CLI local dev tunnel (SPEC-TUNNEL.md) — an ngrok-style relay so a
+//! CLI local dev tunnel — an ngrok-style relay so a
 //! developer can receive a real inbound webhook (Stripe, WhatsApp, GitHub,
 //! etc.) on their `localhost` instance while building, without deploying
 //! anywhere first. Open to every tier (this is for evaluation/dev, not a
 //! paid feature) — abuse controls below are load-bearing because of that,
 //! not optional polish.
 //!
-//! Simpler than the original README note assumed ("a separate hosted
-//! relay service") — it isn't one. Axum's own WebSocket support plus an
-//! in-memory registry in this same process is enough, since production is
-//! a single instance today (see SPEC-TUNNEL.md §6 for the explicit,
-//! deferred multi-instance note).
+//! No separate relay service: Axum's WebSocket support plus an in-memory
+//! registry in this process is enough while production is one instance.
+//! Several instances would need the registry in Redis (pub/sub per tunnel).
 //!
 //! Flow: CLI opens `GET /api/v1/tunnel/connect/:org_id/:agent_id` (agent
 //! API key auth, same as every other agent connection) and holds it open.
@@ -271,10 +269,7 @@ async fn check_tunnel_rate_limit(state: &SharedState, tunnel_id: &str) -> bool {
 }
 
 // ─── request inspector (dashboard SSE) ───
-// ponytail: live-forward only, no replay-on-connect of past requests for
-// this tunnel (SPEC-TUNNEL.md §3 mentioned an in-memory "last 50" buffer;
-// simplified to a plain broadcast with no history, since a v1 dev tool
-// opened right after firing a test webhook covers the real use case).
+// ponytail: live-forward only, no history of past requests on connect.
 // Add a ring buffer per TunnelHandle if replay-on-connect turns out to
 // matter in practice.
 

@@ -236,11 +236,9 @@ async fn login(
         .execute(&state.pg)
         .await?;
 
-    // The single system-wide admin's password rotates on every login — see
-    // auth/mod.rs's session-cookie doc comment for the session side; this
-    // mirrors server.js's login handler exactly, including logging the new
-    // one-time password at WARN so `podman logs ar-api-rs` is the recovery
-    // path, same as Node.
+    // The single system-wide admin's password rotates on every login; the
+    // new one-time password is logged at WARN, so `podman logs ar-api-rs`
+    // is the recovery path (infra/scripts/admin-password.sh on octopus).
     if user.is_admin {
         let mut buf = [0u8; 18];
         rand::thread_rng().fill_bytes(&mut buf);
@@ -483,10 +481,10 @@ async fn forgot_password(
     let reset_url = format!("{}/dashboard?reset_token={}", state.public_url, raw_token);
     state.mailer.send_password_reset_email(&email, &reset_url).await;
 
-    // Deliberately no dev_reset_url field, even locally — matches Node
-    // exactly: only the verification-link routes expose a dev fallback in
-    // the response body, the reset link is logged (via Mailer) but never
-    // echoed back.
+    // Deliberately no dev_reset_url field, even locally: only the
+    // verification-link routes expose a dev fallback in the response body.
+    // The reset link is logged (via Mailer) but never echoed back, since it
+    // would let anyone reset any account by email.
     Ok(Json(generic_forgot_password_response()))
 }
 

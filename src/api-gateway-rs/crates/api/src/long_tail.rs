@@ -1,6 +1,6 @@
-//! Remaining Phase 6 long-tail routes: public webhook-audit tool, demo
-//! seed data, Paddle billing (checkout-info + webhook), and org branding.
-//! Mirrors the corresponding sections of `server.js`.
+//! Smaller routes that don't need a module of their own: the public
+//! webhook-audit tool, demo seed/reset, Paddle checkout-info and webhook,
+//! and org branding.
 
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -310,15 +310,12 @@ async fn demo_reset(State(state): State<SharedState>, user: AuthUser) -> Result<
     })))
 }
 
-// ─── Paddle billing (Team-tier self-serve upgrade) ───
-// NOTE (same caveat as the Node original): exact field names/scheme
-// below have not been verified against a live Paddle sandbox — this
-// deployment has no PADDLE_* env vars configured, so both routes 503
-// "not configured" here, same as Node's own fallback when unconfigured.
-// Enterprise is contact-sales only (custom pricing) — there's no
-// self-serve checkout for it, so "team" is the only plan this endpoint
-// supports; an org's `plan` column is set to "enterprise" by hand once a
-// contract is signed, same as before the tier rename.
+// ─── Paddle billing ───
+// Self-serve checkout for "team" and, once billing.rs is switched on,
+// "payg". Without the PADDLE_* settings both routes 503 "not configured".
+// Enterprise is contact-sales: `users.plan` is set to "enterprise" by hand
+// once a contract is signed. The webhook accepts camelCase and snake_case
+// field names (Paddle's SDKs and raw API differ).
 
 #[derive(Deserialize)]
 struct CheckoutQuery {
@@ -353,9 +350,8 @@ async fn billing_checkout_info(State(state): State<SharedState>, user: AuthUser,
 }
 
 /// Paddle's webhook signature scheme: `Paddle-Signature: ts=<unix-seconds>;h1=<hex>`,
-/// HMAC-SHA256 over `"{ts}:{rawBody}"`, hex-encoded — ported from the
-/// `@paddle/paddle-node-sdk`'s own `WebhooksValidator` (5-second tolerance,
-/// unusually tight but that's genuinely what the SDK enforces).
+/// HMAC-SHA256 over `"{ts}:{rawBody}"`, hex-encoded, with the 5-second
+/// tolerance Paddle's own SDK validator uses.
 fn verify_paddle_signature(raw_body: &str, signature_header: &str, secret: &str) -> bool {
     let mut ts: Option<i64> = None;
     let mut h1: Option<&str> = None;
@@ -382,7 +378,7 @@ fn verify_paddle_signature(raw_body: &str, signature_header: &str, secret: &str)
 
 async fn paddle_webhook(State(state): State<SharedState>, headers: HeaderMap, raw_body: axum::body::Bytes) -> Result<Json<Value>, ApiError> {
     // webhook_secret specifically must never be blank — an empty HMAC key
-    // is still a well-defined signature scheme, so a genuinely-empty
+    // is still a well-defined signature scheme, so an empty
     // secret (from an unset `${PADDLE_WEBHOOK_SECRET:-}` default) would
     // let anyone forge a valid webhook by signing with an empty key too.
     let (Some(_api_key), Some(webhook_secret)) = (configured_env("PADDLE_API_KEY"), configured_env("PADDLE_WEBHOOK_SECRET")) else {

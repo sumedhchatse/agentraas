@@ -24,15 +24,13 @@ pub struct AppState {
     /// Top-level service names from `config/services.json` — used to
     /// validate a curated (non-"custom:") credential's `service` field.
     pub curated_services: std::collections::HashSet<String>,
-    /// Precomputed `tools/list` result — static for the process lifetime,
-    /// same content Node rebuilds on every call via `flatMap`.
+    /// Precomputed `tools/list` result, static for the process lifetime.
     pub mcp_tools_list: serde_json::Value,
 
     pub jwt_secret: String,
     pub public_url: String,
     pub deployment_mode: String,
-    /// Mirrors Node's `NODE_ENV === 'production'` gate on the session
-    /// cookie's `Secure` flag.
+    /// Production sets the session cookie's `Secure` flag and HSTS.
     pub is_production: bool,
     pub expose_dev_verify_url: bool,
     /// "Is the Enterprise tier actually enabled on this deployment" — a
@@ -70,7 +68,7 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub cipher: agentraas_core::crypto::CredentialCipher,
 
-    /// CLI dev tunnel registry (SPEC-TUNNEL.md) — `tunnel_id -> handle`,
+    /// CLI dev tunnel registry — `tunnel_id -> handle`,
     /// in-memory by design (a restart clearing every open tunnel is
     /// correct, not a bug; see `crate::tunnel`'s module doc). Only
     /// meaningful on a single-instance deployment, which is what
@@ -93,15 +91,14 @@ impl AppState {
 
 pub type SharedState = Arc<AppState>;
 
-/// A uniform JSON `{"error": "..."}` response with a status code, matching
-/// every Node route's error shape exactly (`reply.status(N).send({error})`).
+/// A uniform JSON `{"error": "..."}` response with a status code.
 pub struct ApiError {
     pub status: axum::http::StatusCode,
     pub message: String,
-    /// Optional extra top-level field some Node routes add alongside
-    /// `error` (e.g. `{"error": "...", "code": "EMAIL_NOT_VERIFIED"}`).
+    /// Optional extra top-level field alongside `error`
+    /// (e.g. `{"error": "...", "code": "EMAIL_NOT_VERIFIED"}`).
     pub code: Option<String>,
-    /// Further ad-hoc top-level fields some Node error responses add
+    /// Further ad-hoc top-level fields
     /// (e.g. `{"error": "...", "replayed": false, "reqId": "..."}`).
     pub extra: Vec<(String, serde_json::Value)>,
 }
@@ -150,12 +147,9 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
-/// "Is the Enterprise tier actually enabled on this deployment" gate —
-/// mirrors Node's `requireEnterpriseMode`, which lives directly in
-/// `server.js` (not `src/ee`) so it's present in both editions; it just
-/// always 403s in Community since there's nothing behind it to enable.
-/// Kept outside the `ee` module for the same reason: the two admin/audit
-/// routes that use it (`dashboard.rs`) exist in both editions too.
+/// "Is the Enterprise tier enabled on this deployment" gate (`ENTERPRISE_MODE`).
+/// Outside `ee` because the two admin/audit routes that use it
+/// (`dashboard.rs`) exist in both editions; without the feature it always 403s.
 pub fn require_enterprise_mode(state: &SharedState) -> Result<(), ApiError> {
     if !state.enterprise_mode {
         return Err(ApiError::new(

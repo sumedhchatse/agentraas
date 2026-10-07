@@ -1,10 +1,6 @@
-//! Redis-backed atomic token bucket rate limiter — functionally equivalent
-//! to `src/core/proxy/token-bucket.js`'s `TokenBucket` class (lazy refill
-//! computed from elapsed wall-clock time, correct across multiple
-//! stateless instances, atomic via a Lua script so check-then-act can't
-//! race). Not required to be byte-identical to Node's own script — this is
-//! ephemeral rate-limit accounting, not data either server needs to read
-//! back from the other, unlike the dedup hash format.
+//! Redis-backed atomic token bucket rate limiter: lazy refill computed from
+//! elapsed wall-clock time, correct across several stateless instances,
+//! atomic via a Lua script so check-then-act can't race.
 
 use redis::Script;
 
@@ -103,9 +99,7 @@ impl TokenBucket {
 
     /// Enterprise-tier behavior: poll until a token frees up or `max_wait`
     /// elapses, instead of rejecting immediately — smooths bursts rather
-    /// than failing them. Not wired into any Phase 2 caller yet (Community
-    /// mode only so far); included now since it's cheap given try_consume
-    /// already exists, and Phase 5 (Enterprise) will need it.
+    /// than failing them.
     pub async fn acquire(
         &self,
         conn: &mut redis::aio::MultiplexedConnection,
