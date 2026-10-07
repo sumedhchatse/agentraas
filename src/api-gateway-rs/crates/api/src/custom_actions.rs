@@ -43,6 +43,9 @@ struct CreateCustomActionBody {
     credential: Option<Value>,
     extra_headers: Option<Vec<ExtraHeaderIn>>,
     fanout_urls: Option<Vec<String>>,
+    /// Optional: how to reverse this action (another custom action of this
+    /// org, and which fields to fill from the call), for the undo log.
+    undo: Option<agentraas_core::undo::UndoSpec>,
 }
 
 /// Validates and (for `secret: true` entries) encrypts a submitted
@@ -148,6 +151,9 @@ async fn create_custom_action(
         .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, e))?;
 
     let content_type = body.content_type.unwrap_or_else(|| "application/json".to_string());
+    if let Some(spec) = &body.undo {
+        agentraas_core::undo::validate(spec).map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, e))?;
+    }
 
     let mut tx = state.pg.begin().await?;
     sqlx::query("UPDATE custom_actions SET revoked_at = NOW() WHERE org_id=$1 AND name=$2 AND revoked_at IS NULL")
@@ -156,8 +162,8 @@ async fn create_custom_action(
         .execute(&mut *tx)
         .await?;
     sqlx::query(
-        "INSERT INTO custom_actions (user_id, org_id, name, method, target_url, auth_type, auth_header_name, content_type, extra_headers, fanout_urls)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+        "INSERT INTO custom_actions (user_id, org_id, name, method, target_url, auth_type, auth_header_name, content_type, extra_headers, fanout_urls, undo_action, undo_with)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
     )
     .bind(user.sub)
     .bind(&org_id)
@@ -169,6 +175,8 @@ async fn create_custom_action(
     .bind(&content_type)
     .bind(&extra_headers)
     .bind(json!(fanout_urls))
+    .bind(body.undo.as_ref().map(|u| u.action.clone()))
+    .bind(body.undo.as_ref().map(|u| json!(u.with)))
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;

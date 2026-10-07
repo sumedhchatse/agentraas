@@ -22,6 +22,7 @@ mod rules;
 mod schema_drift;
 mod self_host;
 mod billing;
+mod undo;
 mod spend_caps;
 mod action_policies;
 mod state;
@@ -217,6 +218,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(pages::router())
         .merge(self_host::router())
         .merge(billing::router())
+        .merge(undo::router())
         .merge(pruning_settings::router())
         .merge(chaos_settings::router())
         .merge(agentgateway::router())

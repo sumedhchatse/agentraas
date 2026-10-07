@@ -1627,6 +1627,54 @@
     } catch (err) {}
   }
 
+  // ─── Undo log ───
+  const undoModalOverlay = document.getElementById('undo-modal-overlay');
+  const undoError = document.getElementById('undo-error');
+  const closeUndo = () => { undoModalOverlay.style.display = 'none'; anyModalOpen = false; };
+  document.getElementById('undo-btn').addEventListener('click', () => {
+    undoError.style.display = 'none';
+    undoModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    loadUndoList();
+  });
+  document.getElementById('undo-modal-close').addEventListener('click', closeUndo);
+  undoModalOverlay.addEventListener('click', (e) => { if (e.target === undoModalOverlay) closeUndo(); });
+
+  const UNDO_STATUS = { available: 'Can be undone', undoing: 'Undoing…', undone: 'Undone', unknown: 'Outcome unknown: check with the provider', expired: 'Too old to undo' };
+  async function loadUndoList() {
+    const list = document.getElementById('undo-list');
+    try {
+      const res = await fetch(`/api/v1/undo-log?org_id=${encodeURIComponent(currentUserOrgId)}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const { entries } = await res.json();
+      if (!entries.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">Nothing to undo yet. Actions with a known reverse show up here once they run.</div>'; return; }
+      list.innerHTML = '';
+      for (const e of entries) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        const status = escapeHtml(UNDO_STATUS[e.status] || e.status);
+        const err = e.error ? ` · last try failed: ${escapeHtml(e.error)}` : '';
+        const btn = e.status === 'available'
+          ? `<button class="btn undo-go" data-id="${escapeHtml(String(e.id))}" style="padding:6px 12px;font-size:12px;">Undo</button>` : '';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(e.service)}.${escapeHtml(e.action)} by ${escapeHtml(e.agent_id)}</div><div class="meta">Undo runs ${escapeHtml(e.undo_action)} with ${escapeHtml(JSON.stringify(e.undo_payload))} · ${status}${err} · ${escapeHtml(new Date(e.created_at).toLocaleString())}</div></div><div>${btn}</div>`;
+        list.appendChild(div);
+      }
+      // Two clicks: Undo, then Confirm undo (no browser dialog).
+      list.querySelectorAll('.undo-go').forEach((b) => {
+        b.addEventListener('click', async () => {
+          if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm undo'; return; }
+          undoError.style.display = 'none';
+          const restoreText = withLoadingText(b, 'Undoing…');
+          try {
+            const r = await fetch(`/api/v1/undo-log/${b.dataset.id}/undo`, { method: 'POST', credentials: 'include' });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) { undoError.textContent = data.error || 'Undo failed.'; undoError.style.display = 'block'; }
+          } catch (err) { undoError.textContent = 'Could not reach the server.'; undoError.style.display = 'block'; }
+          finally { restoreText(); loadUndoList(); }
+        });
+      });
+    } catch (err) {}
+  }
+
   // ─── Reliability report (uptime %, success rate, duplicates prevented) ───
   const reliabilityModalOverlay = document.getElementById('reliability-modal-overlay');
   document.getElementById('reliability-btn').addEventListener('click', () => {

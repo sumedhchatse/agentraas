@@ -15,6 +15,26 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-07
+
+Migration: `054_undo_log.sql` (new `undo_log` table; `undo_action` and
+`undo_with` columns on `custom_actions`). Apply it before starting 0.14.0.
+
+### Added
+- **Undo log.** Every action that ran and has a known reverse is recorded
+  for 30 days and can be undone from the dashboard (Monitor → Undo actions)
+  or `POST /api/v1/undo-log/:id/undo`; `GET /api/v1/undo-log?org_id=` lists
+  them. Built in: Stripe `charge.create` → `charge.refund`, Slack
+  `message.post` → `message.delete`, mockpay `payment.create` →
+  `payment.refund`. Custom actions take an `undo` field naming another
+  custom action and how to fill it (`response.<path>` / `payload.<path>`).
+  Each entry is undone at most once (atomic claim, `Idempotency-Key:
+  agentraas-undo-<id>`); no answer from the provider marks it unknown and
+  it is not retried. Recorded from the webhook, SDK and MCP paths, approved
+  HITL calls and DLQ replays. Undos are audited with status `undo` and never
+  billed.
+- `stripe charge.refund` and `slack message.delete` curated actions.
+
 ## [0.13.0] - 2026-10-07
 
 No migrations.

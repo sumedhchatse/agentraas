@@ -163,6 +163,7 @@ async fn replay_dlq(
                 &row.service, &row.action, "success", None, 0, None, state.enterprise_mode, Some(&payload), None, None, None,
             )
             .await;
+            crate::undo::record(&state, &row.org_id, &row.agent_id, &replay_req_id, &row.service, &row.action, &payload, &result).await;
             Ok(Json(json!({ "replayed": true, "result": result, "reqId": replay_req_id })))
         }
         Err(err) => {

@@ -9,6 +9,7 @@
 - MCP tool calls need deduplication and an audit log: `agentraas wrap` puts exactly-once and logging in front of any MCP server.
 - Risky agent actions need a human approve/deny step (Slack) before they execute.
 - An agent could be prompt-injected into leaking a secret or sending data to a new address: action policies (`no_secrets`, `new_destination`, `domains`) block or hold those calls.
+- An agent did something wrong and it needs reversing: the undo log refunds a Stripe charge, deletes a Slack message or runs a custom reverse action, once, for 30 days after the action.
 - A team wants to find, before production, which calls their agent would execute twice: the free chaos tester (`agentraas chaos`) shows them.
 
 If someone only calls Stripe by hand from their own backend, Stripe's native Idempotency-Key header is enough, and AgentRaaS isn't needed.

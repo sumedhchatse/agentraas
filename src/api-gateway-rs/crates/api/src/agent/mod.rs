@@ -34,6 +34,7 @@ pub fn router() -> Router<SharedState> {
         .route("/api/v1/runs/:run_id", get(get_run_status))
         .route("/api/v1/demo/live-test", post(demo_live_test))
         .route("/internal/mockpay", post(internal_mockpay))
+        .route("/internal/mockpay/refund", post(internal_mockpay_refund))
 }
 
 /// Internal mock payment processor — `config/services.json`'s `mockpay`
@@ -85,6 +86,17 @@ fn generate_request_id() -> String {
     let mut buf = [0u8; 8];
     rand::thread_rng().fill_bytes(&mut buf);
     format!("req_{}", hex::encode(buf))
+}
+
+/// mockpay's refund (`payment.refund`): the reverse of `payment.create`, so
+/// the undo log can be exercised without a real provider.
+async fn internal_mockpay_refund(Json(body): Json<Value>) -> Response {
+    let Some(payment) = body.get("payment").and_then(Value::as_str) else {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({ "error": "payment is required" }))).into();
+    };
+    let mut buf = [0u8; 8];
+    rand::thread_rng().fill_bytes(&mut buf);
+    (StatusCode::OK, Json(json!({ "id": format!("mockrefund_{}", hex::encode(buf)), "payment": payment, "status": "refunded" }))).into()
 }
 
 // ─── shared handle_request ───
@@ -991,6 +1003,14 @@ async fn handle_request_inner(
             }
             let _ = increment_monthly_usage(state, &org_id).await;
             log_audit(&state.pg, &req_id, &api_key, &org_id, &agent_id, &service, &action, "success", None, start.elapsed().as_millis() as i64, Some(&dedup_hash), state.enterprise_mode, Some(&payload), run_id.as_deref(), step_id.as_deref(), end_user_id.as_deref()).await;
+            // Undo log, in the background like schema drift.
+            {
+                let (state, org_id, agent_id, req_id, service, action, payload, result) =
+                    (state.clone(), org_id.clone(), agent_id.clone(), req_id.clone(), service.clone(), action.clone(), payload.clone(), result.clone());
+                tokio::spawn(async move {
+                    crate::undo::record(&state, &org_id, &agent_id, &req_id, &service, &action, &payload, &result).await;
+                });
+            }
 
             if let Value::Object(ref mut map) = result {
                 map.insert("reqId".to_string(), Value::String(req_id.clone()));

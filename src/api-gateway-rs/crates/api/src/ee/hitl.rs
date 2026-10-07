@@ -576,6 +576,7 @@ async fn approve(state: &SharedState, req_id: &str, org_id: &str, resolved_by: S
                 .await;
             crate::action_policies::remember_destinations(state, &row.org_id, &row.service, &row.action, &row.payload).await;
             log_audit(&state.pg, req_id, &row.api_key, &row.org_id, &row.agent_id, &row.service, &row.action, "success", None, 0, Some(&row.dedup_hash), state.enterprise_mode, None, row.run_id.as_deref(), row.step_id.as_deref(), None).await;
+            crate::undo::record(state, &row.org_id, &row.agent_id, req_id, &row.service, &row.action, &row.payload, &result).await;
             patch_slack_message(state, response_url, &format!("✅ Approved by {resolved_by} and executed.")).await;
         }
         Err(err) => {

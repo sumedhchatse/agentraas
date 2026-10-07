@@ -20,6 +20,12 @@
             "type": "string",
             "required": true
           }
+        },
+        "undo": {
+          "action": "charge.refund",
+          "with": {
+            "charge": "response.id"
+          }
         }
       },
       "customer.create": {
@@ -29,6 +35,16 @@
           "email": {
             "type": "string",
             "format": "email"
+          }
+        }
+      },
+      "charge.refund": {
+        "method": "POST",
+        "path": "/refunds",
+        "validation": {
+          "charge": {
+            "type": "string",
+            "required": true
           }
         }
       }
@@ -80,6 +96,22 @@
           "amount": {
             "type": "number",
             "min": 1
+          }
+        },
+        "undo": {
+          "action": "payment.refund",
+          "with": {
+            "payment": "response.id"
+          }
+        }
+      },
+      "payment.refund": {
+        "method": "POST",
+        "path": "/mockpay/refund",
+        "validation": {
+          "payment": {
+            "type": "string",
+            "required": true
           }
         }
       }
@@ -402,6 +434,13 @@
             "required": true,
             "maxLength": 4000
           }
+        },
+        "undo": {
+          "action": "message.delete",
+          "with": {
+            "channel": "response.channel",
+            "ts": "response.ts"
+          }
         }
       },
       "message.postEphemeral": {
@@ -420,6 +459,20 @@
             "type": "string",
             "required": true,
             "maxLength": 4000
+          }
+        }
+      },
+      "message.delete": {
+        "method": "POST",
+        "path": "/chat.delete",
+        "validation": {
+          "channel": {
+            "type": "string",
+            "required": true
+          },
+          "ts": {
+            "type": "string",
+            "required": true
           }
         }
       }

@@ -54,6 +54,10 @@ pub struct RawActionConfig {
     /// `forward.rs::forward_action_streaming`).
     #[serde(default)]
     pub streaming: bool,
+    /// How to reverse this action once it ran (`crate::undo`), e.g. a
+    /// Stripe charge's refund. Absent = can't be undone.
+    #[serde(default)]
+    pub undo: Option<crate::undo::UndoSpec>,
 }
 
 /// One resolved `service.action` route — the Rust equivalent of a
@@ -71,6 +75,7 @@ pub struct ServiceRoute {
     pub extra_headers: Option<serde_json::Value>,
     pub validation: serde_json::Value,
     pub streaming: bool,
+    pub undo: Option<crate::undo::UndoSpec>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -146,6 +151,7 @@ pub fn build_service_routes(config: &ServicesConfig) -> HashMap<String, ServiceR
                     extra_headers: service_config.extra_headers.clone(),
                     validation: action_config.validation.clone(),
                     streaming: action_config.streaming,
+                    undo: action_config.undo.clone(),
                 },
             );
         }

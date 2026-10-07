@@ -14,6 +14,7 @@ pub mod resource_lock;
 pub mod schema_drift;
 pub mod semantic_dedup;
 pub mod tier;
+pub mod undo;
 pub mod token_bucket;
 pub mod validator;
 

@@ -566,6 +566,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <span class="control-group-label">Monitor</span>
           <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
           <button class="btn" id="dlq-btn">Failed requests</button>
+          <button class="btn" id="undo-btn">Undo actions</button>
           <button class="btn" id="health-checks-btn">Active monitoring</button>
           <button class="btn" id="reliability-btn">Reliability report</button>
           <button class="btn" id="tunnel-btn">Dev tunnel</button>
@@ -1027,6 +1028,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="modal-error" id="dlq-error"></div>
     <div id="dlq-list"></div>
     <button class="close-btn" id="dlq-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Undo log: actions that ran and have a known reverse -->
+<div class="modal-overlay" id="undo-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Undo actions">
+    <h3>Undo actions</h3>
+    <p class="sub">Actions your agents ran that AgentRaaS knows how to reverse, for 30 days: a Stripe charge is refunded, a Slack message deleted, a custom action reversed by the action you named. Each one can be undone once. Actions without a known reverse (an SMS, an email) don't appear here.</p>
+    <div class="modal-error" id="undo-error"></div>
+    <div id="undo-list"></div>
+    <button class="close-btn" id="undo-modal-close">Close</button>
   </div>
 </div>
 

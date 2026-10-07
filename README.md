@@ -86,6 +86,9 @@ by hand, recreate (`podman-compose down && up -d`) rather than `restart`.
 - **Human approval:** risky calls wait for approve or deny in Slack, with
   escalation.
 - **Resilience:** circuit breaker, rate limits, dead-letter queue with replay.
+- **Undo:** an action that ran can be reversed from the dashboard for 30 days
+  (Stripe charge refunded, Slack message deleted, or your own reverse action),
+  exactly once.
 - **Audit and identity:** tamper-evident log, SIEM export, OpenTelemetry and
   Prometheus, short-lived scoped agent tokens.
 - **Data safety:** PII redaction, prompt-injection filtering on tool output,

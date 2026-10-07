@@ -220,6 +220,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <a href="#sdks">SDKs</a>
       <a href="#services">Supported services</a>
       <a href="#custom-actions">Custom Actions</a>
+      <a href="#undo">Undo log</a>
       <a href="#action-policies">Action policies</a>
       <a href="#apply">Rules as code</a>
       <a href="#inbound-webhooks">Inbound webhooks</a>
@@ -534,6 +535,17 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
       <p>Register any endpoint yourself from the <b>Custom actions</b> panel (any URL, any auth type) and it gets the same dedup, audit trail, and SSRF guarding (so it can't be pointed at your own internal infrastructure) as a curated service. Call it exactly like a built-in service, using its registered name as <code>service</code>.</p>
     </section>
 
+    <section id="undo">
+      <h2>Undo log <span class="badge free">Free</span></h2>
+      <p>When an agent does something it shouldn't have, undo it from the dashboard (<b>Monitor → Undo actions</b>). Every action that ran and has a known reverse is recorded for 30 days with what reversing it takes: a Stripe charge is refunded, a Slack message is deleted. Each entry can be undone once: two clicks at the same moment still run the reverse once, and it is sent with the <code>Idempotency-Key</code> <code>agentraas-undo-&lt;id&gt;</code>. If the provider doesn't answer, the entry is marked outcome unknown and not retried. Actions without a reverse (an SMS, an email) don't appear. Duplicates AgentRaaS caught and failed calls never ran, so there is nothing to undo.</p>
+      <p>Built in: <code>stripe charge.create</code> → <code>charge.refund</code>, <code>slack message.post</code> → <code>message.delete</code>, and <code>mockpay payment.create</code> → <code>payment.refund</code> for trying it. For your own endpoint, register its reverse as another custom action and name it when you register the action:</p>
+      <pre><code>POST /api/v1/custom-actions
+{ "org_id": "org_acme", "name": "create_ticket", "target_url": "https://api.example.com/tickets",
+  "undo": { "action": "close_ticket",
+            "with": { "ticket_id": "response.id", "reason": "payload.title" } } }</code></pre>
+      <p><code>with</code> fills each field of the reverse call from the original's response (<code>response.&lt;path&gt;</code>) or payload (<code>payload.&lt;path&gt;</code>); dotted paths, array items by index. If a value is missing the action is not recorded as undoable. API: <code>GET /api/v1/undo-log?org_id=</code> lists entries, <code>POST /api/v1/undo-log/&lt;id&gt;/undo</code> undoes one (any member who can write to the org). Undo calls appear in the audit log with status <code>undo</code> and are never billed.</p>
+    </section>
+
     <section id="action-policies">
       <h2>Action policies <span class="badge free">Free</span></h2>
       <p>Decide what each agent is allowed to do: the support agent may refund up to 50, may never delete a customer, may only email your customers' domains. Set them in the dashboard (Rules, Action policies) or through the API. Every matching policy applies, and a refused call gets a <code>403</code> naming the policy and is recorded in the audit log.</p>
@@ -689,15 +701,13 @@ histogram_quantile(0.95, sum by (le) (rate(agentraas_call_duration_ms_bucket[5m]
     <section id="plans">
       <h2>Plans &amp; limits</h2>
       <table>
-        <tr><th></th><th>Community</th><th>Team</th><th>Enterprise</th></tr>
-        <tr><td>Seats</td><td>1</td><td>3</td><td>Unlimited</td></tr>
-        <tr><td>Cloud monthly actions</td><td>500</td><td>10,000</td><td>50,000</td></tr>
-        <tr><td>Cloud rate limit</td><td>300/min</td><td>1,000/min</td><td>2,000/min</td></tr>
-        <tr><td>Self-hosted monthly actions</td><td colspan="3">Unlimited on every tier</td></tr>
-        <tr><td>HITL approval rules, SLA escalation</td><td>No</td><td>✓</td><td>✓</td></tr>
-        <tr><td>SSO, white-label branding, client tenants, inbound webhooks</td><td>No</td><td>No</td><td>✓</td></tr>
+        <tr><th></th><th>Open source (self-hosted)</th><th>Cloud</th></tr>
+        <tr><td>Price</td><td>Free</td><td>First 500 actions each month free, then $1 per 1,000 actions that run</td></tr>
+        <tr><td>Features</td><td colspan="2">Every feature on both, including approvals, SSO, DLP and the undo log</td></tr>
+        <tr><td>Monthly actions</td><td>Unlimited</td><td>Up to the monthly spending cap you set</td></tr>
+        <tr><td>Seats</td><td colspan="2">Unlimited</td></tr>
       </table>
-      <p>You don't need a paid plan to use AgentRaaS: Community, self-hosted, is free with no action limit, and that's where we recommend starting. Team is available from <b>Account settings</b> in the dashboard if you need approvals or seats; Enterprise is <a href="mailto:hello@agentraas.io">by conversation</a>.</p>
+      <p>Duplicates AgentRaaS caught, blocked calls, approval waits and undos are never billed. Paid Cloud usage opens soon; until then every Cloud account gets the free 500 actions a month, and self-hosting has no limit. Need a contract, invoicing or SLA-backed support? <a href="mailto:hello@agentraas.io">Talk to us</a>.</p>
     </section>
 
     <section id="troubleshooting">
