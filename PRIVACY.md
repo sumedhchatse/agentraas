@@ -44,10 +44,12 @@ example a charge id) for 30 days; and calls you send with the
 `X-AgentRaaS-Record` header are kept with their full payload and response,
 encrypted, for 30 days or until you delete the recording.
 
-**Website analytics:** the website and dashboard load Google Tag Manager
-(Google LLC), which can set cookies and send page views and button clicks
-to Google, and Cloudflare Web Analytics, which sets no cookies and records
-page views without identifying you. Neither sees your credentials, agent
+**Website analytics:** the website and dashboard use Cloudflare Web
+Analytics, which sets no cookies and counts page views without identifying
+you. Google Tag Manager (Google LLC), which sets cookies and sends page
+views and button clicks to Google, loads only if you choose Accept on the
+cookie banner. To change your choice, clear this site's data in your
+browser and the banner asks again. Neither sees your credentials, agent
 traffic or audit log. Blocking them doesn't affect the product.
 
 **Billing (pay as you go):** payment is handled entirely by our payment
