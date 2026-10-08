@@ -37,6 +37,19 @@ from those endpoints beyond what's needed for exactly-once deduplication
 (a hash of the request, and the response, held temporarily to serve
 duplicate/retry requests — not kept indefinitely).
 
+**Payloads kept for features you use:** a failed or outcome-unknown call
+is stored encrypted in the dead-letter queue so you can replay it; an
+action with a known reverse keeps the identifiers needed to undo it (for
+example a charge id) for 30 days; and calls you send with the
+`X-AgentRaaS-Record` header are kept with their full payload and response,
+encrypted, for 30 days or until you delete the recording.
+
+**Website analytics:** the website and dashboard load Google Tag Manager
+(Google LLC), which can set cookies and send page views and button clicks
+to Google, and Cloudflare Web Analytics, which sets no cookies and records
+page views without identifying you. Neither sees your credentials, agent
+traffic or audit log. Blocking them doesn't affect the product.
+
 **Billing (pay as you go):** payment is handled entirely by our payment
 processor, Paddle — we never see or store your card number. What we do
 store is whether pay as you go is on, your monthly cap, your monthly
@@ -52,7 +65,8 @@ how Paddle itself handles payment data.
   the specific requests your agents make.
 - We do not share data with third parties except the upstream services
   your agent explicitly asked us to call (e.g. Stripe, when your agent
-  requests a charge).
+  requests a charge), our payment processor, and the website analytics
+  above.
 
 ## Data retention
 

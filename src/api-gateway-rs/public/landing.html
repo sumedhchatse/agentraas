@@ -111,6 +111,7 @@
   .strip { padding: 28px 0; border-bottom: 1px solid var(--line); }
   .strip .wrap { display: flex; align-items: center; gap: 12px 28px; flex-wrap: wrap; }
   .strip-label { font-size: 13px; color: var(--faint); margin-right: 8px; }
+  .strip-note { font-size: 11.5px; }
   .strip span.tool { font-size: 16px; font-weight: 600; color: var(--muted); }
 
   /* Sections */
@@ -558,7 +559,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener" class="btn secondary" data-gtm-event="cta_click" data-gtm-label="hero_star_github"><svg class="icon"><use href="#i-github"/></svg>View on GitHub</a>
       </div>
       <div class="checks">
-        <span><svg class="icon"><use href="#i-check"/></svg>Open-source core (MIT/Apache-2.0)</span>
+        <span><svg class="icon"><use href="#i-check"/></svg>Open source: AGPL-3.0 server, MIT/Apache SDKs</span>
         <span><svg class="icon"><use href="#i-check"/></svg>Any HTTP API or MCP tool</span>
         <span><svg class="icon"><use href="#i-check"/></svg>Self-hosting is free, no usage cap</span>
       </div>
@@ -587,7 +588,7 @@ agentraas-chaos: 6 write requests, 3 responses dropped after execution
 
 <div class="strip" id="stack">
   <div class="wrap strip-inner">
-    <span class="strip-label">Works alongside</span>
+    <span class="strip-label">Works alongside <span class="strip-note">(compatible with, not affiliated)</span></span>
     <div class="marquee"><div class="marquee-track"><span class="tool">n8n</span><span class="tool">Flowise</span><span class="tool">Langflow</span><span class="tool">Dify</span><span class="tool">LangChain</span><span class="tool">CrewAI</span><span class="tool">AutoGen</span><span class="tool">Claude Desktop</span><span class="tool">Cursor</span><span class="tool">Make</span><span class="tool">Zapier</span><span class="tool">Ollama</span><span class="tool">LocalAI</span></div></div>
   </div>
 </div>
@@ -623,6 +624,7 @@ agentraas-chaos: 6 write requests, 3 responses dropped after execution
         <a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>Source on GitHub</a>
         <a href="https://pypi.org/project/agentraas/" target="_blank" rel="noopener"><svg class="icon"><use href="#i-plug"/></svg>PyPI <span id="pypi-version"></span></a>
         <a href="https://registry.modelcontextprotocol.io/v0/servers?search=io.github.sumedhchatse/agentraas" target="_blank" rel="noopener"><svg class="icon"><use href="#i-cpu"/></svg>Official MCP Registry listing</a>
+        <a href="https://pypistats.org/packages/agentraas" target="_blank" rel="noopener"><svg class="icon"><use href="#i-plug"/></svg>PyPI download stats</a>
         <a href="/postmortem-2026-09"><svg class="icon"><use href="#i-alert"/></svg>Our public postmortem</a>
       </div>
     </div>
@@ -851,7 +853,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
       <div class="card"><div class="ico"><svg class="icon"><use href="#i-cal"/></svg></div><h3>Scheduling &amp; client updates</h3><p>Book meetings, send confirmations, post status updates exactly the number of times you meant to.</p></div>
       <div class="card"><div class="ico g"><svg class="icon"><use href="#i-bell"/></svg></div><h3>Internal team &amp; ops agents</h3><p>Post to Slack directly, or Microsoft Teams via Custom Actions: trigger approvals and hand off work between systems, SSRF-guarded.</p></div>
       <div class="card"><div class="ico"><svg class="icon"><use href="#i-bag"/></svg></div><h3>Commerce &amp; fulfillment agents</h3><p>Update inventory, create orders, notify shipping, protected the same way on Shopify or your own warehouse API.</p></div>
-      <div class="card"><div class="ico b"><svg class="icon"><use href="#i-building"/></svg></div><h3>Automation agencies</h3><p>Put AgentRaaS in front of every client's Stripe, CRM or messaging API. The <a href="#pricing">Enterprise plan</a> adds a white-label dashboard per client tenant.</p></div>
+      <div class="card"><div class="ico b"><svg class="icon"><use href="#i-building"/></svg></div><h3>Automation agencies</h3><p>Put AgentRaaS in front of every client's Stripe, CRM or messaging API. Each client gets its own tenant with a white-label dashboard.</p></div>
     </div>
   </div>
 </section>
@@ -926,7 +928,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
           <li>This month's usage and cost in your dashboard</li>
         </ul>
         <a href="/dashboard" class="btn secondary" data-gtm-event="pricing_cta_click" data-gtm-label="cloud_start_free">Start free</a>
-        <p class="aside">Paid usage opens soon. Until then every Cloud account gets the free 500 actions a month.</p>
+        <p class="aside">Paid usage opens soon. Until then every Cloud account gets the free 500 actions a month. <a href="/terms#refunds">Refunds and cancellation</a>.</p>
         <p class="aside">Need a contract, invoicing or SLA-backed support? <a href="mailto:hello@agentraas.io" data-gtm-event="pricing_cta_click" data-gtm-label="contact_contract">Talk to us</a>.</p>
       </div>
     </div>
@@ -1005,7 +1007,7 @@ charge(<span class="c-str">"cus_1"</span>, 4200)  <span class="c-comment"># cach
       <div class="sf-col"><h4>Product</h4><a href="/#features">Platform</a><a href="/#open-source">Open source</a><a href="/#pricing">Pricing</a><a href="/dashboard">Dashboard</a><a href="/status">Status</a><a href="/postmortem-2026-09">Postmortems</a></div>
       <div class="sf-col"><h4>Docs</h4><a href="/guide">Getting started</a><a href="/docs">Documentation</a><a href="/webhook-audit">Free webhook audit</a><a href="https://github.com/sumedhchatse/agentraas" target="_blank" rel="noopener">GitHub</a></div>
       <div class="sf-col"><h4>Compare</h4><a href="/vs-temporal">vs Temporal</a><a href="/vs-composio">vs Composio</a><a href="/vs-arcade">vs Arcade.dev</a></div>
-      <div class="sf-col"><h4>Legal</h4><a href="/license">License</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a></div>
+      <div class="sf-col"><h4>Legal</h4><a href="/license">License</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/terms#refunds">Refunds</a><a href="/security">Security</a></div>
       <div class="sf-col"><h4>Company</h4><a href="/about">About</a><a href="mailto:hello@agentraas.io">hello@agentraas.io</a></div>
     </div>
     <div class="sf-bottom"><span>&copy; 2026 AgentRaaS</span><span>Built with Rust, Redis, PostgreSQL, Podman, and the fear of double-charging a customer at 2 AM.</span></div>
