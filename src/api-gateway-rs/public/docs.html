@@ -221,6 +221,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <a href="#services">Supported services</a>
       <a href="#custom-actions">Custom Actions</a>
       <a href="#undo">Undo log</a>
+      <a href="#record-replay">Record and replay</a>
       <a href="#action-policies">Action policies</a>
       <a href="#apply">Rules as code</a>
       <a href="#inbound-webhooks">Inbound webhooks</a>
@@ -544,6 +545,19 @@ const result = await client.call("stripe", "charge.create", { amount: 5000, curr
   "undo": { "action": "close_ticket",
             "with": { "ticket_id": "response.id", "reason": "payload.title" } } }</code></pre>
       <p><code>with</code> fills each field of the reverse call from the original's response (<code>response.&lt;path&gt;</code>) or payload (<code>payload.&lt;path&gt;</code>); dotted paths, array items by index. If a value is missing the action is not recorded as undoable. API: <code>GET /api/v1/undo-log?org_id=</code> lists entries, <code>POST /api/v1/undo-log/&lt;id&gt;/undo</code> undoes one (any member who can write to the org). Undo calls appear in the audit log with status <code>undo</code> and are never billed.</p>
+    </section>
+
+    <section id="record-replay">
+      <h2>Record and replay <span class="badge free">Free</span></h2>
+      <p>Test an agent against what real providers answered, without calling them again. Run it once with <code>X-AgentRaaS-Record: &lt;name&gt;</code> on its calls (webhook or SDK endpoint): every call that succeeds is kept under that name for 30 days, payload and response encrypted. Then run it again, in a test or in CI or after changing a prompt, with <code>X-AgentRaaS-Replay: &lt;name&gt;</code>: each call is answered from the recording and nothing reaches the provider, nothing is deduplicated and nothing counts as usage.</p>
+      <pre><code>curl -X POST https://agentraas.io/v1/webhook/org_acme/support-bot \
+  -H "Authorization: Bearer $AGENT_KEY" -H "X-AgentRaaS-Replay: refund-flow" \
+  -H "X-AgentRaaS-Run-Id: ci-1234" \
+  -d '{"service":"stripe","action":"charge.create","payload":{"amount":500}}'
+
+{ "upstream_response": { ... as recorded ... }, "reqId": "...",
+  "replay": { "recording": "refund-flow", "position": 1, "payload_matches": true } }</code></pre>
+      <p>Answers are played back in order: the second <code>stripe charge.create</code> of a replay gets the second one recorded. <code>payload_matches</code> is <code>false</code> when the agent now sends something different, and a call the recording doesn't have gets a <code>404</code>, so a test can fail on either. The position is kept per agent and <code>X-AgentRaaS-Run-Id</code> for an hour: send a new run id to start from the top. Only successful, non-streaming calls are recorded; MCP calls aren't recorded or replayed yet. API: <code>GET /api/v1/recordings?org_id=</code> lists recordings, <code>GET /api/v1/recordings/&lt;name&gt;?org_id=</code> shows each call with its payload and response, <code>DELETE</code> on the same URL removes it.</p>
     </section>
 
     <section id="action-policies">

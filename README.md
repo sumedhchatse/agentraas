@@ -137,7 +137,7 @@ through the built-in `mockpay` service, so no real API keys are needed.
 
 ## Next
 
-- An undo log for agent actions, then record and replay.
+- Record and replay in the Python and JS SDKs and over MCP.
 - The n8n node in n8n's community directory (in review).
 
 ## Docs and license

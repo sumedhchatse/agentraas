@@ -145,6 +145,19 @@ pub(crate) struct RequestIdentity {
     /// Already resolved by the caller (MCP resolves tool names itself);
     /// `None` = resolve `service.action` here.
     pub(crate) target: Option<Target>,
+    /// Record and replay (`crate::recordings`).
+    pub(crate) tape: Option<Tape>,
+}
+
+/// `X-AgentRaaS-Record: <name>` keeps a successful call in recording
+/// `name`; `X-AgentRaaS-Replay: <name>` answers from it without forwarding.
+pub(crate) enum Tape {
+    Record(String),
+    Replay(String),
+}
+
+fn tape_from(headers: &HeaderMap) -> Option<Tape> {
+    header_value(headers, "x-agentraas-replay").map(Tape::Replay).or_else(|| header_value(headers, "x-agentraas-record").map(Tape::Record))
 }
 
 async fn webhook_handler(
@@ -185,6 +198,7 @@ async fn webhook_handler(
             end_user_id,
             resource_id,
             target: None,
+            tape: tape_from(&headers),
         },
     )
     .await
@@ -221,6 +235,7 @@ async fn sdk_handler(
             end_user_id,
             resource_id,
             target: None,
+            tape: tape_from(&headers),
         },
     )
     .await
@@ -349,7 +364,7 @@ pub async fn replay_webhook(
     handle_request(
         state,
         Source::Webhook,
-        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None, end_user_id: None, resource_id: None, target: None },
+        RequestIdentity { org_id, agent_id, api_key, service, action, payload, idempotency_key: None, run_id: None, step_id: None, end_user_id: None, resource_id: None, target: None, tape: None },
     )
     .await
 }
@@ -397,6 +412,7 @@ async fn handle_request_inner(
         end_user_id,
         resource_id,
         target,
+        tape,
     } = identity;
     let mcp = matches!(source, Source::Mcp);
 
@@ -513,6 +529,10 @@ async fn handle_request_inner(
             &req_id,
             "Rate limit exceeded for this agent. Slow down and try again shortly.",
         );
+    }
+
+    if let Some(Tape::Replay(name)) = &tape {
+        return crate::recordings::replay(state, &org_id, &agent_id, name, run_id.as_deref(), &service, &action, &payload, &req_id).await;
     }
 
     // State Checkpointing — only engages when the caller supplies BOTH a
@@ -1011,6 +1031,13 @@ async fn handle_request_inner(
                     crate::undo::record(&state, &org_id, &agent_id, &req_id, &service, &action, &payload, &result).await;
                 });
             }
+            if let Some(Tape::Record(name)) = tape {
+                let (state, org_id, agent_id, req_id, service, action, payload, result) =
+                    (state.clone(), org_id.clone(), agent_id.clone(), req_id.clone(), service.clone(), action.clone(), payload.clone(), result.clone());
+                tokio::spawn(async move {
+                    crate::recordings::record(&state, &org_id, &agent_id, &name, &req_id, &service, &action, &payload, &result).await;
+                });
+            }
 
             if let Value::Object(ref mut map) = result {
                 map.insert("reqId".to_string(), Value::String(req_id.clone()));
@@ -1379,6 +1406,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             end_user_id: None,
             resource_id: None,
             target: None,
+            tape: None,
         },
     )
     .await;
@@ -1401,6 +1429,7 @@ async fn demo_live_test(State(state): State<SharedState>, user: AuthUser) -> Res
             end_user_id: None,
             resource_id: None,
             target: None,
+            tape: None,
         };
         handles.push(tokio::spawn(async move { handle_request(&state, Source::Sdk, identity).await }));
     }

@@ -389,6 +389,7 @@ async fn handle_tools_call(state: &SharedState, headers: &HeaderMap, id: &Value,
         end_user_id: arg("end_user_id"),
         resource_id: arg("resource_id"),
         target: Some(target),
+        tape: None,
     };
     match handle_request(state, Source::Mcp, identity).await {
         AgentResponse::Json(status, Json(body)) => jsonrpc_result(id, body, !status.is_success()),

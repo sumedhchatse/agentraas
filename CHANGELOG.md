@@ -15,6 +15,22 @@ safe to re-run.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-08
+
+Migration: `055_recordings.sql` (new `recordings` table). Apply it before
+starting 0.15.0.
+
+### Added
+- **Record and replay.** `X-AgentRaaS-Record: <name>` on a webhook or SDK
+  call keeps every successful call under that name for 30 days (payload and
+  response encrypted). `X-AgentRaaS-Replay: <name>` answers the same calls
+  from the recording, in order per `service.action`, without forwarding,
+  deduplicating or counting usage; each answer carries
+  `replay: { recording, position, payload_matches }`, and a call the
+  recording doesn't have gets `404`. The position restarts with a new
+  `X-AgentRaaS-Run-Id`. `GET /api/v1/recordings?org_id=`,
+  `GET|DELETE /api/v1/recordings/:name?org_id=`.
+
 ## [0.14.0] - 2026-10-07
 
 Migration: `054_undo_log.sql` (new `undo_log` table; `undo_action` and
