@@ -92,3 +92,21 @@ test('recordings are listed, private to the org, and deletable', async () => {
   const { rows } = await pg.query('SELECT encrypted_payload FROM recordings WHERE org_id = $1 LIMIT 1', [orgId]);
   assert.ok(!rows[0].encrypted_payload.includes('amount'), 'stored encrypted');
 });
+
+test('MCP calls record and replay from the same headers', async () => {
+  const name = `mcp_${RUN_ID}`;
+  const mcp = async (amount, headers) => {
+    const res = await client.post('/mcp',
+      { jsonrpc: '2.0', id: amount, method: 'tools/call', params: { name: 'mockpay_payment_create', arguments: { org_id: orgId, agent_id: agentId, payload: { amount, fail: false } } } },
+      { headers: { 'x-agentraas-key': key, ...headers } });
+    assert.equal(res.status, 200, JSON.stringify(res.data));
+    return JSON.parse(res.data.result.content[0].text);
+  };
+  const a = await mcp(41, { 'X-AgentRaaS-Record': name });
+  await waitForCalls(name, 1);
+  const before = await charges();
+  const r = await mcp(41, { 'X-AgentRaaS-Replay': name, 'X-AgentRaaS-Run-Id': `mcp_replay_${RUN_ID}` });
+  assert.equal(r.upstream_response.id, a.upstream_response.id);
+  assert.deepEqual(r.replay, { recording: name, position: 1, payload_matches: true });
+  assert.equal(await charges(), before, 'nothing reached the provider during replay');
+});

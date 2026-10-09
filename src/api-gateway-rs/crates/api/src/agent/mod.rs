@@ -156,7 +156,7 @@ pub(crate) enum Tape {
     Replay(String),
 }
 
-fn tape_from(headers: &HeaderMap) -> Option<Tape> {
+pub(crate) fn tape_from(headers: &HeaderMap) -> Option<Tape> {
     header_value(headers, "x-agentraas-replay").map(Tape::Replay).or_else(|| header_value(headers, "x-agentraas-record").map(Tape::Record))
 }
 

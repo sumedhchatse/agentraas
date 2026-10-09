@@ -41,6 +41,12 @@ export interface ClientOptions {
   baseUrl?: string;
   /** Per-request timeout in milliseconds (default 30000). */
   timeoutMs?: number;
+  /** Recording name: successful calls are kept under it for 30 days. */
+  record?: string;
+  /** Recording name: calls are answered from it in order, the provider is never called. */
+  replay?: string;
+  /** A new run id starts a replay from the top. */
+  runId?: string;
 }
 
 export interface CallOptions {
@@ -72,6 +78,9 @@ export class Client {
   private readonly agentId?: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
+  private readonly record?: string;
+  private readonly replay?: string;
+  private readonly runId?: string;
 
   constructor(options: ClientOptions) {
     if (!options.agentraasKey) throw new Error('agentraasKey is required');
@@ -80,6 +89,9 @@ export class Client {
     this.agentId = options.agentId;
     this.baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, '');
     this.timeoutMs = options.timeoutMs ?? 30000;
+    this.record = options.record;
+    this.replay = options.replay;
+    this.runId = options.runId;
   }
 
   private headers(): Record<string, string> {
@@ -89,6 +101,9 @@ export class Client {
     };
     if (this.orgId) headers['X-AgentRaaS-Org'] = this.orgId;
     if (this.agentId) headers['X-AgentRaaS-Agent'] = this.agentId;
+    if (this.record) headers['X-AgentRaaS-Record'] = this.record;
+    if (this.replay) headers['X-AgentRaaS-Replay'] = this.replay;
+    if (this.runId) headers['X-AgentRaaS-Run-Id'] = String(this.runId);
     return headers;
   }
 

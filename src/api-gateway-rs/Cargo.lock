@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "agentraas-core"
-version = "0.15.0"
+version = "0.15.1"
 dependencies = [
  "aes-gcm",
  "base64 0.21.7",
@@ -96,7 +96,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "api"
-version = "0.15.0"
+version = "0.15.1"
 dependencies = [
  "agentraas-core",
  "anyhow",

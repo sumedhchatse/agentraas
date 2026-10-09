@@ -82,7 +82,8 @@ class Client:
     """A reusable AgentRaaS client. One Client per agent identity — create
     it once and reuse it for every call, rather than per-request."""
 
-    def __init__(self, agentraas_key, org_id=None, agent_id=None, base_url=None, timeout=30):
+    def __init__(self, agentraas_key, org_id=None, agent_id=None, base_url=None, timeout=30,
+                 record=None, replay=None, run_id=None):
         """
         Args:
             agentraas_key: Your AgentRaaS agent API key (ar_live_... — from
@@ -94,6 +95,11 @@ class Client:
                 "http://localhost:13000" for a local self-hosted instance
                 (the default). Cloud users: use your AgentRaaS Cloud URL.
             timeout: Per-request timeout in seconds (default 30).
+            record: Optional recording name. Successful calls are kept under
+                it for 30 days so a later run can replay them.
+            replay: Optional recording name. Calls are answered from that
+                recording in order and never reach the provider.
+            run_id: Optional. A new run id starts a replay from the top.
         """
         if not agentraas_key:
             raise ValueError("agentraas_key is required")
@@ -102,6 +108,9 @@ class Client:
         self.agent_id = agent_id
         self.base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
         self.timeout = timeout
+        self.record = record
+        self.replay = replay
+        self.run_id = run_id
         self._session = requests.Session()
 
     def _headers(self):
@@ -113,6 +122,12 @@ class Client:
             headers["X-AgentRaaS-Org"] = self.org_id
         if self.agent_id:
             headers["X-AgentRaaS-Agent"] = self.agent_id
+        if self.record:
+            headers["X-AgentRaaS-Record"] = self.record
+        if self.replay:
+            headers["X-AgentRaaS-Replay"] = self.replay
+        if self.run_id:
+            headers["X-AgentRaaS-Run-Id"] = str(self.run_id)
         return headers
 
     def call(self, service, action, payload=None, idempotency_key=None):
