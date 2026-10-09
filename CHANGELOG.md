@@ -19,6 +19,10 @@ safe to re-run.
 - Dashboard: **Monitor → Recordings** lists recordings, shows each call's
   payload and response, and deletes a recording.
 
+### Fixed
+- The homepage's PyPI version badge was blocked by the CSP since 0.12.0;
+  `connect-src` now allows `https://pypi.org`.
+
 ## [0.15.1] - 2026-10-09
 
 No migration.

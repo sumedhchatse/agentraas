@@ -256,7 +256,7 @@ async fn main() -> anyhow::Result<()> {
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.paddle.com; \
         font-src 'self' data: https://fonts.gstatic.com; \
         img-src 'self' data: https:; \
-        connect-src 'self' https://*.paddle.com https://www.googletagmanager.com https://*.google-analytics.com https://cloudflareinsights.com; \
+        connect-src 'self' https://pypi.org https://*.paddle.com https://www.googletagmanager.com https://*.google-analytics.com https://cloudflareinsights.com; \
         frame-src https://*.paddle.com https://www.googletagmanager.com; \
         frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
     let app = app
