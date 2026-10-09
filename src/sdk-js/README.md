@@ -137,6 +137,23 @@ await client.call("stripe", "charge.create", { amount: 5000, currency: "usd" },
 A new key makes it a new action, for example to resend after a 504
 "outcome unknown" once you're sure the first attempt didn't run.
 
+## Record and replay
+
+Run an agent once against the real providers, then replay it (in a test, in
+CI, after a prompt change) without calling them again:
+
+```typescript
+const recorder = new Client({ agentraasKey, orgId, agentId, record: "refund-flow" });
+// ... run the agent with recorder ...
+
+const replayer = new Client({ agentraasKey, orgId, agentId, replay: "refund-flow", runId: "ci-42" });
+// each call is answered from the recording, in order; nothing reaches the provider
+```
+
+Each replayed answer carries `replay: { recording, position, payload_matches }`;
+a call the recording doesn't have throws a 404 `AgentRaaSError`. A new
+`runId` starts from the top. Details: [agentraas.io/docs#record-replay](https://agentraas.io/docs#record-replay).
+
 ## Error handling
 
 ```typescript

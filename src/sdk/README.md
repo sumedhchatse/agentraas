@@ -295,6 +295,23 @@ did not run, resend it as a new action with your own key:
 client.call("stripe", "charge.create", payload, idempotency_key="order-1042-retry-1")
 ```
 
+## Record and replay
+
+Run an agent once against the real providers, then replay it (in a test, in
+CI, after a prompt change) without calling them again:
+
+```python
+recorder = Client(agentraas_key, org_id, agent_id, record="refund-flow")
+# ... run the agent with recorder ...
+
+replayer = Client(agentraas_key, org_id, agent_id, replay="refund-flow", run_id="ci-42")
+# each call is answered from the recording, in order; nothing reaches the provider
+```
+
+Each replayed answer carries `replay: {recording, position, payload_matches}`;
+a call the recording doesn't have raises a 404. A new `run_id` starts from
+the top. Details: [agentraas.io/docs#record-replay](https://agentraas.io/docs#record-replay).
+
 ## Error handling
 
 ```python

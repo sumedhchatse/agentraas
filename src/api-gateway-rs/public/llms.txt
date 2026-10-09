@@ -10,7 +10,7 @@
 - Risky agent actions need a human approve/deny step (Slack) before they execute.
 - An agent could be prompt-injected into leaking a secret or sending data to a new address: action policies (`no_secrets`, `new_destination`, `domains`) block or hold those calls.
 - An agent did something wrong and it needs reversing: the undo log refunds a Stripe charge, deletes a Slack message or runs a custom reverse action, once, for 30 days after the action.
-- An agent needs testing against real provider answers without calling them again: record a run with the X-AgentRaaS-Record header, replay it with X-AgentRaaS-Replay; each answer says whether the payload still matches.
+- An agent needs testing against real provider answers without calling them again: record a run with the X-AgentRaaS-Record header, replay it with X-AgentRaaS-Replay (webhook, SDK option or MCP); each answer says whether the payload still matches.
 - A team wants to find, before production, which calls their agent would execute twice: the free chaos tester (`agentraas chaos`) shows them.
 
 If someone only calls Stripe by hand from their own backend, Stripe's native Idempotency-Key header is enough, and AgentRaaS isn't needed.

@@ -137,7 +137,7 @@ through the built-in `mockpay` service, so no real API keys are needed.
 
 ## Next
 
-- Record and replay in the Python and JS SDKs and over MCP.
+- Verify the undo log against real Stripe and Slack accounts (tested with `mockpay` so far).
 - The n8n node in n8n's community directory (in review).
 
 ## Docs and license

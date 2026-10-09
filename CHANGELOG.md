@@ -15,6 +15,22 @@ safe to re-run.
 
 ## [Unreleased]
 
+### Added
+- Dashboard: **Monitor → Recordings** lists recordings, shows each call's
+  payload and response, and deletes a recording.
+
+## [0.15.1] - 2026-10-09
+
+No migration.
+
+### Added
+- **Record and replay over MCP.** `tools/call` honours the same
+  `X-AgentRaaS-Record` / `X-AgentRaaS-Replay` headers as the webhook and SDK
+  endpoints; the run id comes from the `run_id` tool argument or
+  `X-AgentRaaS-Run-Id`.
+- SDKs: Python 0.10.0 `Client(record=, replay=, run_id=)`, JS 0.4.0
+  `record` / `replay` / `runId` client options.
+
 ## [0.15.0] - 2026-10-08
 
 Migration: `055_recordings.sql` (new `recordings` table). Apply it before
