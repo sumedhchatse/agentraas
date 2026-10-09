@@ -1675,6 +1675,67 @@
     } catch (err) {}
   }
 
+  // ─── Recordings (record and replay) ───
+  const recordingsModalOverlay = document.getElementById('recordings-modal-overlay');
+  const recordingsError = document.getElementById('recordings-error');
+  const recordingCalls = document.getElementById('recording-calls');
+  const closeRecordings = () => { recordingsModalOverlay.style.display = 'none'; anyModalOpen = false; };
+  const showRecordingsError = (msg) => { recordingsError.textContent = msg; recordingsError.style.display = 'block'; };
+  document.getElementById('recordings-btn').addEventListener('click', () => {
+    recordingsError.style.display = 'none';
+    recordingCalls.innerHTML = '';
+    recordingsModalOverlay.style.display = 'flex'; anyModalOpen = true;
+    loadRecordings();
+  });
+  document.getElementById('recordings-modal-close').addEventListener('click', closeRecordings);
+  recordingsModalOverlay.addEventListener('click', (e) => { if (e.target === recordingsModalOverlay) closeRecordings(); });
+
+  const recordingUrl = (name) => `/api/v1/recordings/${encodeURIComponent(name)}?org_id=${encodeURIComponent(currentUserOrgId)}`;
+  async function loadRecordings() {
+    const list = document.getElementById('recordings-list');
+    try {
+      const res = await fetch(`/api/v1/recordings?org_id=${encodeURIComponent(currentUserOrgId)}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const { recordings } = await res.json();
+      if (!recordings.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No recordings yet. Send calls with an X-AgentRaaS-Record header and they show up here.</div>'; return; }
+      list.innerHTML = '';
+      for (const r of recordings) {
+        const div = document.createElement('div');
+        div.className = 'cred-row';
+        div.innerHTML = `<div class="info"><div class="svc">${escapeHtml(r.name)}</div><div class="meta">${escapeHtml(String(r.calls))} call${r.calls === 1 ? '' : 's'} · ${escapeHtml(new Date(r.first_at).toLocaleString())} to ${escapeHtml(new Date(r.last_at).toLocaleString())}</div></div><div style="display:flex;gap:6px;"><button class="btn rec-view" style="padding:6px 12px;font-size:12px;">View</button><button class="btn rec-del" style="padding:6px 12px;font-size:12px;">Delete</button></div>`;
+        div.querySelector('.rec-view').addEventListener('click', () => showRecording(r.name));
+        const del = div.querySelector('.rec-del');
+        // Two clicks: Delete, then Confirm delete (no browser dialog).
+        del.addEventListener('click', async () => {
+          if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Confirm delete'; return; }
+          recordingsError.style.display = 'none';
+          const restoreText = withLoadingText(del, 'Deleting…');
+          try {
+            const res = await fetch(recordingUrl(r.name), { method: 'DELETE', credentials: 'include' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) showRecordingsError(data.error || 'Delete failed.');
+            else recordingCalls.innerHTML = '';
+          } catch (err) { showRecordingsError('Could not reach the server.'); }
+          finally { restoreText(); loadRecordings(); }
+        });
+        list.appendChild(div);
+      }
+    } catch (err) {}
+  }
+
+  async function showRecording(name) {
+    recordingsError.style.display = 'none';
+    try {
+      const res = await fetch(recordingUrl(name), { credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showRecordingsError(data.error || 'Could not load the recording.'); return; }
+      const pre = (v) => `<pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;margin:4px 0;max-height:160px;overflow:auto;">${escapeHtml(JSON.stringify(v, null, 2))}</pre>`;
+      recordingCalls.innerHTML = `<h4 style="margin:16px 0 8px;">${escapeHtml(name)}</h4>` + data.calls.map((c, i) =>
+        `<div class="cred-row" style="display:block;"><div class="svc">#${i + 1} ${escapeHtml(c.service)}.${escapeHtml(c.action)} by ${escapeHtml(c.agent_id)}</div><div class="meta">${escapeHtml(new Date(c.created_at).toLocaleString())} · ${escapeHtml(c.req_id)}</div><div class="meta">Payload</div>${pre(c.payload)}<div class="meta">Response</div>${pre(c.response)}</div>`
+      ).join('');
+    } catch (err) { showRecordingsError('Could not reach the server.'); }
+  }
+
   // ─── Reliability report (uptime %, success rate, duplicates prevented) ───
   const reliabilityModalOverlay = document.getElementById('reliability-modal-overlay');
   document.getElementById('reliability-btn').addEventListener('click', () => {

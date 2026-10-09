@@ -563,6 +563,7 @@
           <button class="btn" id="notification-webhooks-btn">Outage alerts</button>
           <button class="btn" id="dlq-btn">Failed requests</button>
           <button class="btn" id="undo-btn">Undo actions</button>
+          <button class="btn" id="recordings-btn">Recordings</button>
           <button class="btn" id="health-checks-btn">Active monitoring</button>
           <button class="btn" id="reliability-btn">Reliability report</button>
           <button class="btn" id="tunnel-btn">Dev tunnel</button>
@@ -1024,6 +1025,18 @@
     <div class="modal-error" id="dlq-error"></div>
     <div id="dlq-list"></div>
     <button class="close-btn" id="dlq-modal-close">Close</button>
+  </div>
+</div>
+
+<!-- Record and replay: recordings and the calls in each -->
+<div class="modal-overlay" id="recordings-modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Recordings">
+    <h3>Recordings</h3>
+    <p class="sub">Calls your agents made with <code>X-AgentRaaS-Record: &lt;name&gt;</code>, kept for 30 days. Replay one with <code>X-AgentRaaS-Replay: &lt;name&gt;</code>: each call is answered from the recording and nothing reaches the provider. See <a href="/docs#record-replay" target="_blank" rel="noopener">Record and replay</a>.</p>
+    <div class="modal-error" id="recordings-error"></div>
+    <div id="recordings-list"></div>
+    <div id="recording-calls"></div>
+    <button class="close-btn" id="recordings-modal-close">Close</button>
   </div>
 </div>
 
