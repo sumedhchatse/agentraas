@@ -101,8 +101,11 @@ audit_line=$(psql -c "SELECT COUNT(*), COUNT(*) FILTER (WHERE status='success'),
 IFS='|' read -r a_total a_success a_dedup a_blocked a_error <<< "${audit_line}"
 report+=("Actions: ${a_total:-0} total — ${a_success:-0} success, ${a_dedup:-0} deduplicated, ${a_blocked:-0} blocked, ${a_error:-0} errors")
 
-dlq_open=$(psql -c "SELECT COUNT(*) FROM dead_letter_queue WHERE replayed_at IS NULL AND dismissed_at IS NULL;" 2>/dev/null || echo "0")
-report+=("Dead-letter queue backlog (unreplayed, undismissed): ${dlq_open:-0}")
+# Only real orgs count: one with a non-demo user on a non-test email domain.
+# The demo account's outage seed and the test suites fill the DLQ otherwise.
+dlq_line=$(psql -c "SELECT COUNT(*) FILTER (WHERE real_org), COUNT(*) FILTER (WHERE NOT real_org) FROM (SELECT EXISTS (SELECT 1 FROM users u WHERE u.org_id = d.org_id AND NOT u.is_demo AND u.email NOT LIKE '%@internal.test' AND u.email NOT LIKE '%@agentraas.local') AS real_org FROM dead_letter_queue d WHERE replayed_at IS NULL AND dismissed_at IS NULL) q;" 2>/dev/null || echo "0|0")
+IFS='|' read -r dlq_open dlq_test <<< "${dlq_line}"
+report+=("Dead-letter queue backlog (unreplayed, undismissed): ${dlq_open:-0} (plus ${dlq_test:-0} from demo/test orgs, not counted)")
 if [ -n "${dlq_open:-}" ] && [ "${dlq_open}" -gt 20 ]; then
   issues+=("Dead-letter queue backlog is ${dlq_open} — real upstream failures piling up unreviewed")
 fi
